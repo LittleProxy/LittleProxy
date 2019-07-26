@@ -12,6 +12,8 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,6 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ServerGroup {
     private static final Logger log = LoggerFactory.getLogger(ServerGroup.class);
 
+    private final ExecutorService messageProcessingExecutor = Executors.newCachedThreadPool();
+    
     /**
      * The default number of threads to accept incoming requests from clients. (Requests are serviced by worker threads,
      * not acceptor threads.)
@@ -112,6 +116,27 @@ public class ServerGroup {
         this.outgoingWorkerThreads = outgoingWorkerThreads;
     }
 
+    public ExecutorService getMessageProcessingExecutor() {
+        return messageProcessingExecutor;
+    }
+    
+    private void shutdownAndAwaitTermination(ExecutorService pool) {
+        pool.shutdown(); // Disable new tasks from being submitted
+        try {
+            // Wait a while for existing tasks to terminate
+            if (!pool.awaitTermination(60, TimeUnit.SECONDS)) {
+                pool.shutdownNow(); // Cancel currently executing tasks
+                // Wait a while for tasks to respond to being cancelled
+                if (!pool.awaitTermination(60, TimeUnit.SECONDS))
+                    log.warn("Pool did not terminate");
+            }
+        } catch (InterruptedException ie) {
+            // (Re-)Cancel if current thread also interrupted
+            pool.shutdownNow();
+            // Preserve interrupt status
+            Thread.currentThread().interrupt();
+        }
+    }
     /**
      * Lock for initializing any transport protocols.
      */
@@ -226,7 +251,7 @@ public class ServerGroup {
                 group.shutdownGracefully(0, 0, TimeUnit.SECONDS);
             }
         }
-
+        shutdownAndAwaitTermination(messageProcessingExecutor);
         if (graceful) {
             for (EventLoopGroup group : allEventLoopGroups) {
                 try {

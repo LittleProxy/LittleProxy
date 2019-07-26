@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -134,6 +135,10 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         return new DefaultHttpProxyServerBootstrap();
     }
 
+    protected ExecutorService getMessageProcessingExecutor() {
+        return serverGroup.getMessageProcessingExecutor();
+    }
+    
     /**
      * Bootstrap a new {@link DefaultHttpProxyServer} using defaults from the
      * given file.
