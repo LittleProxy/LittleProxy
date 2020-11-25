@@ -14,6 +14,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.ReferenceCounted;
 import org.apache.commons.lang3.StringUtils;
 import org.littleshoot.proxy.*;
+import org.littleshoot.proxy.extras.PreservedInformation;
 
 import javax.net.ssl.SSLSession;
 import java.io.IOException;
@@ -117,6 +118,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
      */
     private volatile HttpRequest currentRequest;
 
+    /**
+     * Information Map that is preserved during the connection, and can be reached/manipulated via filters.
+     */
+    private volatile PreservedInformation preservedInformation;
+
     private final ClientDetails clientDetails = new ClientDetails();
 
     ClientToProxyConnection(
@@ -126,6 +132,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             ChannelPipeline pipeline,
             GlobalTrafficShapingHandler globalTrafficShapingHandler) {
         super(AWAITING_INITIAL, proxyServer, false);
+
+        preservedInformation = null;
 
         initChannelPipeline(pipeline);
 
@@ -212,8 +220,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             currentFilters = HttpFiltersAdapter.NOOP_FILTER;
         }
 
+        preservedInformation = new PreservedInformation();
+
         // Send the request through the clientToProxyRequest filter, and respond with the short-circuit response if required
-        HttpResponse clientToProxyFilterResponse = currentFilters.clientToProxyRequest(httpRequest);
+        HttpResponse clientToProxyFilterResponse = currentFilters.clientToProxyRequest(httpRequest, preservedInformation);
 
         if (clientToProxyFilterResponse != null) {
             LOG.debug("Responding to client with short-circuit response from filter: {}", clientToProxyFilterResponse);
@@ -408,7 +418,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
          }
         this.currentRequest = null;
 
-        httpObject = filters.serverToProxyResponse(httpObject);
+        httpObject = filters.serverToProxyResponse(httpObject, preservedInformation);
         if (httpObject == null) {
             forceDisconnect(serverConnection);
             return;

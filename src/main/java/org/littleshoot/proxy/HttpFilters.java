@@ -2,6 +2,7 @@ package org.littleshoot.proxy;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.*;
+import org.littleshoot.proxy.extras.PreservedInformation;
 import org.littleshoot.proxy.impl.ProxyUtils;
 
 import java.net.InetSocketAddress;
@@ -80,11 +81,25 @@ public interface HttpFilters {
      * Content-Length, or by adding a "Connection: close" header to the response (which will instruct LittleProxy to close
      * the connection). If the short-circuit response contains body content, it is recommended that you return a
      * FullHttpResponse.
-     * 
+     *
      * @param httpObject Client to Proxy HttpRequest (and HttpContent, if chunked)
      * @return a short-circuit response, or null to continue processing as usual
      */
     HttpResponse clientToProxyRequest(HttpObject httpObject);
+
+    /**
+     * Enhanced filter to offer possibility to transfer data between filters, even between request/response filters.
+     * Otherwise acts as described above.
+     *
+     * @param httpObject Client to Proxy HttpRequest (and HttpContent, if chunked)
+     * @param preservedInformation is a map of key-object pairs that need to be preserved between the request and the response
+     *                             Usually a single dedicated filter will use it on request filter side,
+     *                             and on response filter side one filter can use the preserved information
+     * @return a short-circuit response, or null to continue processing as usual
+     */
+    default HttpResponse clientToProxyRequest(HttpObject httpObject, PreservedInformation preservedInformation) {
+        return clientToProxyRequest(httpObject);
+    }
 
     /**
      * Filters requests on their way from the proxy to the server. To interrupt processing of this request and return a
@@ -115,13 +130,29 @@ public interface HttpFilters {
 
     /**
      * Filters responses on their way from the server to the proxy.
-     * 
+     *
      * @param httpObject
      *            Server to Proxy HttpResponse (and HttpContent, if chunked)
      * @return the modified (or unmodified) HttpObject. Returning null will
      *         force a disconnect.
      */
     HttpObject serverToProxyResponse(HttpObject httpObject);
+
+    /**
+     * Enhanced filter to offer possibility to transfer data between filters, even between request/response filters.
+     * Otherwise acts as described above.
+     *
+     * @param httpObject
+     *            Server to Proxy HttpResponse (and HttpContent, if chunked)
+     * @param preservedInformation is a map of key-object pairs that need to be preserved between the request and the response
+     *                             Usually a single dedicated filter will use it on request filter side,
+     *                             and on response filter side one filter can use the preserved information
+     * @return the modified (or unmodified) HttpObject. Returning null will
+     *         force a disconnect.
+     */
+    default HttpObject serverToProxyResponse(HttpObject httpObject, PreservedInformation preservedInformation) {
+        return serverToProxyResponse(httpObject);
+    }
 
     /**
      * Informs filter that a timeout occurred before the server response was received by the client. The timeout may have

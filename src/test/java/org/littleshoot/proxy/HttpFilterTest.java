@@ -4,8 +4,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.*;
 import org.eclipse.jetty.server.Server;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.littleshoot.proxy.extras.PreservedInformation;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.HttpClientUtil;
@@ -396,6 +398,123 @@ public class HttpFilterTest {
         // proxyToServerConnectionSucceeded() filter method
         assertEquals("Server's remoteAddress should connect to localhost", "localhost", remoteAddress.getHostName());
         assertEquals("Server's port should match the web server port", webServerPort, remoteAddress.getPort());
+
+        webServer.stop();
+    }
+
+    @Test
+    public void testFilteringWithPreservedInformation() throws Exception {
+        final Queue<HttpRequest> associatedRequests = new LinkedList<>();
+        final AtomicReference<ChannelHandlerContext> serverCtxReference = new AtomicReference<>();
+
+
+        final String url1 = "http://localhost:" + webServerPort + "/";
+
+        final HttpFiltersSource filtersSource = new HttpFiltersSourceAdapter() {
+            public HttpFilters filterRequest(HttpRequest originalRequest) {
+                associatedRequests.add(originalRequest);
+
+                return new HttpFiltersAdapter(originalRequest) {
+                    @Override
+                    public HttpResponse clientToProxyRequest(
+                            HttpObject httpObject, PreservedInformation informationPreserved) {
+                        Assert.assertNotNull(informationPreserved);
+                        if (!informationPreserved.informationMap.containsKey("A")) {
+                            informationPreserved.informationMap.put("A","A");
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public HttpResponse proxyToServerRequest(
+                            HttpObject httpObject) {
+                        return null;
+                    }
+
+                    @Override
+                    public void proxyToServerRequestSending() {
+                    }
+
+                    @Override
+                    public void proxyToServerRequestSent() {
+                    }
+
+                    public HttpObject serverToProxyResponse(
+                            HttpObject httpObject, PreservedInformation preservedInformation) {
+                        Assert.assertNotNull(preservedInformation);
+                        Assert.assertTrue(preservedInformation.informationMap.containsKey("A"));
+                        return httpObject;
+                    }
+
+                    @Override
+                    public void serverToProxyResponseTimedOut() {
+                    }
+
+                    @Override
+                    public void serverToProxyResponseReceiving() {
+                    }
+
+                    @Override
+                    public void serverToProxyResponseReceived() {
+                    }
+
+                    public HttpObject proxyToClientResponse(
+                            HttpObject httpObject) {
+                        return httpObject;
+                    }
+
+                    @Override
+                    public void proxyToServerConnectionQueued() {
+                    }
+
+                    @Override
+                    public InetSocketAddress proxyToServerResolutionStarted(
+                            String resolvingServerHostAndPort) {
+                        return super.proxyToServerResolutionStarted(resolvingServerHostAndPort);
+                    }
+
+                    @Override
+                    public void proxyToServerResolutionFailed(String hostAndPort) {
+                    }
+
+                    @Override
+                    public void proxyToServerResolutionSucceeded(
+                            String serverHostAndPort,
+                            InetSocketAddress resolvedRemoteAddress) {
+                    }
+
+                    @Override
+                    public void proxyToServerConnectionStarted() {
+                    }
+
+                    @Override
+                    public void proxyToServerConnectionSSLHandshakeStarted() {
+                    }
+
+                    @Override
+                    public void proxyToServerConnectionFailed() {
+                    }
+
+                    @Override
+                    public void proxyToServerConnectionSucceeded(ChannelHandlerContext ctx) {
+                        serverCtxReference.set(ctx);
+                    }
+
+                };
+            }
+
+            public int getMaximumRequestBufferSizeInBytes() {
+                return 1024 * 1024;
+            }
+
+            public int getMaximumResponseBufferSizeInBytes() {
+                return 1024 * 1024;
+            }
+        };
+
+        setUpHttpProxyServer(filtersSource);
+
+        org.apache.http.HttpResponse response1 = HttpClientUtil.performHttpGet(url1, proxyServer);
 
         webServer.stop();
     }
