@@ -32,7 +32,7 @@ jobs:
       - name: Run smoke tests
         run: mvn --batch-mode package -Psmoke-test
       - name: Run slow tests
-        if: success() && github.ref == 'refs/heads/infra/run-all-tests-in-master-branch'
+        if: success()
         run: mvn --batch-mode package -Pslow-tests
       - name: Generate Maven test report
         if: failure()
