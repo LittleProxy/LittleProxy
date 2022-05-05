@@ -132,7 +132,7 @@ public final class WebSocketClientServerTest {
                 client.open(uri, CONNECT_TIMEOUT, proxyAddress);
                 connected = true;
             } catch (TimeoutException e) {
-                logger.warn("Connection attempt {} of {} : {}", connectionAttempt, MAX_CONNECTION_ATTEMPTS, e.getMessage());
+                logger.warn("Connection attempt {} of {} : {}", connectionAttempt, MAX_CONNECTION_ATTEMPTS, e.getMessage(), e);
                 Thread.sleep(CONNECT_TIMEOUT.toMillis() / 2);
             }
         }
