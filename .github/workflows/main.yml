@@ -29,14 +29,11 @@ jobs:
         run: mvn --batch-mode compile
       - name: Branch name [env]
         run: echo running on branch ${GITHUB_REF##*/}
-      - name: Branch name [var]
-        run: echo running on branch ${github.ref}
       - name: Run smoke tests
-        if: github.ref != 'refs/heads/infra/run-all-tests-in-master-branch'
         run: mvn --batch-mode package -Psmoke-test
-      - name: Run all tests
-        if: github.ref == 'refs/heads/infra/run-all-tests-in-master-branch'
-        run: mvn --batch-mode package -Psmoke-test
+      - name: Run slow tests
+        if: success() && github.ref == 'refs/heads/infra/run-all-tests-in-master-branch'
+        run: mvn --batch-mode package -Pslow-tests
       - name: Generate Maven test report
         if: failure()
         run: mvn --batch-mode surefire-report:report-only
