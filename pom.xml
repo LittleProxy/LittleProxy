@@ -75,6 +75,9 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                           <groups>slow-test</groups>
+                          <excludes>
+                            <exclude>**/WebSocketClientServerTest*</exclude>
+                          </excludes>
                         </configuration>
                     </plugin>
                 </plugins>
