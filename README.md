@@ -9,7 +9,7 @@ stable, performs well, and is easy to integrate into your projects.
 One option is to clone LittleProxy and run it from the command line. This is as simple as:
 
 ```
-$ git clone git@github.com:LittleProxy/LittleProxy.git
+$ git clone https@github.com:LittleProxy/LittleProxy.git
 $ cd LittleProxy
 $ ./run.bash
 ```
