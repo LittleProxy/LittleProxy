@@ -10,21 +10,16 @@ import java.net.UnknownHostException;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Base class for tests that test a proxy chained to an upstream proxy. In
  * addition to the usual assertions, this also asserts that every request sent
  * by the downstream proxy was received by the upstream proxy.
  */
-public abstract class BaseChainedProxyTest extends BaseProxyTest {
-    protected final AtomicLong REQUESTS_SENT_BY_DOWNSTREAM = new AtomicLong(
-            0L);
-    protected final AtomicLong REQUESTS_RECEIVED_BY_UPSTREAM = new AtomicLong(
-            0L);
+abstract class BaseChainedProxyTest extends BaseProxyTest {
+    protected final AtomicLong REQUESTS_SENT_BY_DOWNSTREAM = new AtomicLong(0L);
+    protected final AtomicLong REQUESTS_RECEIVED_BY_UPSTREAM = new AtomicLong(0L);
     protected final ConcurrentSkipListSet<TransportProtocol> TRANSPORTS_USED = new ConcurrentSkipListSet<>();
 
     protected final ActivityTracker DOWNSTREAM_TRACKER = new ActivityTrackerAdapter() {
@@ -83,7 +78,7 @@ public abstract class BaseChainedProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testSimplePostRequest() throws Exception {
+    public void testSimplePostRequest() {
         super.testSimplePostRequest();
         if (isChained() && !expectBadGatewayForEverything()) {
             assertThatUpstreamProxyReceivedSentRequests();
@@ -91,7 +86,7 @@ public abstract class BaseChainedProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testSimpleGetRequest() throws Exception {
+    public void testSimpleGetRequest() {
         super.testSimpleGetRequest();
         if (isChained() && !expectBadGatewayForEverything()) {
             assertThatUpstreamProxyReceivedSentRequests();
@@ -99,7 +94,7 @@ public abstract class BaseChainedProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testProxyWithBadAddress() throws Exception {
+    public void testProxyWithBadAddress() {
         super.testProxyWithBadAddress();
         if (isChained() && !expectBadGatewayForEverything()) {
             assertThatUpstreamProxyReceivedSentRequests();
@@ -112,15 +107,15 @@ public abstract class BaseChainedProxyTest extends BaseProxyTest {
     }
 
     private void assertThatUpstreamProxyReceivedSentRequests() {
-        assertEquals(
-                "Upstream proxy should have seen every request sent by downstream proxy",
-                REQUESTS_SENT_BY_DOWNSTREAM.get(),
-                REQUESTS_RECEIVED_BY_UPSTREAM.get());
-        assertEquals(
-                "1 and only 1 transport protocol should have been used to upstream proxy",
-                1, TRANSPORTS_USED.size());
-        assertThat("Correct transport should have been used",
-                newChainedProxy().getTransportProtocol(), is(in(TRANSPORTS_USED)));
+        assertThat(REQUESTS_SENT_BY_DOWNSTREAM.get())
+          .as("Upstream proxy should have seen every request sent by downstream proxy")
+          .isEqualTo(REQUESTS_RECEIVED_BY_UPSTREAM.get());
+        assertThat(TRANSPORTS_USED)
+          .as("1 and only 1 transport protocol should have been used to upstream proxy")
+          .hasSize(1);
+        assertThat(TRANSPORTS_USED)
+          .as("Correct transport should have been used")
+          .contains(newChainedProxy().getTransportProtocol());
     }
 
     protected class BaseChainedProxy extends ChainedProxyAdapter {

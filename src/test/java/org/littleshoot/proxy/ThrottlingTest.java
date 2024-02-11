@@ -3,31 +3,23 @@ package org.littleshoot.proxy;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.HttpClientUtils;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.server.Server;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.runners.MethodSorters;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertEquals;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.apache.http.client.utils.HttpClientUtils.closeQuietly;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@Category(SlowTest.class)
-@FixMethodOrder(MethodSorters.JVM)
-public class ThrottlingTest {
+@Tag("slow-test")
+public final class ThrottlingTest {
     private static final int LARGE_DATA_SIZE = 200000;
     private static final long THROTTLED_READ_BYTES_PER_SECOND = 25000L;
     private static final long THROTTLED_WRITE_BYTES_PER_SECOND = 25000L;
@@ -47,13 +39,13 @@ public class ThrottlingTest {
     private int msToReadThrottled;
 
     // time to allow for an unthrottled local request
-    private static final int UNTHROTTLED_REQUEST_TIME_MS = 1500;
+    private static final long UNTHROTTLED_REQUEST_TIME_MS = 1500;
 
     private int writeWebServerPort;
     private int readWebServerPort;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         // Set up some large data
         largeData = new byte[LARGE_DATA_SIZE];
         Arrays.fill(largeData, (byte) (1 % 256));
@@ -68,8 +60,8 @@ public class ThrottlingTest {
         readWebServerPort = TestUtils.findLocalHttpPort(readWebServer);
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         try {
             if (proxyServer != null) {
                 proxyServer.abort();
@@ -119,20 +111,18 @@ public class ThrottlingTest {
 
         final HttpPost request = createHttpPost();
 
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try (CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
 
             long start = System.currentTimeMillis();
-            final org.apache.http.HttpResponse response = httpClient.execute(
-                    new HttpHost("127.0.0.1",
-                            writeWebServerPort), request);
+            org.apache.http.HttpResponse response = httpClient.execute(new HttpHost("127.0.0.1", writeWebServerPort), request);
             long finish = System.currentTimeMillis();
 
-            assertEquals("Received " + largeData.length + " bytes\n",
-                    EntityUtils.toString(response.getEntity()));
+            assertThat(EntityUtils.toString(response.getEntity())).isEqualTo("Received " + largeData.length + " bytes\n");
 
-            assertThat("Expected throttled write to complete in approximately " + msToWriteThrottled + "ms" + " but took " + (finish - start) + "ms",
-                    (double)(finish - start), both(greaterThan(msToWriteThrottled * (1 - ALLOWABLE_VARIATION))).and(
-                            lessThan(msToWriteThrottled * (1 + ALLOWABLE_VARIATION))));
+            assertThat((double) (finish - start))
+              .as("Expected throttled write to complete in approximately %s ms but took %s ms", msToWriteThrottled, finish - start)
+              .isGreaterThan(msToWriteThrottled * (1 - ALLOWABLE_VARIATION))
+              .isLessThan(msToWriteThrottled * (1 + ALLOWABLE_VARIATION));
         }
     }
 
@@ -154,11 +144,11 @@ public class ThrottlingTest {
                             writeWebServerPort), request);
             long finish = System.currentTimeMillis();
 
-            assertEquals("Received " + largeData.length + " bytes\n",
-                    EntityUtils.toString(response.getEntity()));
+            assertThat(EntityUtils.toString(response.getEntity())).isEqualTo("Received " + largeData.length + " bytes\n");
 
-            assertThat("Unthrottled write took " + (finish - start) + "ms, but expected to complete in " + UNTHROTTLED_REQUEST_TIME_MS + "ms",
-                    finish - start, lessThan((long) UNTHROTTLED_REQUEST_TIME_MS));
+            assertThat(finish - start)
+              .as("Unthrottled write took %s ms, but expected to complete in %s ms", finish - start, UNTHROTTLED_REQUEST_TIME_MS)
+              .isLessThan(UNTHROTTLED_REQUEST_TIME_MS);
         }
     }
 
@@ -189,12 +179,14 @@ public class ThrottlingTest {
 
             long finish = System.currentTimeMillis();
 
-            assertThat("Expected to read " + LARGE_DATA_SIZE + " bytes but actually read " + bytesRead + "bytes",
-                    bytesRead, equalTo(LARGE_DATA_SIZE));
+            assertThat(bytesRead)
+              .as("Expected to read %s bytes but actually read %s bytes", LARGE_DATA_SIZE, bytesRead)
+              .isEqualTo(LARGE_DATA_SIZE);
 
-            assertThat("Expected throttled read to complete in approximately " + msToReadThrottled + "ms" + " but took " + (finish - start) + "ms",
-                    (double)(finish - start), both(greaterThan(msToReadThrottled * (1 - ALLOWABLE_VARIATION)))
-                            .and(lessThan(msToReadThrottled * (1 + ALLOWABLE_VARIATION))));
+            assertThat((double) (finish - start))
+              .as("Expected throttled read to complete in approximately %s ms but took %s ms", msToReadThrottled, finish - start)
+              .isGreaterThan(msToReadThrottled * (1 - ALLOWABLE_VARIATION))
+              .isLessThan(msToReadThrottled * (1 + ALLOWABLE_VARIATION));
         }
     }
 
@@ -224,11 +216,13 @@ public class ThrottlingTest {
 
             long finish = System.currentTimeMillis();
 
-            assertThat("Expected to read " + LARGE_DATA_SIZE + " bytes but actually read " + bytesRead + "bytes",
-                    bytesRead, equalTo(LARGE_DATA_SIZE));
+            assertThat(bytesRead)
+              .as("Expected to read %s bytes but actually read %s bytes", LARGE_DATA_SIZE, bytesRead)
+              .isEqualTo(LARGE_DATA_SIZE);
 
-            assertThat("Unthrottled read took " + (finish - start) + "ms, but expected to complete in " + UNTHROTTLED_REQUEST_TIME_MS + "ms",
-                    finish - start, lessThan((long)UNTHROTTLED_REQUEST_TIME_MS));
+            assertThat(finish - start)
+              .as("Unthrottled read took %s ms, but expected to complete in %s ms", finish - start, UNTHROTTLED_REQUEST_TIME_MS)
+              .isLessThan(UNTHROTTLED_REQUEST_TIME_MS);
         }
     }
 
@@ -259,10 +253,11 @@ public class ThrottlingTest {
 
             long firstFinish = System.currentTimeMillis();
 
-            assertThat("Expected to read " + LARGE_DATA_SIZE + " bytes but actually read " + bytesRead + "bytes",
-                    bytesRead, equalTo(LARGE_DATA_SIZE));
+            assertThat(bytesRead)
+              .as("Expected to read %s bytes but actually read %s bytes", LARGE_DATA_SIZE, bytesRead)
+              .isEqualTo(LARGE_DATA_SIZE);
 
-            HttpClientUtils.closeQuietly(response);
+            closeQuietly(response);
 
             proxyServer.setThrottle(THROTTLED_READ_BYTES_PER_SECOND * 2, 0);
             Thread.sleep(1000); // necessary for the traffic shaping to reset
@@ -281,14 +276,17 @@ public class ThrottlingTest {
 
             long secondFinish = System.currentTimeMillis();
 
-            assertThat("Expected to read " + LARGE_DATA_SIZE + " bytes but actually read " + bytesRead + "bytes",
-                    bytesRead, equalTo(LARGE_DATA_SIZE));
+            assertThat(bytesRead)
+              .as("Expected to read %s bytes but actually read %s bytes", LARGE_DATA_SIZE, bytesRead)
+              .isEqualTo(LARGE_DATA_SIZE);
 
-            HttpClientUtils.closeQuietly(response);
+            closeQuietly(response);
 
-            assertThat("Expected second read to take approximately half as long as first throttled read. First read took " + (firstFinish - firstStart) + "ms" + " but second read took " + (secondFinish - secondStart) + "ms",
-                    (double)(firstFinish - firstStart) / 2, both(greaterThan((secondFinish - secondStart) * (1 - ALLOWABLE_VARIATION)))
-                            .and(lessThan((secondFinish - secondStart) * (1 + ALLOWABLE_VARIATION))));
+            assertThat((double) (firstFinish - firstStart) / 2)
+              .as("Expected second read to take approximately half as long as first throttled read. First read took %s ms but second read took %s ms",
+                firstFinish - firstStart, secondFinish - secondStart)
+              .isGreaterThan((secondFinish - secondStart) * (1 - ALLOWABLE_VARIATION))
+              .isLessThan((secondFinish - secondStart) * (1 + ALLOWABLE_VARIATION));
         }
     }
 
@@ -319,10 +317,11 @@ public class ThrottlingTest {
 
             long firstFinish = System.currentTimeMillis();
 
-            assertThat("Expected to read " + LARGE_DATA_SIZE + " bytes but actually read " + bytesRead + "bytes",
-                    bytesRead, equalTo(LARGE_DATA_SIZE));
+            assertThat(bytesRead)
+              .as("Expected to read %s bytes but actually read %s bytes", LARGE_DATA_SIZE, bytesRead)
+              .isEqualTo(LARGE_DATA_SIZE);
 
-            HttpClientUtils.closeQuietly(response);
+            closeQuietly(response);
 
             proxyServer.setThrottle(0, 0);
             Thread.sleep(1000); // necessary for the traffic shaping to reset
@@ -341,14 +340,16 @@ public class ThrottlingTest {
 
             long secondFinish = System.currentTimeMillis();
 
-            assertThat("Expected to read " + LARGE_DATA_SIZE + " bytes but actually read " + bytesRead + "bytes",
-                    bytesRead, equalTo(LARGE_DATA_SIZE));
+            assertThat(bytesRead)
+              .as("Expected to read %s bytes but actually read %s bytes", LARGE_DATA_SIZE, bytesRead)
+              .isEqualTo(LARGE_DATA_SIZE);
 
-            HttpClientUtils.closeQuietly(response);
+            closeQuietly(response);
 
-            assertThat("Expected second read to complete within " + UNTHROTTLED_REQUEST_TIME_MS + "ms, without throttling. First read took "
-                            + (firstFinish - firstStart) + "ms" + ". Second read took " + (secondFinish - secondStart) + "ms",
-                    secondFinish - secondStart, lessThan((long) UNTHROTTLED_REQUEST_TIME_MS));
+            assertThat(secondFinish - secondStart)
+              .as("Expected second read to complete within %s ms, without throttling. First read took %s ms" + ". Second read took %s ms.",
+                UNTHROTTLED_REQUEST_TIME_MS, firstFinish - firstStart, secondFinish - secondStart)
+              .isLessThan(UNTHROTTLED_REQUEST_TIME_MS);
         }
 
     }

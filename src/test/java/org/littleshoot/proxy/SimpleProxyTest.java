@@ -3,7 +3,7 @@ package org.littleshoot.proxy;
 /**
  * Tests just a single basic proxy.
  */
-public class SimpleProxyTest extends BaseProxyTest {
+public final class SimpleProxyTest extends BaseProxyTest {
     @Override
     protected void setUp() {
         proxyServer = bootstrapProxy()

@@ -34,11 +34,13 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Objects;
 
-import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 public class TestUtils {
 
@@ -254,7 +256,7 @@ public class TestUtils {
      *            the proxy port
      * @return instance of HttpClient
      */
-    public static CloseableHttpClient createProxiedHttpClient(final int port) throws Exception {
+    public static CloseableHttpClient createProxiedHttpClient(final int port) {
         return buildHttpClient(true, false, port, null, null);
     }
 
@@ -317,11 +319,11 @@ public class TestUtils {
     }
 
     public static void requireUnix() {
-        assumeTrue("Skipping test on non-Unix OS", isUnixManagementCapable());
+        assumeThat(isUnixManagementCapable()).as("Skipping test on non-Unix OS").isTrue();
     }
 
     public static void disableOnMac() {
-        assumeFalse("Skipping test on Mac OS", System.getProperty("os.name").toLowerCase().contains("mac"));
+        assumeThat(System.getProperty("os.name")).as("Skipping test on Mac OS").doesNotContainIgnoringCase("mac");
     }
 
     /**
@@ -330,12 +332,9 @@ public class TestUtils {
      * @return instance of ClosableHttpClient
      */
     public static CloseableHttpClient buildHttpClient(boolean isProxied, boolean supportSsl, int proxyPort,
-                                                      String username, String password) throws Exception {
+                                                      String username, String password) {
 
-        HttpClientBuilder builder = HttpClientBuilder.create()
-                .setSSLContext(SSLContextBuilder.create()
-                        .loadTrustMaterial(new TrustSelfSignedStrategy())
-                        .build());
+        HttpClientBuilder builder = HttpClientBuilder.create().setSSLContext(createSslContext());
 
         if(supportSsl){
             builder.setSSLHostnameVerifier(new NoopHostnameVerifier());
@@ -354,5 +353,16 @@ public class TestUtils {
         }
 
         return builder.build();
+    }
+
+    private static SSLContext createSslContext() {
+        try {
+            return SSLContextBuilder.create()
+              .loadTrustMaterial(new TrustSelfSignedStrategy())
+              .build();
+        }
+        catch (NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

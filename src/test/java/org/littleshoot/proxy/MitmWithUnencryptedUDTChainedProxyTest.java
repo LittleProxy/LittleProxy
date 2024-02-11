@@ -1,13 +1,13 @@
 package org.littleshoot.proxy;
 
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.BeforeAll;
 
 import static org.littleshoot.proxy.TestUtils.disableOnMac;
 import static org.littleshoot.proxy.TransportProtocol.UDT;
 
-public class MitmWithUnencryptedUDTChainedProxyTest extends MitmWithChainedProxyTest {
-    @BeforeClass
-    public static void beforeClass() {
+public final class MitmWithUnencryptedUDTChainedProxyTest extends MitmWithChainedProxyTest {
+    @BeforeAll
+    static void beforeClass() {
         disableOnMac();
     }
 

@@ -8,9 +8,9 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
@@ -25,12 +25,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.nio.charset.StandardCharsets;
 
 import static java.time.Duration.ofSeconds;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.junit.Assert.assertEquals;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -39,20 +38,21 @@ import static org.mockserver.model.HttpResponse.response;
  * and stop at the end. Made into a unit test from isopov and nasis's
  * contributions at: <a href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
  */
-public class EndToEndStoppingTest {
+@ParametersAreNonnullByDefault
+public final class EndToEndStoppingTest {
     private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
 
     private ClientAndServer mockServer;
     private int mockServerPort;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockServer = new ClientAndServer(0);
         mockServerPort = mockServer.getLocalPort();
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    void tearDown() {
         if (mockServer != null) {
             mockServer.stop();
         }
@@ -131,7 +131,7 @@ public class EndToEndStoppingTest {
             // new HttpHost("75.101.134.244", PROXY_PORT));
             // new HttpHost("localhost", PROXY_PORT, "https"));
             HttpResponse response = client.execute(get);
-            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
             final HttpEntity entity = response.getEntity();
             final String body = IOUtils.toString(entity.getContent(), StandardCharsets.US_ASCII);
             EntityUtils.consume(entity);
@@ -186,12 +186,11 @@ public class EndToEndStoppingTest {
             driver.get("https://github.com/littleProxy/LittleProxy//");
             String source = driver.getPageSource();
 
-            // Just make sure it got something within reason.
-            assertThat(source.length(), greaterThan(100));
+            // Just make sure it got something within reason
+            assertThat(source).hasSizeGreaterThan(100);
         }
         finally {
             driver.quit();
         }
     }
-
 }

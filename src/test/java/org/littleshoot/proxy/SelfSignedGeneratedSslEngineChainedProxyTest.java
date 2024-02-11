@@ -1,43 +1,39 @@
 package org.littleshoot.proxy;
 
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
+import javax.net.ssl.SSLEngine;
 import java.io.File;
 import java.io.IOException;
 
-import javax.net.ssl.SSLEngine;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
+public final class SelfSignedGeneratedSslEngineChainedProxyTest extends BaseChainedProxyTest {
 
-public class SelfSignedGeneratedSslEngineChainedProxyTest extends BaseChainedProxyTest {
-
-    @Rule
-    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @TempDir
+    private File temporaryFolder;
 
     private SslEngineSource sslEngineSource;
 
     @Override
     protected void setUp() throws IOException {
-        String keyStorePath = temporaryFolder.newFolder("certs").toPath().resolve("chain_proxy_keystore.jks")
-                .toString();
-        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, false, true, "littleproxy",
-                "Be Your Own Lantern");
+        String keyStorePath = temporaryFolder.toPath().resolve("chain_proxy_keystore.jks").toString();
+        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, false, true, "littleproxy", "Be Your Own Lantern");
         super.setUp();
     }
 
     @Test
     public void testKeyStoreGeneratedAtProvidedPath() {
-        File keyStoreFile = temporaryFolder.getRoot().toPath().resolve("./certs/chain_proxy_keystore.jks").toFile();
-        assertTrue(keyStoreFile.exists());
+        File keyStoreFile = temporaryFolder.toPath().resolve("chain_proxy_keystore.jks").toFile();
+        assertThat(keyStoreFile.exists()).isTrue();
     }
 
     @Test
     public void testCertExportedToKeyStoreDirectory() {
-        File certFile = temporaryFolder.getRoot().toPath().resolve("./certs/littleproxy_cert").toFile();
-        assertTrue(certFile.exists());
+        File certFile = temporaryFolder.toPath().resolve("littleproxy_cert").toFile();
+        assertThat(certFile.exists()).isTrue();
     }
 
     @Override

@@ -3,36 +3,42 @@ package org.littleshoot.proxy;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import org.apache.http.HttpResponse;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
-import org.littleshoot.proxy.test.HttpClientUtil;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
 
-import java.util.concurrent.*;
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.Assert.assertEquals;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
-public class ServerGroupTest {
+@ParametersAreNonnullByDefault
+public final class ServerGroupTest {
     private ClientAndServer mockServer;
     private int mockServerPort;
 
     private HttpProxyServer proxyServer;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockServer = new ClientAndServer(0);
         mockServerPort = mockServer.getLocalPort();
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    void tearDown() {
         try {
             if (mockServer != null) {
                 mockServer.stop();
@@ -118,16 +124,16 @@ public class ServerGroupTest {
         // execute both requests in parallel, to increase the chance of blocking due to the single-threaded ThreadPoolConfiguration
 
         Runnable firstRequest = () -> {
-            HttpResponse response = HttpClientUtil.performHttpGet("http://localhost:" + mockServerPort + firstRequestPath, proxyServer);
-            assertEquals(200, response.getStatusLine().getStatusCode());
+            HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + firstRequestPath, proxyServer);
+            assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
         };
 
         Runnable secondRequest = () -> {
-            HttpResponse response = HttpClientUtil.performHttpGet("http://localhost:" + mockServerPort + secondRequestPath, proxyServer);
-            assertEquals(200, response.getStatusLine().getStatusCode());
+            HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + secondRequestPath, proxyServer);
+            assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
         };
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
+        ExecutorService executor = newFixedThreadPool(2);
         Future<?> firstFuture = executor.submit(firstRequest);
         Future<?> secondFuture = executor.submit(secondRequest);
 
@@ -136,8 +142,12 @@ public class ServerGroupTest {
 
         Thread.sleep(500);
 
-        assertEquals("Expected clientToProxy filter methods to be executed on the same thread for both requests", firstClientThreadName.get(), secondClientThreadName.get());
-        assertEquals("Expected serverToProxy filter methods to be executed on the same thread for both requests", firstProxyThreadName.get(), secondProxyThreadName.get());
+          assertThat(secondClientThreadName.get())
+            .as("Expected clientToProxy filter methods to be executed on the same thread for both requests")
+            .isEqualTo(firstClientThreadName.get());
+          assertThat(secondProxyThreadName.get())
+            .as("Expected serverToProxy filter methods to be executed on the same thread for both requests")
+            .isEqualTo(firstProxyThreadName.get());
     }
 
 }

@@ -6,8 +6,8 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +22,7 @@ import java.net.Socket;
 import java.util.Arrays;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests cases where either the client or the server is slower than the other.
@@ -30,8 +30,8 @@ import static org.junit.Assert.assertEquals;
  * Ignored because this doesn't quite trigger OOME for some reason. It also
  * takes too long to include in normal tests.
  */
-@Ignore
-public class VariableSpeedClientServerTest {
+@Disabled
+public final class VariableSpeedClientServerTest {
     private static final Logger log = LoggerFactory.getLogger(VariableSpeedClientServerTest.class);
 
     private static final int PORT = TestUtils.randomPort();
@@ -64,7 +64,7 @@ public class VariableSpeedClientServerTest {
 
             final HttpEntity entity = response.getEntity();
             final long cl = entity.getContentLength();
-            assertEquals(CONTENT_LENGTH, cl);
+          assertThat(cl).isEqualTo(CONTENT_LENGTH);
 
             int bytesRead = 0;
             try (InputStream content = slowServer ? new ThrottledInputStream(entity.getContent(), 10 * 1000) : entity.getContent()) {
@@ -76,7 +76,7 @@ public class VariableSpeedClientServerTest {
                     read = content.read(input);
                 }
             }
-            assertEquals(CONTENT_LENGTH, bytesRead);
+          assertThat(bytesRead).isEqualTo(CONTENT_LENGTH);
             // final String body = IOUtils.toString(entity.getContent());
             EntityUtils.consume(entity);
             log.info("------------------ Memory Usage At Beginning ------------------");

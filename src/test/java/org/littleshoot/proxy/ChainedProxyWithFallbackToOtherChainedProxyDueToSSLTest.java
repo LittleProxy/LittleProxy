@@ -7,8 +7,7 @@ import javax.net.ssl.SSLEngine;
  * the downstream proxy is unavailable, the downstream proxy should just fall
  * back to the next chained proxy.
  */
-public class ChainedProxyWithFallbackToOtherChainedProxyDueToSSLTest extends
-        BadServerAuthenticationTCPChainedProxyTest {
+public final class ChainedProxyWithFallbackToOtherChainedProxyDueToSSLTest extends BadServerAuthenticationTCPChainedProxyTest {
     @Override
     protected boolean expectBadGatewayForEverything() {
         return false;

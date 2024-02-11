@@ -1,11 +1,18 @@
 package org.littleshoot.proxy;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
 import org.eclipse.jetty.server.Server;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.HttpClientUtil;
@@ -26,19 +33,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
 @ParametersAreNonnullByDefault
-public class HttpFilterTest {
+public final class HttpFilterTest {
     private Server webServer;
     private HttpProxyServer proxyServer;
     private int webServerPort;
@@ -46,8 +49,8 @@ public class HttpFilterTest {
     private ClientAndServer mockServer;
     private int mockServerPort;
 
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         webServer = new Server(0);
         webServer.start();
         webServerPort = TestUtils.findLocalHttpPort(webServer);
@@ -57,8 +60,8 @@ public class HttpFilterTest {
 
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         try {
             if (webServer != null) {
                 webServer.stop();
@@ -80,7 +83,7 @@ public class HttpFilterTest {
      * Sets up the HttpProxyServer instance for a test. This method initializes the proxyServer and proxyPort method variables, and should
      * be called before making any requests through the proxy server.
      *
-     * The proxy cannot be created in @Before method because the filtersSource must be initialized by each test before the proxy is
+     * The proxy cannot be created in @BeforeEach method because the filtersSource must be initialized by each test before the proxy is
      * created.
      *
      * @param filtersSource HTTP filters source
@@ -292,75 +295,75 @@ public class HttpFilterTest {
 
         setUpHttpProxyServer(filtersSource);
 
-        org.apache.http.HttpResponse response1 = HttpClientUtil.performHttpGet(url1, proxyServer);
+        org.apache.http.HttpResponse response1 = performHttpGet(url1, proxyServer);
         // sleep for a short amount of time, to allow the filter methods to be invoked
         Thread.sleep(500);
-        assertEquals(
-                "Response should have included the custom header from our pre filter",
-                "1", response1.getFirstHeader("Header-Pre").getValue());
-        assertEquals(
-                "Response should have included the custom header from our post filter",
-                "2", response1.getFirstHeader("Header-Post").getValue());
+        assertThat(response1.getFirstHeader("Header-Pre").getValue())
+          .as("Response should have included the custom header from our pre filter")
+          .isEqualTo("1");
+        assertThat(response1.getFirstHeader("Header-Post").getValue())
+          .as("Response should have included the custom header from our post filter")
+          .isEqualTo("2");
 
-        assertEquals(1, associatedRequests.size());
-        assertEquals(1, shouldFilterCalls.get());
-        assertEquals(1, fullHttpRequestsReceived.get());
-        assertEquals(1, fullHttpResponsesReceived.get());
-        assertEquals(1, filterResponseCalls.get());
+        assertThat(associatedRequests).hasSize(1);
+        assertThat(shouldFilterCalls.get()).isEqualTo(1);
+        assertThat(fullHttpRequestsReceived.get()).isEqualTo(1);
+        assertThat(fullHttpResponsesReceived.get()).isEqualTo(1);
+        assertThat(filterResponseCalls.get()).isEqualTo(1);
 
         int i = requestCount.get();
-        assertThat(proxyToServerConnectionQueuedNanos.get(i), lessThan(proxyToServerResolutionStartedNanos.get(i)));
-        assertThat(proxyToServerResolutionStartedNanos.get(i), lessThan(proxyToServerResolutionSucceededNanos.get(i)));
-        assertThat(proxyToServerResolutionSucceededNanos.get(i), lessThan(proxyToServerConnectionStartedNanos.get(i)));
-        assertEquals(-1, proxyToServerConnectionSSLHandshakeStartedNanos.get(i));
-        assertEquals(-1, proxyToServerConnectionFailedNanos.get(i));
-        assertEquals(-1, proxyToServerResolutionFailedNanos.get(i));
-        assertEquals(-1, serverToProxyResponseTimedOutNanos.get(i));
-        assertThat(proxyToServerConnectionStartedNanos.get(i), lessThan(proxyToServerConnectionSucceededNanos.get(i)));
-        assertThat(proxyToServerConnectionSucceededNanos.get(i), lessThan(proxyToServerRequestSendingNanos.get(i)));
-        assertThat(proxyToServerRequestSendingNanos.get(i), lessThan(proxyToServerRequestSentNanos.get(i)));
-        assertThat(proxyToServerRequestSentNanos.get(i), lessThan(serverToProxyResponseReceivingNanos.get(i)));
-        assertThat(serverToProxyResponseReceivingNanos.get(i), lessThan(serverToProxyResponseReceivedNanos.get(i)));
+        assertThat(proxyToServerConnectionQueuedNanos.get(i)).isLessThan(proxyToServerResolutionStartedNanos.get(i));
+        assertThat(proxyToServerResolutionStartedNanos.get(i)).isLessThan(proxyToServerResolutionSucceededNanos.get(i));
+        assertThat(proxyToServerResolutionSucceededNanos.get(i)).isLessThan(proxyToServerConnectionStartedNanos.get(i));
+        assertThat(proxyToServerConnectionSSLHandshakeStartedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionFailedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerResolutionFailedNanos.get(i)).isEqualTo(-1);
+        assertThat(serverToProxyResponseTimedOutNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionStartedNanos.get(i)).isLessThan(proxyToServerConnectionSucceededNanos.get(i));
+        assertThat(proxyToServerConnectionSucceededNanos.get(i)).isLessThan(proxyToServerRequestSendingNanos.get(i));
+        assertThat(proxyToServerRequestSendingNanos.get(i)).isLessThan(proxyToServerRequestSentNanos.get(i));
+        assertThat(proxyToServerRequestSentNanos.get(i)).isLessThan(serverToProxyResponseReceivingNanos.get(i));
+        assertThat(serverToProxyResponseReceivingNanos.get(i)).isLessThan(serverToProxyResponseReceivedNanos.get(i));
 
         // We just open a second connection here since reusing the original
         // connection is inconsistent.
         requestCount.incrementAndGet();
-        org.apache.http.HttpResponse response2 = HttpClientUtil.performHttpGet(url2, proxyServer);
+        org.apache.http.HttpResponse response2 = performHttpGet(url2, proxyServer);
         Thread.sleep(500);
 
-        assertEquals(403, response2.getStatusLine().getStatusCode());
+        assertThat(response2.getStatusLine().getStatusCode()).isEqualTo(403);
 
-        assertEquals(2, associatedRequests.size());
-        assertEquals(2, shouldFilterCalls.get());
-        assertEquals(2, fullHttpRequestsReceived.get());
-        assertEquals(1, fullHttpResponsesReceived.get());
-        assertEquals(1, filterResponseCalls.get());
+        assertThat(associatedRequests).hasSize(2);
+        assertThat(shouldFilterCalls.get()).isEqualTo(2);
+        assertThat(fullHttpRequestsReceived.get()).isEqualTo(2);
+        assertThat(fullHttpResponsesReceived.get()).isEqualTo(1);
+        assertThat(filterResponseCalls.get()).isEqualTo(1);
 
         requestCount.incrementAndGet();
-        org.apache.http.HttpResponse response3 = HttpClientUtil.performHttpGet(url3, proxyServer);
+        org.apache.http.HttpResponse response3 = performHttpGet(url3, proxyServer);
         Thread.sleep(500);
 
-        assertEquals(403, response3.getStatusLine().getStatusCode());
+        assertThat(response3.getStatusLine().getStatusCode()).isEqualTo(403);
 
-        assertEquals(3, associatedRequests.size());
-        assertEquals(3, shouldFilterCalls.get());
-        assertEquals(3, fullHttpRequestsReceived.get());
-        assertEquals(1, fullHttpResponsesReceived.get());
-        assertEquals(1, filterResponseCalls.get());
+        assertThat(associatedRequests).hasSize(3);
+        assertThat(shouldFilterCalls.get()).isEqualTo(3);
+        assertThat(fullHttpRequestsReceived.get()).isEqualTo(3);
+        assertThat(fullHttpResponsesReceived.get()).isEqualTo(1);
+        assertThat(filterResponseCalls.get()).isEqualTo(1);
 
         i = requestCount.get();
-        assertThat(proxyToServerConnectionQueuedNanos.get(i), lessThan(proxyToServerResolutionStartedNanos.get(i)));
-        assertThat(proxyToServerResolutionStartedNanos.get(i), lessThan(proxyToServerResolutionSucceededNanos.get(i)));
-        assertEquals(-1, proxyToServerConnectionStartedNanos.get(i));
-        assertEquals(-1, proxyToServerConnectionSSLHandshakeStartedNanos.get(i));
-        assertEquals(-1, proxyToServerConnectionFailedNanos.get(i));
-        assertEquals(-1, proxyToServerConnectionSucceededNanos.get(i));
-        assertEquals(-1, proxyToServerRequestSendingNanos.get(i));
-        assertEquals(-1, proxyToServerRequestSentNanos.get(i));
-        assertEquals(-1, serverToProxyResponseReceivingNanos.get(i));
-        assertEquals(-1, serverToProxyResponseReceivedNanos.get(i));
-        assertEquals(-1, proxyToServerResolutionFailedNanos.get(i));
-        assertEquals(-1, serverToProxyResponseTimedOutNanos.get(i));
+        assertThat(proxyToServerConnectionQueuedNanos.get(i)).isLessThan(proxyToServerResolutionStartedNanos.get(i));
+        assertThat(proxyToServerResolutionStartedNanos.get(i)).isLessThan(proxyToServerResolutionSucceededNanos.get(i));
+        assertThat(proxyToServerConnectionStartedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionSSLHandshakeStartedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionFailedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionSucceededNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerRequestSendingNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerRequestSentNanos.get(i)).isEqualTo(-1);
+        assertThat(serverToProxyResponseReceivingNanos.get(i)).isEqualTo(-1);
+        assertThat(serverToProxyResponseReceivedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerResolutionFailedNanos.get(i)).isEqualTo(-1);
+        assertThat(serverToProxyResponseTimedOutNanos.get(i)).isEqualTo(-1);
 
         final HttpRequest first = associatedRequests.remove();
         final HttpRequest second = associatedRequests.remove();
@@ -368,41 +371,46 @@ public class HttpFilterTest {
 
         // Make sure the requests in the filter calls were the requests they
         // actually should have been.
-        assertEquals(url1, first.uri());
-        assertEquals(url2, second.uri());
-        assertEquals(url3, third.uri());
+        assertThat(first.uri()).isEqualTo(url1);
+        assertThat(second.uri()).isEqualTo(url2);
+        assertThat(third.uri()).isEqualTo(url3);
 
         requestCount.incrementAndGet();
-        org.apache.http.HttpResponse response4 = HttpClientUtil.performHttpGet(url4, proxyServer);
+        org.apache.http.HttpResponse response4 = performHttpGet(url4, proxyServer);
         Thread.sleep(500);
 
         i = requestCount.get();
-        assertThat(proxyToServerConnectionQueuedNanos.get(i), lessThan(proxyToServerResolutionStartedNanos.get(i)));
-        assertThat(proxyToServerResolutionStartedNanos.get(i), lessThan(proxyToServerResolutionSucceededNanos.get(i)));
-        assertThat(proxyToServerResolutionSucceededNanos.get(i), lessThan(proxyToServerConnectionStartedNanos.get(i)));
-        assertEquals(-1, proxyToServerConnectionSSLHandshakeStartedNanos.get(i));
-        assertEquals(-1, proxyToServerConnectionFailedNanos.get(i));
-        assertEquals(-1, proxyToServerResolutionFailedNanos.get(i));
-        assertEquals(-1, serverToProxyResponseTimedOutNanos.get(i));
-        assertThat(proxyToServerConnectionStartedNanos.get(i), lessThan(proxyToServerConnectionSucceededNanos.get(i)));
-        assertThat(proxyToServerConnectionSucceededNanos.get(i), lessThan(proxyToServerRequestSendingNanos.get(i)));
-        assertThat(proxyToServerRequestSendingNanos.get(i), lessThan(proxyToServerRequestSentNanos.get(i)));
-        assertThat(proxyToServerRequestSentNanos.get(i), lessThan(serverToProxyResponseReceivingNanos.get(i)));
-        assertThat(serverToProxyResponseReceivingNanos.get(i), lessThan(serverToProxyResponseReceivedNanos.get(i)));
+        assertThat(proxyToServerConnectionQueuedNanos.get(i)).isLessThan(proxyToServerResolutionStartedNanos.get(i));
+        assertThat(proxyToServerResolutionStartedNanos.get(i)).isLessThan(proxyToServerResolutionSucceededNanos.get(i));
+        assertThat(proxyToServerResolutionSucceededNanos.get(i)).isLessThan(proxyToServerConnectionStartedNanos.get(i));
+        assertThat(proxyToServerConnectionSSLHandshakeStartedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionFailedNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerResolutionFailedNanos.get(i)).isEqualTo(-1);
+        assertThat(serverToProxyResponseTimedOutNanos.get(i)).isEqualTo(-1);
+        assertThat(proxyToServerConnectionStartedNanos.get(i)).isLessThan(proxyToServerConnectionSucceededNanos.get(i));
+        assertThat(proxyToServerConnectionSucceededNanos.get(i)).isLessThan(proxyToServerRequestSendingNanos.get(i));
+        assertThat(proxyToServerRequestSendingNanos.get(i)).isLessThan(proxyToServerRequestSentNanos.get(i));
+        assertThat(proxyToServerRequestSentNanos.get(i)).isLessThan(serverToProxyResponseReceivingNanos.get(i));
+        assertThat(serverToProxyResponseReceivingNanos.get(i)).isLessThan(serverToProxyResponseReceivedNanos.get(i));
 
         requestCount.incrementAndGet();
-        org.apache.http.HttpResponse response5 = HttpClientUtil.performHttpGet(url5, proxyServer);
+        org.apache.http.HttpResponse response5 = performHttpGet(url5, proxyServer);
 
-        assertEquals(403, response4.getStatusLine().getStatusCode());
-        assertEquals(403, response5.getStatusLine().getStatusCode());
+        assertThat(response4.getStatusLine().getStatusCode()).isEqualTo(403);
+        assertThat(response5.getStatusLine().getStatusCode()).isEqualTo(403);
 
-        assertNotNull("Server channel context from proxyToServerConnectionSucceeded() should not be null", serverCtxReference.get());
+        assertThat(serverCtxReference.get())
+          .as("Server channel context from proxyToServerConnectionSucceeded() should not be null")
+          .isNotNull();
+        
         InetSocketAddress remoteAddress = (InetSocketAddress) serverCtxReference.get().channel().remoteAddress();
-        assertNotNull("Server's remoteAddress from proxyToServerConnectionSucceeded() should not be null", remoteAddress);
+        assertThat(remoteAddress)
+          .as("Server's remoteAddress from proxyToServerConnectionSucceeded() should not be null")
+          .isNotNull();
         // make sure we're getting the right remote address (and therefore the right server channel context) in the
         // proxyToServerConnectionSucceeded() filter method
-        assertEquals("Server's remoteAddress should connect to localhost", "localhost", remoteAddress.getHostName());
-        assertEquals("Server's port should match the web server port", webServerPort, remoteAddress.getPort());
+        assertThat(remoteAddress.getHostName()).as("Server's remoteAddress should connect to localhost").isEqualTo("localhost");
+        assertThat(remoteAddress.getPort()).as("Server's port should match the web server port").isEqualTo(webServerPort);
 
         webServer.stop();
     }
@@ -422,7 +430,7 @@ public class HttpFilterTest {
 
                     @Override
                     public void proxyToServerResolutionSucceeded(String serverHostAndPort, InetSocketAddress resolvedRemoteAddress) {
-                        assertFalse("expected to receive a resolved InetSocketAddress", resolvedRemoteAddress.isUnresolved());
+                        assertThat(resolvedRemoteAddress.isUnresolved()).as("expected to receive a resolved InetSocketAddress").isFalse();
                         resolutionSucceeded.set(true);
                     }
                 };
@@ -431,10 +439,10 @@ public class HttpFilterTest {
 
         setUpHttpProxyServer(filtersSource);
 
-        HttpClientUtil.performHttpGet("http://localhost:" + webServerPort + "/", proxyServer);
+        performHttpGet("http://localhost:" + webServerPort + "/", proxyServer);
         Thread.sleep(500);
 
-        assertTrue("proxyToServerResolutionSucceeded method was not called", resolutionSucceeded.get());
+        assertThat(resolutionSucceeded.get()).as("proxyToServerResolutionSucceeded method was not called").isTrue();
     }
 
     @Test
@@ -448,7 +456,7 @@ public class HttpFilterTest {
             }
         };
 
-        HostResolver mockFailingResolver = mock(HostResolver.class);
+        HostResolver mockFailingResolver = mock();
         when(mockFailingResolver.resolve("www.doesnotexist", 80)).thenThrow(new UnknownHostException("www.doesnotexist"));
 
         proxyServer = DefaultHttpProxyServer.bootstrap()
@@ -457,31 +465,31 @@ public class HttpFilterTest {
                 .withServerResolver(mockFailingResolver)
                 .start();
 
-        HttpClientUtil.performHttpGet("http://www.doesnotexist/some-resource", proxyServer);
+        performHttpGet("http://www.doesnotexist/some-resource", proxyServer);
         Thread.sleep(500);
 
         // verify that the filters related to this functionality were correctly invoked/not invoked as appropriate, but also verify that
         // other filters were invoked/not invoked as expected
-        assertFalse("proxyToServerResolutionSucceeded method was called but should not have been", filter.isProxyToServerResolutionSucceededInvoked());
-        assertTrue("proxyToServerResolutionFailed method was not called", filter.isProxyToServerResolutionFailedInvoked());
+        assertThat(filter.isProxyToServerResolutionSucceededInvoked()).as("proxyToServerResolutionSucceeded method was called but should not have been").isFalse();
+        assertThat(filter.isProxyToServerResolutionFailedInvoked()).as("proxyToServerResolutionFailed method was not called").isTrue();
 
-        assertTrue("Expected filter method to be called", filter.isClientToProxyRequestInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionQueuedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerResolutionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToClientResponseInvoked());
+        assertThat(filter.isClientToProxyRequestInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionQueuedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerResolutionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToClientResponseInvoked()).as("Expected filter method to be called").isTrue();
 
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionStartedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerAllowMitmInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionFailedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionSucceededInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSendingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSentInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionSSLHandshakeStartedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseTimedOutInvoked());
+        assertThat(filter.isProxyToServerConnectionStartedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerAllowMitmInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionFailedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionSucceededInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSendingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSentInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionSSLHandshakeStartedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseTimedOutInvoked()).as("Expected filter method to not be called").isFalse();
     }
 
     @Test
@@ -498,32 +506,32 @@ public class HttpFilterTest {
         setUpHttpProxyServer(filtersSource);
 
         // port 0 is not connectable
-        HttpClientUtil.performHttpGet("http://localhost:0/some-resource", proxyServer);
+        performHttpGet("http://localhost:0/some-resource", proxyServer);
         Thread.sleep(500);
 
         // verify that the filters related to this functionality were correctly invoked/not invoked as appropriate, but also verify that
         // other filters were invoked/not invoked as expected
-        assertFalse("proxyToServerConnectionSucceeded should not be called when connection fails", filter.isProxyToServerConnectionSucceededInvoked());
-        assertTrue("proxyToServerConnectionFailed should be called when connection fails", filter.isProxyToServerConnectionFailedInvoked());
+        assertThat(filter.isProxyToServerConnectionSucceededInvoked()).as("proxyToServerConnectionSucceeded should not be called when connection fails").isFalse();
+        assertThat(filter.isProxyToServerConnectionFailedInvoked()).as("proxyToServerConnectionFailed should be called when connection fails").isTrue();
 
-        assertTrue("Expected filter method to be called", filter.isClientToProxyRequestInvoked());
+        assertThat(filter.isClientToProxyRequestInvoked()).as("Expected filter method to be called").isTrue();
         // proxyToServerRequest is invoked before the connection is made, so it should be hit
-        assertTrue("Expected filter method to be called", filter.isProxyToServerRequestInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionQueuedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerResolutionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerResolutionSucceededInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToClientResponseInvoked());
+        assertThat(filter.isProxyToServerRequestInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionQueuedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerResolutionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerResolutionSucceededInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToClientResponseInvoked()).as("Expected filter method to be called").isTrue();
 
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerAllowMitmInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSendingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSentInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionSSLHandshakeStartedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionFailedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseTimedOutInvoked());
+        assertThat(filter.isProxyToServerAllowMitmInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSendingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSentInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionSSLHandshakeStartedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionFailedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseTimedOutInvoked()).as("Expected filter method to not be called").isFalse();
     }
 
     /**
@@ -554,32 +562,32 @@ public class HttpFilterTest {
                 .start();
 
         // the server doesn't have to exist, since the connection to the chained proxy will fail
-        HttpClientUtil.performHttpGet("http://localhost:1234/some-resource", proxyServer);
+        performHttpGet("http://localhost:1234/some-resource", proxyServer);
         Thread.sleep(500);
 
         // verify that the filters related to this functionality were correctly invoked/not invoked as appropriate, but also verify that
         // other filters were invoked/not invoked as expected
-        assertFalse("proxyToServerConnectionSucceeded should not be called when connection to chained proxy fails", filter.isProxyToServerConnectionSucceededInvoked());
-        assertTrue("proxyToServerConnectionFailed should be called when connection to chained proxy fails", filter.isProxyToServerConnectionFailedInvoked());
+        assertThat(filter.isProxyToServerConnectionSucceededInvoked()).as("proxyToServerConnectionSucceeded should not be called when connection to chained proxy fails").isFalse();
+        assertThat(filter.isProxyToServerConnectionFailedInvoked()).as("proxyToServerConnectionFailed should be called when connection to chained proxy fails").isTrue();
 
-        assertTrue("Expected filter method to be called", filter.isClientToProxyRequestInvoked());
+        assertThat(filter.isClientToProxyRequestInvoked()).as("Expected filter method to be called").isTrue();
         // proxyToServerRequest is invoked before the connection is made, so it should be hit
-        assertTrue("Expected filter method to be called", filter.isProxyToServerRequestInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionQueuedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToClientResponseInvoked());
+        assertThat(filter.isProxyToServerRequestInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionQueuedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToClientResponseInvoked()).as("Expected filter method to be called").isTrue();
 
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerAllowMitmInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionSSLHandshakeStartedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionStartedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionSucceededInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSendingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSentInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionFailedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseTimedOutInvoked());
+        assertThat(filter.isProxyToServerAllowMitmInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionSSLHandshakeStartedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionStartedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionSucceededInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSendingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSentInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionFailedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseTimedOutInvoked()).as("Expected filter method to not be called").isFalse();
     }
 
     /**
@@ -628,32 +636,32 @@ public class HttpFilterTest {
                 .start();
 
         // the server doesn't have to exist, since the connection to the chained proxy will fail
-        HttpClientUtil.performHttpGet("http://localhost:1234/some-resource", proxyServer);
+        performHttpGet("http://localhost:1234/some-resource", proxyServer);
         Thread.sleep(500);
 
         // verify that the filters related to this functionality were correctly invoked/not invoked as appropriate, but also verify that
         // other filters were invoked/not invoked as expected
-        assertFalse("proxyToServerConnectionSucceeded should not be called when connection to chained proxy fails", filter.isProxyToServerConnectionSucceededInvoked());
-        assertTrue("proxyToServerConnectionFailed should be called when connection to chained proxy fails", filter.isProxyToServerConnectionFailedInvoked());
+        assertThat(filter.isProxyToServerConnectionSucceededInvoked()).as("proxyToServerConnectionSucceeded should not be called when connection to chained proxy fails").isFalse();
+        assertThat(filter.isProxyToServerConnectionFailedInvoked()).as("proxyToServerConnectionFailed should be called when connection to chained proxy fails").isTrue();
 
-        assertTrue("Expected filter method to be called", filter.isClientToProxyRequestInvoked());
+        assertThat(filter.isClientToProxyRequestInvoked()).as("Expected filter method to be called").isTrue();
         // proxyToServerRequest is invoked before the connection is made, so it should be hit
-        assertTrue("Expected filter method to be called", filter.isProxyToServerRequestInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionQueuedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToClientResponseInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionSSLHandshakeStartedInvoked());
+        assertThat(filter.isProxyToServerRequestInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionQueuedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToClientResponseInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionSSLHandshakeStartedInvoked()).as("Expected filter method to be called").isTrue();
 
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerAllowMitmInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionStartedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionSucceededInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSendingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerRequestSentInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionFailedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseTimedOutInvoked());
+        assertThat(filter.isProxyToServerAllowMitmInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionStartedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionSucceededInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSendingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerRequestSentInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionFailedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseTimedOutInvoked()).as("Expected filter method to not be called").isFalse();
     }
 
     @Test
@@ -682,34 +690,36 @@ public class HttpFilterTest {
                 .withIdleConnectionTimeout(3)
                 .start();
 
-        org.apache.http.HttpResponse httpResponse = HttpClientUtil.performHttpGet("http://localhost:" + mockServerPort + "/servertimeout", proxyServer);
-        assertEquals("Expected to receive an HTTP 504 Gateway Timeout from proxy", 504, httpResponse.getStatusLine().getStatusCode());
+        org.apache.http.HttpResponse httpResponse = performHttpGet("http://localhost:" + mockServerPort + "/servertimeout", proxyServer);
+        assertThat(httpResponse.getStatusLine().getStatusCode())
+          .as("Expected to receive an HTTP 504 Gateway Timeout from proxy")
+          .isEqualTo(504);
 
         Thread.sleep(500);
         
         // verify that the filters related to this functionality were correctly invoked/not invoked as appropriate, but also verify that
         // other filters were invoked/not invoked as expected
-        assertTrue("Expected filter method to be called", filter.isServerToProxyResponseTimedOutInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivingInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseInvoked());
-        assertFalse("Expected filter method to not be called", filter.isServerToProxyResponseReceivedInvoked());
+        assertThat(filter.isServerToProxyResponseTimedOutInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isServerToProxyResponseReceivingInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isServerToProxyResponseReceivedInvoked()).as("Expected filter method to not be called").isFalse();
 
-        assertTrue("Expected filter method to be called", filter.isClientToProxyRequestInvoked());
+        assertThat(filter.isClientToProxyRequestInvoked()).as("Expected filter method to be called").isTrue();
         // proxyToServerRequest is invoked before the connection is made, so it should be hit
-        assertTrue("Expected filter method to be called", filter.isProxyToServerRequestInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionQueuedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerResolutionStartedInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerResolutionSucceededInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerRequestSendingInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerRequestSentInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToServerConnectionSucceededInvoked());
-        assertTrue("Expected filter method to be called", filter.isProxyToClientResponseInvoked());
+        assertThat(filter.isProxyToServerRequestInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionQueuedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerResolutionStartedInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerResolutionSucceededInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerRequestSendingInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerRequestSentInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToServerConnectionSucceededInvoked()).as("Expected filter method to be called").isTrue();
+        assertThat(filter.isProxyToClientResponseInvoked()).as("Expected filter method to be called").isTrue();
 
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerAllowMitmInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerResolutionFailedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionFailedInvoked());
-        assertFalse("Expected filter method to not be called", filter.isProxyToServerConnectionSSLHandshakeStartedInvoked());
+        assertThat(filter.isProxyToServerAllowMitmInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerResolutionFailedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionFailedInvoked()).as("Expected filter method to not be called").isFalse();
+        assertThat(filter.isProxyToServerConnectionSSLHandshakeStartedInvoked()).as("Expected filter method to not be called").isFalse();
     }
 
     @Test
@@ -724,7 +734,7 @@ public class HttpFilterTest {
                     @Override
                     public HttpResponse proxyToServerRequest(HttpObject httpObject) {
                         if (httpObject instanceof LastHttpContent) {
-                            assertFalse("requestSentCallback should not be invoked until the LastHttpContent is processed", requestSentCallbackInvoked.get());
+                            assertThat(requestSentCallbackInvoked.get()).as("requestSentCallback should not be invoked until the LastHttpContent is processed").isFalse();
 
                             lastHttpContentProcessed.set(true);
                         }
@@ -735,7 +745,7 @@ public class HttpFilterTest {
                     @Override
                     public void proxyToServerRequestSent() {
                         // proxyToServerRequestSent should only be invoked after the entire request, including payload, has been sent to the server
-                        assertTrue("proxyToServerRequestSent callback invoked before LastHttpContent was received from the client and sent to the server", lastHttpContentProcessed.get());
+                        assertThat(lastHttpContentProcessed.get()).as("proxyToServerRequestSent callback invoked before LastHttpContent was received from the client and sent to the server").isTrue();
 
                         requestSentCallbackInvoked.set(true);
                     }
@@ -749,18 +759,18 @@ public class HttpFilterTest {
         HttpClientUtil.performHttpPost("http://localhost:" + webServerPort + "/", 50000, proxyServer);
         Thread.sleep(500);
 
-        assertTrue("proxyToServerRequest callback was not invoked for LastHttpContent for chunked POST", lastHttpContentProcessed.get());
-        assertTrue("proxyToServerRequestSent callback was not invoked for chunked POST", requestSentCallbackInvoked.get());
+        assertThat(lastHttpContentProcessed.get()).as("proxyToServerRequest callback was not invoked for LastHttpContent for chunked POST").isTrue();
+        assertThat(requestSentCallbackInvoked.get()).as("proxyToServerRequestSent callback was not invoked for chunked POST").isTrue();
 
         // test with a non-payload-bearing GET request.
         lastHttpContentProcessed.set(false);
         requestSentCallbackInvoked.set(false);
 
-        HttpClientUtil.performHttpGet("http://localhost:" + webServerPort + "/", proxyServer);
+        performHttpGet("http://localhost:" + webServerPort + "/", proxyServer);
         Thread.sleep(500);
 
-        assertTrue("proxyToServerRequest callback was not invoked for LastHttpContent for GET", lastHttpContentProcessed.get());
-        assertTrue("proxyToServerRequestSent callback was not invoked for GET", requestSentCallbackInvoked.get());
+        assertThat(lastHttpContentProcessed.get()).as("proxyToServerRequest callback was not invoked for LastHttpContent for GET").isTrue();
+        assertThat(requestSentCallbackInvoked.get()).as("proxyToServerRequestSent callback was not invoked for GET").isTrue();
     }
 
     /**
@@ -786,10 +796,12 @@ public class HttpFilterTest {
 
         setUpHttpProxyServer(filtersSource);
 
-        org.apache.http.HttpResponse httpResponse = HttpClientUtil.performHttpGet("http://localhost:" + mockServerPort + "/testNullHttpFilterSource", proxyServer);
+        org.apache.http.HttpResponse httpResponse = performHttpGet("http://localhost:" + mockServerPort + "/testNullHttpFilterSource", proxyServer);
         Thread.sleep(500);
 
-        assertEquals("Expected to receive an HTTP 200 from proxy", 200, httpResponse.getStatusLine().getStatusCode());
+        assertThat(httpResponse.getStatusLine().getStatusCode())
+          .as("Expected to receive an HTTP 200 from proxy")
+          .isEqualTo(200);
     }
 
     private long now() {

@@ -6,35 +6,31 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
 import org.mockserver.model.ConnectionOptions;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
-public class MessageTerminationTest {
+public final class MessageTerminationTest {
     private ClientAndServer mockServer;
     private int mockServerPort;
     private HttpProxyServer proxyServer;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockServer = new ClientAndServer(0);
         mockServerPort = mockServer.getLocalPort();
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    void tearDown() {
         if (mockServer != null) {
             mockServer.stop();
         }
@@ -69,18 +65,22 @@ public class MessageTerminationTest {
         HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpGet("http://127.0.0.1:" + mockServerPort + "/"));
 
-        assertEquals("Expected to receive a 200 from the server", 200, response.getStatusLine().getStatusCode());
+      assertThat(response.getStatusLine().getStatusCode())
+        .as("Expected to receive a 200 from the server")
+        .isEqualTo(200);
 
         // verify the Transfer-Encoding header was added
         Header[] transferEncodingHeaders = response.getHeaders("Transfer-Encoding");
-        assertThat("Expected to see a Transfer-Encoding header", transferEncodingHeaders.length, greaterThanOrEqualTo(1));
+        assertThat(transferEncodingHeaders.length)
+          .as("Expected to see a Transfer-Encoding header")
+          .isGreaterThanOrEqualTo(1);
         String transferEncoding = transferEncodingHeaders[0].getValue();
-        assertEquals("Expected Transfer-Encoding to be chunked", "chunked", transferEncoding);
+        assertThat(transferEncoding).as("Expected Transfer-Encoding to be chunked").isEqualTo("chunked");
 
         String bodyString = EntityUtils.toString(response.getEntity(), "ISO-8859-1");
         response.getEntity().getContent().close();
 
-        assertEquals("Success!", bodyString);
+      assertThat(bodyString).isEqualTo("Success!");
     }
 
     @Test
@@ -106,16 +106,16 @@ public class MessageTerminationTest {
         HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpGet("http://127.0.0.1:" + mockServerPort + "/"));
 
-        assertEquals("Expected to receive a 200 from the server", 200, response.getStatusLine().getStatusCode());
+        assertThat(response.getStatusLine().getStatusCode()).as("Expected to receive a 200 from the server").isEqualTo(200);
 
         // verify the Transfer-Encoding header was NOT added
         Header[] transferEncodingHeaders = response.getHeaders("Transfer-Encoding");
-        assertThat("Did not expect to see a Transfer-Encoding header", transferEncodingHeaders, emptyArray());
+        assertThat(transferEncodingHeaders).as("Did not expect to see a Transfer-Encoding header").isEmpty();
 
         String bodyString = EntityUtils.toString(response.getEntity(), "ISO-8859-1");
         response.getEntity().getContent().close();
 
-        assertEquals("Success!", bodyString);
+        assertThat(bodyString).isEqualTo("Success!");
     }
 
     @Test
@@ -150,19 +150,21 @@ public class MessageTerminationTest {
         HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpGet("http://127.0.0.1:" + mockServerPort + "/"));
 
-        assertEquals("Expected to receive a 200 from the server", 200, response.getStatusLine().getStatusCode());
+        assertThat(response.getStatusLine().getStatusCode())
+          .as("Expected to receive a 200 from the server")
+          .isEqualTo(200);
 
         // verify the Transfer-Encoding header was NOT added
         Header[] transferEncodingHeaders = response.getHeaders("Transfer-Encoding");
-        assertThat("Did not expect to see a Transfer-Encoding header", transferEncodingHeaders, emptyArray());
+        assertThat(transferEncodingHeaders).as("Did not expect to see a Transfer-Encoding header").isEmpty();
 
         Header[] contentLengthHeaders = response.getHeaders("Content-Length");
-        assertThat("Expected to see a Content-Length header", contentLengthHeaders.length, greaterThanOrEqualTo(1));
+        assertThat(contentLengthHeaders.length).as("Expected to see a Content-Length header").isGreaterThanOrEqualTo(1);
 
         String bodyString = EntityUtils.toString(response.getEntity(), "ISO-8859-1");
         response.getEntity().getContent().close();
 
-        assertEquals("Success!", bodyString);
+        assertThat(bodyString).isEqualTo("Success!");
     }
 
     @Test
@@ -188,16 +190,16 @@ public class MessageTerminationTest {
         HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpHead("http://127.0.0.1:" + mockServerPort + "/"));
 
-        assertEquals("Expected to receive a 200 from the server", 200, response.getStatusLine().getStatusCode());
+        assertThat(response.getStatusLine().getStatusCode()).as("Expected to receive a 200 from the server").isEqualTo(200);
 
         // verify the Transfer-Encoding header was NOT added
         Header[] transferEncodingHeaders = response.getHeaders("Transfer-Encoding");
-        assertThat("Did not expect to see a Transfer-Encoding header", transferEncodingHeaders, emptyArray());
+        assertThat(transferEncodingHeaders).as("Did not expect to see a Transfer-Encoding header").isEmpty();
 
         // verify the Content-Length header was not added
         Header[] contentLengthHeaders = response.getHeaders("Content-Length");
-        assertThat("Did not expect to see a Content-Length header", contentLengthHeaders, emptyArray());
+        assertThat(contentLengthHeaders).as("Did not expect to see a Content-Length header").isEmpty();
 
-        assertNull("Expected response to HEAD to have no entity body", response.getEntity());
+        assertThat(response.getEntity()).as("Expected response to HEAD to have no entity body").isNull();
     }
 }

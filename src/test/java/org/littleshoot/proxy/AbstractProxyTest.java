@@ -11,17 +11,18 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.server.Server;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 import javax.net.ssl.SSLSession;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.greaterThan;
-import static org.junit.Assert.assertEquals;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.buildHttpClient;
+
 
 /**
  * Base for tests that test the proxy. This base class encapsulates all the testing infrastructure.
@@ -50,35 +51,20 @@ public abstract class AbstractProxyTest {
      */
     private Server webServer;
 
-    protected AtomicInteger bytesReceivedFromClient;
-    protected AtomicInteger requestsReceivedFromClient;
-    protected AtomicInteger bytesSentToServer;
-    protected AtomicInteger requestsSentToServer;
-    protected AtomicInteger bytesReceivedFromServer;
-    protected AtomicInteger responsesReceivedFromServer;
-    protected AtomicInteger bytesSentToClient;
-    protected AtomicInteger responsesSentToClient;
-    protected AtomicInteger clientConnects;
-    protected AtomicInteger clientSSLHandshakeSuccesses;
-    protected AtomicInteger clientDisconnects;
+    private final AtomicInteger bytesReceivedFromClient = new AtomicInteger(0);
+    private final AtomicInteger requestsReceivedFromClient = new AtomicInteger(0);
+    private final AtomicInteger bytesSentToServer = new AtomicInteger(0);
+    private final AtomicInteger requestsSentToServer = new AtomicInteger(0);
+    private final AtomicInteger bytesReceivedFromServer = new AtomicInteger(0);
+    private final AtomicInteger responsesReceivedFromServer = new AtomicInteger(0);
+    private final AtomicInteger bytesSentToClient = new AtomicInteger(0);
+    private final AtomicInteger responsesSentToClient = new AtomicInteger(0);
+    private final AtomicInteger clientConnects = new AtomicInteger(0);
+    private final AtomicInteger clientSSLHandshakeSuccesses = new AtomicInteger(0);
+    private final AtomicInteger clientDisconnects = new AtomicInteger(0);
 
-    @Before
-    public void initializeCounters() {
-        bytesReceivedFromClient = new AtomicInteger(0);
-        requestsReceivedFromClient = new AtomicInteger(0);
-        bytesSentToServer = new AtomicInteger(0);
-        requestsSentToServer = new AtomicInteger(0);
-        bytesReceivedFromServer = new AtomicInteger(0);
-        responsesReceivedFromServer = new AtomicInteger(0);
-        bytesSentToClient = new AtomicInteger(0);
-        responsesSentToClient = new AtomicInteger(0);
-        clientConnects = new AtomicInteger(0);
-        clientSSLHandshakeSuccesses = new AtomicInteger(0);
-        clientDisconnects = new AtomicInteger(0);
-    }
-
-    @Before
-    public void runSetUp() throws Exception {
+    @BeforeEach
+    final void runSetUp() throws Exception {
         webServer = TestUtils.startWebServer(true);
 
         // find out what ports the HTTP and HTTPS connectors were bound to
@@ -100,8 +86,8 @@ public abstract class AbstractProxyTest {
 
     protected abstract void setUp() throws Exception;
 
-    @After
-    public void runTearDown() throws Exception {
+    @AfterEach
+    final void runTearDown() throws Exception {
         try {
             tearDown();
         } finally {
@@ -137,16 +123,16 @@ public abstract class AbstractProxyTest {
     }
 
     protected void assertReceivedBadGateway(ResponseInfo response) {
-        assertEquals("Received: " + response, 502, response.getStatusCode());
+        assertThat(response.getStatusCode())
+          .as("Received: %s", response)
+          .isEqualTo(502);
     }
 
-    protected ResponseInfo httpPostWithApacheClient(
-            HttpHost host, String resourceUrl, boolean isProxied)
-            throws Exception {
+    protected ResponseInfo httpPostWithApacheClient(HttpHost host, String resourceUrl, boolean isProxied) {
         final boolean supportSsl = true;
         String username = getUsername();
         String password = getPassword();
-        try (CloseableHttpClient httpClient = TestUtils.buildHttpClient(
+        try (CloseableHttpClient httpClient = buildHttpClient(
                 isProxied, supportSsl, proxyServer.getListenAddress().getPort(), username, password)) {
             final HttpPost request = new HttpPost(resourceUrl);
             request.setConfig(TestUtils.REQUEST_TIMEOUT_CONFIG);
@@ -157,18 +143,19 @@ public abstract class AbstractProxyTest {
 
             final HttpResponse response = httpClient.execute(host, request);
             final HttpEntity resEntity = response.getEntity();
-            return new ResponseInfo(response.getStatusLine().getStatusCode(),
-                    EntityUtils.toString(resEntity));
+            return new ResponseInfo(response.getStatusLine().getStatusCode(), EntityUtils.toString(resEntity));
+        }
+        catch (IOException e) {
+          throw new RuntimeException(e);
         }
     }
 
     protected ResponseInfo httpGetWithApacheClient(HttpHost host,
-            String resourceUrl, boolean isProxied, boolean callHeadFirst)
-            throws Exception {
+            String resourceUrl, boolean isProxied, boolean callHeadFirst) {
         final boolean supportSsl = true;
         String username = getUsername();
         String password = getPassword();
-        try (CloseableHttpClient httpClient = TestUtils.buildHttpClient(
+        try (CloseableHttpClient httpClient = buildHttpClient(
                 isProxied, supportSsl, proxyServer.getListenAddress().getPort(), username, password)){
             Integer contentLength = null;
             if (callHeadFirst) {
@@ -185,41 +172,39 @@ public abstract class AbstractProxyTest {
             HttpEntity resEntity = response.getEntity();
 
             if (contentLength != null) {
-                assertEquals(
-                  "Content-Length from GET should match that from HEAD",
-                  contentLength,
-                  Integer.valueOf(response.getFirstHeader("Content-Length").getValue()));
+                assertThat(Integer.valueOf(response.getFirstHeader("Content-Length").getValue()))
+                  .as("Content-Length from GET should match that from HEAD")
+                  .isEqualTo(contentLength);
             }
             return new ResponseInfo(response.getStatusLine().getStatusCode(),
                     EntityUtils.toString(resEntity));
         }
+        catch (IOException e) {
+          throw new RuntimeException(e);
+        }
     }
 
-    protected String compareProxiedAndUnproxiedPOST(HttpHost host,
-            String resourceUrl) throws Exception {
-        ResponseInfo proxiedResponse = httpPostWithApacheClient(host,
-                resourceUrl, true);
+    protected String compareProxiedAndUnproxiedPOST(HttpHost host, String resourceUrl) {
+        ResponseInfo proxiedResponse = httpPostWithApacheClient(host, resourceUrl, true);
         if (expectBadGatewayForEverything()) {
             assertReceivedBadGateway(proxiedResponse);
         } else {
-            ResponseInfo unproxiedResponse = httpPostWithApacheClient(host,
-                    resourceUrl, false);
-            assertEquals(unproxiedResponse, proxiedResponse);
+            ResponseInfo unproxiedResponse = httpPostWithApacheClient(host, resourceUrl, false);
+            assertThat(proxiedResponse).isEqualTo(unproxiedResponse);
             checkStatistics(host);
         }
         return proxiedResponse.getBody();
     }
 
     protected String compareProxiedAndUnproxiedGET(HttpHost host,
-            String resourceUrl) throws Exception {
+            String resourceUrl) {
         ResponseInfo proxiedResponse = httpGetWithApacheClient(host,
                 resourceUrl, true, false);
         if (expectBadGatewayForEverything()) {
             assertReceivedBadGateway(proxiedResponse);
         } else {
-            ResponseInfo unproxiedResponse = httpGetWithApacheClient(host,
-                    resourceUrl, false, false);
-            assertEquals(unproxiedResponse, proxiedResponse);
+            ResponseInfo unproxiedResponse = httpGetWithApacheClient(host, resourceUrl, false, false);
+            assertThat(proxiedResponse).isEqualTo(unproxiedResponse);
             checkStatistics(host);
         }
         return proxiedResponse.getBody();
@@ -239,18 +224,14 @@ public abstract class AbstractProxyTest {
         if (isHTTPS && !isChained()) {
             numberOfExpectedServerInteractions -= 1;
         }
-        assertThat(bytesReceivedFromClient.get(), greaterThan(0));
-        assertEquals(numberOfExpectedClientInteractions,
-                requestsReceivedFromClient.get());
-        assertThat(bytesSentToServer.get(), greaterThan(0));
-        assertEquals(numberOfExpectedServerInteractions,
-                requestsSentToServer.get());
-        assertThat(bytesReceivedFromServer.get(), greaterThan(0));
-        assertEquals(numberOfExpectedServerInteractions,
-                responsesReceivedFromServer.get());
-        assertThat(bytesSentToClient.get(), greaterThan(0));
-        assertEquals(numberOfExpectedClientInteractions,
-                responsesSentToClient.get());
+        assertThat(bytesReceivedFromClient.get()).isGreaterThan(0);
+        assertThat(requestsReceivedFromClient.get()).isEqualTo(numberOfExpectedClientInteractions);
+        assertThat(bytesSentToServer.get()).isGreaterThan(0);
+        assertThat(requestsSentToServer.get()).isEqualTo(numberOfExpectedServerInteractions);
+        assertThat(bytesReceivedFromServer.get()).isGreaterThan(0);
+        assertThat(responsesReceivedFromServer.get()).isEqualTo(numberOfExpectedServerInteractions);
+        assertThat(bytesSentToClient.get()).isGreaterThan(0);
+        assertThat(responsesSentToClient.get()).isEqualTo(numberOfExpectedClientInteractions);
     }
 
     /**

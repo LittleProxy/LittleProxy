@@ -11,9 +11,9 @@ import io.netty.handler.logging.LoggingHandler;
 
 import java.net.InetSocketAddress;
 
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.fail;
 
-abstract public class BaseChainedSocksProxyTest extends BaseProxyTest {
+abstract class BaseChainedSocksProxyTest extends BaseProxyTest {
     private EventLoopGroup socksBossGroup;
     private EventLoopGroup socksWorkerGroup;
     private int socksPort;

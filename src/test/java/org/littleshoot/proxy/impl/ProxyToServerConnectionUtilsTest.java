@@ -1,6 +1,6 @@
 package org.littleshoot.proxy.impl;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.HostResolver;
 
 import java.net.UnknownHostException;
@@ -10,12 +10,12 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for static helper methods in {@link ProxyToServerConnection}.
  */
-public class ProxyToServerConnectionUtilsTest {
+public final class ProxyToServerConnectionUtilsTest {
     @Test
     public void testParseAddresses() throws UnknownHostException {
         // mock out the proxy server and resolver; this test only verifies the addresses parse correctly
-        DefaultHttpProxyServer mockProxyServer = mock(DefaultHttpProxyServer.class);
-        HostResolver mockHostResolver = mock(HostResolver.class);
+        DefaultHttpProxyServer mockProxyServer = mock();
+        HostResolver mockHostResolver = mock();
 
         when(mockProxyServer.getServerResolver()).thenReturn(mockHostResolver);
 

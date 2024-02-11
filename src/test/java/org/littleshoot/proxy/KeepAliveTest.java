@@ -7,53 +7,47 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.SocketClientUtil;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
 import org.mockserver.model.ConnectionOptions;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertFalse;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
 /**
  * This class tests the proxy's keep alive/connection closure behavior.
  */
-@Category(SlowTest.class)
-public class KeepAliveTest {
+@Tag("slow-test")
+@ParametersAreNonnullByDefault
+public final class KeepAliveTest {
     private HttpProxyServer proxyServer;
-
     private ClientAndServer mockServer;
     private int mockServerPort;
-
     private Socket socket;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockServer = new ClientAndServer(0);
         mockServerPort = mockServer.getLocalPort();
         socket = null;
         proxyServer = null;
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         try {
             if (proxyServer != null) {
                 proxyServer.abort();
@@ -102,12 +96,20 @@ public class KeepAliveTest {
 
             String response = SocketClientUtil.readStringFromSocket(socket);
 
-            assertThat("Expected to receive an HTTP 200 from the server (iteration: " + i + ")", response, startsWith("HTTP/1.1 200 OK"));
-            assertThat("Unexpected message body (iteration: " + i + ")", response, endsWith("success"));
+            assertThat(response)
+              .as("Expected to receive an HTTP 200 from the server (iteration: %s)", i)
+              .startsWith("HTTP/1.1 200 OK");
+            assertThat(response)
+              .as("Unexpected message body (iteration: %s)", i)
+              .endsWith("success");
         }
 
-        assertTrue("Expected connection to proxy server to be open and readable", SocketClientUtil.isSocketReadyToRead(socket));
-        assertTrue("Expected connection to proxy server to be open and writable", SocketClientUtil.isSocketReadyToWrite(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Expected connection to proxy server to be open and readable")
+          .isTrue();
+        assertThat(SocketClientUtil.isSocketReadyToWrite(socket))
+          .as("Expected connection to proxy server to be open and writable")
+          .isTrue();
     }
 
     /**
@@ -146,16 +148,26 @@ public class KeepAliveTest {
 
             String response = SocketClientUtil.readStringFromSocket(socket);
 
-            assertThat("Expected to receive an HTTP 200 from the server (iteration: " + i + ")", response, startsWith("HTTP/1.1 200 OK"));
+            assertThat(response)
+              .as("Expected to receive an HTTP 200 from the server (iteration: %s)", i)
+              .startsWith("HTTP/1.1 200 OK");
             // the proxy will set the Transfer-Encoding to chunked since the server is using connection closure to indicate the end of the message.
             // (matching capitalized or lowercase Transfer-Encoding, since Netty 4.1+ uses lowercase header names)
-            assertThat("Expected proxy to set Transfer-Encoding to chunked", response.toLowerCase(Locale.US), containsString("transfer-encoding: chunked"));
+            assertThat(response.toLowerCase(Locale.US))
+              .as("Expected proxy to set Transfer-Encoding to chunked")
+              .contains("transfer-encoding: chunked");
             // the Transfer-Encoding is chunked, so the body text will be followed by a 0 and 2 CRLFs
-            assertThat("Unexpected message body (iteration: " + i + ")", response, containsString("success"));
+            assertThat(response)
+              .as("Unexpected message body (iteration: %s)", i)
+              .contains("success");
         }
 
-        assertTrue("Expected connection to proxy server to be open and readable", SocketClientUtil.isSocketReadyToRead(socket));
-        assertTrue("Expected connection to proxy server to be open and writable", SocketClientUtil.isSocketReadyToWrite(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Expected connection to proxy server to be open and readable")
+          .isTrue();
+        assertThat(SocketClientUtil.isSocketReadyToWrite(socket))
+          .as("Expected connection to proxy server to be open and writable")
+          .isTrue();
     }
 
     /**
@@ -189,11 +201,17 @@ public class KeepAliveTest {
 
             String response = SocketClientUtil.readStringFromSocket(socket);
 
-            assertThat("Expected to receive an HTTP 200 from the server (iteration: " + i + ")", response, startsWith("HTTP/1.1 502 Bad Gateway"));
+            assertThat(response)
+              .as("Expected to receive an HTTP 200 from the server (iteration: %s)", i)
+              .startsWith("HTTP/1.1 502 Bad Gateway");
         }
 
-        assertTrue("Expected connection to proxy server to be open and readable", SocketClientUtil.isSocketReadyToRead(socket));
-        assertTrue("Expected connection to proxy server to be open and writable", SocketClientUtil.isSocketReadyToWrite(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Expected connection to proxy server to be open and readable")
+          .isTrue();
+        assertThat(SocketClientUtil.isSocketReadyToWrite(socket))
+          .as("Expected connection to proxy server to be open and writable")
+          .isTrue();
     }
 
     /**
@@ -227,15 +245,19 @@ public class KeepAliveTest {
             String response = SocketClientUtil.readStringFromSocket(socket);
 
 	          // match the whole response to make sure that it's not repeated
-            assertThat("The response is repeated:", response, is("HTTP/1.1 504 Gateway Timeout\r\n" +
+            assertThat(response).as("The response is repeated:").isEqualTo("HTTP/1.1 504 Gateway Timeout\r\n" +
                     "content-length: 15\r\n" +
                     "content-type: text/html; charset=utf-8\r\n" +
                     "\r\n" +
-                    "Gateway Timeout"));
+                    "Gateway Timeout");
         }
 
-        assertTrue("Expected connection to proxy server to be open and readable", SocketClientUtil.isSocketReadyToRead(socket));
-        assertTrue("Expected connection to proxy server to be open and writable", SocketClientUtil.isSocketReadyToWrite(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Expected connection to proxy server to be open and readable")
+          .isTrue();
+        assertThat(SocketClientUtil.isSocketReadyToWrite(socket))
+          .as("Expected connection to proxy server to be open and writable")
+          .isTrue();
     }
 
     /**
@@ -288,11 +310,17 @@ public class KeepAliveTest {
 
             String response = SocketClientUtil.readStringFromSocket(socket);
 
-            assertThat("Expected to receive an HTTP 200 from the server (iteration: " + i + ")", response, startsWith("HTTP/1.1 200 OK"));
+            assertThat(response)
+              .as("Expected to receive an HTTP 200 from the server (iteration: %s)", i)
+              .startsWith("HTTP/1.1 200 OK");
         }
 
-        assertTrue("Expected connection to proxy server to be open and readable", SocketClientUtil.isSocketReadyToRead(socket));
-        assertTrue("Expected connection to proxy server to be open and writable", SocketClientUtil.isSocketReadyToWrite(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Expected connection to proxy server to be open and readable")
+          .isTrue();
+        assertThat(SocketClientUtil.isSocketReadyToWrite(socket))
+          .as("Expected connection to proxy server to be open and writable")
+          .isTrue();
     }
 
     /**
@@ -346,10 +374,16 @@ public class KeepAliveTest {
 
         String response = SocketClientUtil.readStringFromSocket(socket);
 
-        assertThat("Expected to receive an HTTP 200 from the server", response, startsWith("HTTP/1.1 200 OK"));
+        assertThat(response)
+          .as("Expected to receive an HTTP 200 from the server")
+          .startsWith("HTTP/1.1 200 OK");
 
-        assertFalse("Expected connection to proxy server to be closed", SocketClientUtil.isSocketReadyToRead(socket));
-        assertFalse("Expected connection to proxy server to be closed", SocketClientUtil.isSocketReadyToWrite(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Expected connection to proxy server to be closed")
+          .isFalse();
+        assertThat(SocketClientUtil.isSocketReadyToWrite(socket))
+          .as("Expected connection to proxy server to be closed")
+          .isFalse();
     }
 }
 

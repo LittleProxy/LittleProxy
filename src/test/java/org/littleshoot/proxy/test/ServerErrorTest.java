@@ -1,7 +1,7 @@
 package org.littleshoot.proxy.test;
 
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.HttpProxyServer;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
@@ -12,9 +12,10 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
 
-public class ServerErrorTest {
+public final class ServerErrorTest {
     private HttpProxyServer proxyServer;
 
     @Test
@@ -26,14 +27,16 @@ public class ServerErrorTest {
         // we have to create our own socket here, since any proper http server (jetty, mockserver, etc.) won't allow us to
         // send invalid responses.
         try (ServerSocket socket = createServerWithBadResponse()) {
-            org.apache.http.HttpResponse response = HttpClientUtil.performHttpGet("http://localhost:" + socket.getLocalPort(), proxyServer);
+            org.apache.http.HttpResponse response = performHttpGet("http://localhost:" + socket.getLocalPort(), proxyServer);
 
-            assertEquals("Expected to receive a 502 Bad Gateway after server responded with invalid response", 502, response.getStatusLine().getStatusCode());
+            assertThat(response.getStatusLine().getStatusCode())
+              .as("Expected to receive a 502 Bad Gateway after server responded with invalid response")
+              .isEqualTo(502);
         }
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    void tearDown() {
         if (proxyServer != null) {
             proxyServer.abort();
         }

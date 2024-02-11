@@ -4,9 +4,9 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.SocketClientUtil;
 import org.mockserver.integration.ClientAndServer;
@@ -17,14 +17,12 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
-public class TimeoutTest {
+public final class TimeoutTest {
 
     private static final String UNUSED_URI_FOR_BAD_GATEWAY = "http://1.2.3.6:53540";
 
@@ -33,14 +31,14 @@ public class TimeoutTest {
 
     private HttpProxyServer proxyServer;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockServer = new ClientAndServer(0);
         mockServerPort = mockServer.getLocalPort();
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    void tearDown() {
         try {
             if (mockServer != null) {
                 mockServer.stop();
@@ -76,9 +74,12 @@ public class TimeoutTest {
             HttpResponse response = httpClient.execute(get);
             EntityUtils.consumeQuietly(response.getEntity());
 
-            assertEquals("Expected to receive an HTTP 504 (Gateway Timeout) response after proxy did not receive a response within 1 second", 504, response.getStatusLine().getStatusCode());
-            assertThat("Expected idle connection timeout to happen after approximately 1 second",
-              TimeUnit.MILLISECONDS.convert(stop - start, TimeUnit.NANOSECONDS), lessThan(2000L));
+          assertThat(response.getStatusLine().getStatusCode())
+            .as("Expected to receive an HTTP 504 (Gateway Timeout) response after proxy did not receive a response within 1 second")
+            .isEqualTo(504);
+          assertThat(MILLISECONDS.convert(stop - start, TimeUnit.NANOSECONDS))
+            .as("Expected idle connection timeout to happen after approximately 1 second")
+            .isLessThan(2000L);
         }
     }
 
@@ -99,9 +100,12 @@ public class TimeoutTest {
 
             EntityUtils.consumeQuietly(response.getEntity());
 
-            assertEquals("Expected to receive an HTTP 502 (Bad Gateway) response after proxy could not connect within 1 second", 502, response.getStatusLine().getStatusCode());
-            assertThat("Expected connection timeout to happen after approximately 1 second",
-              TimeUnit.MILLISECONDS.convert(stop - start, TimeUnit.NANOSECONDS), lessThan(2000L));
+            assertThat(response.getStatusLine().getStatusCode())
+                .as("Expected to receive an HTTP 502 (Bad Gateway) response after proxy could not connect within 1 second")
+                .isEqualTo(502);
+            assertThat(MILLISECONDS.convert(stop - start, TimeUnit.NANOSECONDS))
+              .as("Expected connection timeout to happen after approximately 1 second")
+              .isLessThan(2000L);
         }
     }
 
@@ -127,7 +131,9 @@ public class TimeoutTest {
         // wait a bit to allow the proxy server to respond
         Thread.sleep(1500);
 
-        assertFalse("Client to proxy connection should be closed", SocketClientUtil.isSocketReadyToRead(socket));
+        assertThat(SocketClientUtil.isSocketReadyToRead(socket))
+          .as("Client to proxy connection should be closed")
+          .isFalse();
 
         socket.close();
     }

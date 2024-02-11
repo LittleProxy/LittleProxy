@@ -10,13 +10,9 @@ import static org.littleshoot.proxy.TransportProtocol.TCP;
  * Tests that servers are authenticated and that if they're missing certs, we
  * get an error.
  */
-public class BadServerAuthenticationTCPChainedProxyTest extends
-        BaseChainedProxyTest {
-    protected final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource(
-            "chain_proxy_keystore_1.jks");
-    
-    protected final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource(
-            "chain_proxy_keystore_2.jks");
+public class BadServerAuthenticationTCPChainedProxyTest extends BaseChainedProxyTest {
+    protected final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
+    protected final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_2.jks");
 
     @Override
     protected boolean expectBadGatewayForEverything() {

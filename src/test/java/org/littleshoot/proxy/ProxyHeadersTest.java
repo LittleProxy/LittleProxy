@@ -5,9 +5,9 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
@@ -15,29 +15,27 @@ import org.mockserver.model.ConnectionOptions;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.NottableString;
 
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
-import static org.junit.Assert.assertEquals;
 
 /**
  * Tests the proxy's handling and manipulation of headers.
  */
-public class ProxyHeadersTest {
+public final class ProxyHeadersTest {
     private HttpProxyServer proxyServer;
 
     private ClientAndServer mockServer;
     private int mockServerPort;
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockServer = new ClientAndServer(0);
         mockServerPort = mockServer.getLocalPort();
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    void tearDown() {
         try {
             if (proxyServer != null) {
                 proxyServer.abort();
@@ -74,7 +72,9 @@ public class ProxyHeadersTest {
             EntityUtils.consume(response.getEntity());
 
             Header[] dummyHeaders = response.getHeaders("Dummy-Header");
-            assertThat("Expected proxy to remove the Dummy-Header specified in the Connection header", dummyHeaders, emptyArray());
+            assertThat(dummyHeaders)
+              .as("Expected proxy to remove the Dummy-Header specified in the Connection header")
+              .isEmpty();
         }
     }
 
@@ -97,7 +97,7 @@ public class ProxyHeadersTest {
 			clientRequest.addHeader("Proxy-Authorization", "");
 			HttpResponse response = httpClient.execute(clientRequest);
 			EntityUtils.consume(response.getEntity());
-			assertEquals(200, response.getStatusLine().getStatusCode());
+      assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
 		}
 	}
 }

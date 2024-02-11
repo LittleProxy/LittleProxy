@@ -1,18 +1,17 @@
 package org.littleshoot.proxy;
 
 import org.eclipse.jetty.server.Server;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.lessThan;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.TestUtils.disableOnMac;
 import static org.littleshoot.proxy.TestUtils.requireUnix;
 
@@ -22,15 +21,15 @@ import static org.littleshoot.proxy.TestUtils.requireUnix;
  *
  * It also fails on macOS (tested on 10.14 Mojave).  It works on Ubuntu, and presumably most other *nix systems.
  */
-public class IdleTest {
+public final class IdleTest {
     private static final int NUMBER_OF_CONNECTIONS_TO_OPEN = 2000;
 
     private Server webServer;
     private int webServerPort = -1;
     private HttpProxyServer proxyServer;
 
-    @Before
-    public void setup() throws Exception {
+    @BeforeEach
+    void setup() throws Exception {
         requireUnix();
         disableOnMac();
 
@@ -45,8 +44,8 @@ public class IdleTest {
 
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         try {
             if (webServer != null) {
                 webServer.stop();
@@ -59,7 +58,7 @@ public class IdleTest {
     }
 
     @Test
-    @Ignore("File descriptors vary too much on my laptop, other people saw this problem too: https://github.com/adamfisk/LittleProxy/pull/221")
+    @Disabled("File descriptors vary too much on my laptop, other people saw this problem too: https://github.com/adamfisk/LittleProxy/pull/221")
     public void testFileDescriptorCount() throws Exception {
         System.out
                 .println("------------------ Memory Usage At Beginning ------------------");
@@ -89,11 +88,11 @@ public class IdleTest {
                 - initialFileDescriptors;
 
         double fdDeltaRatio = fdDeltaToClosed / fdDeltaToOpen;
-        assertThat(
-                "Number of file descriptors after close should be much closer to initial value than number of file descriptors while open (+ 1%).\n"
+        assertThat(fdDeltaRatio)
+          .as("Number of file descriptors after close should be much closer to initial value than number of file descriptors while open (+ 1%).\n"
                         + "Initial file descriptors: " + initialFileDescriptors + "; file descriptors while connections open: " + fileDescriptorsWhileConnectionsOpen + "; "
                         + "file descriptors after connections closed: " + fileDescriptorsAfterConnectionsClosed + "\n"
-                        + "Ratio of file descriptors after connections are closed to descriptors before connections were closed: " + fdDeltaRatio,
-                fdDeltaRatio, lessThan(0.01));
+                        + "Ratio of file descriptors after connections are closed to descriptors before connections were closed: " + fdDeltaRatio)
+          .isLessThan(0.01);
     }
 }

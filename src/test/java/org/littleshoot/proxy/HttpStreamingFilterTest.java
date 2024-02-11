@@ -9,31 +9,29 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.server.Server;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
-public class HttpStreamingFilterTest {
+@ParametersAreNonnullByDefault
+public final class HttpStreamingFilterTest {
     private Server webServer;
     private int webServerPort = -1;
     private HttpProxyServer proxyServer;
 
-    private final AtomicInteger numberOfInitialRequestsFiltered = new AtomicInteger(
-            0);
-    private final AtomicInteger numberOfSubsequentChunksFiltered = new AtomicInteger(
-            0);
+    private final AtomicInteger numberOfInitialRequestsFiltered = new AtomicInteger(0);
+    private final AtomicInteger numberOfSubsequentChunksFiltered = new AtomicInteger(0);
 
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         numberOfInitialRequestsFiltered.set(0);
         numberOfSubsequentChunksFiltered.set(0);
 
@@ -63,8 +61,8 @@ public class HttpStreamingFilterTest {
                 .start();
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         try {
             if (proxyServer != null) {
                 proxyServer.abort();
@@ -96,13 +94,10 @@ public class HttpStreamingFilterTest {
               new HttpHost("127.0.0.1",
                 webServerPort), request);
 
-            assertEquals("Received 20000 bytes\n",
-              EntityUtils.toString(response.getEntity()));
+            assertThat(EntityUtils.toString(response.getEntity())).isEqualTo("Received 20000 bytes\n");
 
-            assertEquals("Filter should have seen only 1 HttpRequest", 1,
-              numberOfInitialRequestsFiltered.get());
-            assertThat("Filter should have seen 1 or more chunks",
-              numberOfSubsequentChunksFiltered.get(), greaterThanOrEqualTo(1));
+            assertThat(numberOfInitialRequestsFiltered.get()).as("Filter should have seen only 1 HttpRequest").isEqualTo(1);
+            assertThat(numberOfSubsequentChunksFiltered.get()).as("Filter should have seen 1 or more chunks").isGreaterThanOrEqualTo(1);
         }
     }
 }

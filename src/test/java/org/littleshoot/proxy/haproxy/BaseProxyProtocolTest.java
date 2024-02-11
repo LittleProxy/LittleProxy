@@ -15,7 +15,7 @@ import io.netty.handler.codec.haproxy.HAProxyMessageDecoder;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.timeout.ReadTimeoutHandler;
-import org.junit.After;
+import org.junit.jupiter.api.AfterEach;
 import org.littleshoot.proxy.HttpProxyServer;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
@@ -41,8 +41,7 @@ public abstract class BaseProxyProtocolTest {
     static final String SOURCE_PORT = "123";
     static final String DESTINATION_PORT = "456";
 
-
-    public void setup(boolean acceptProxy, boolean sendProxy) throws Exception {
+    protected final void setup(boolean acceptProxy, boolean sendProxy) throws Exception {
         this.acceptProxy = acceptProxy;
         this.sendProxy = sendProxy;
         startProxyServer();
@@ -50,7 +49,7 @@ public abstract class BaseProxyProtocolTest {
         startClient();
     }
 
-    void startServer() {
+    final void startServer() {
         parentGroup = new NioEventLoopGroup();
         childGroup = new NioEventLoopGroup();
         ServerBootstrap b = new ServerBootstrap();
@@ -75,7 +74,7 @@ public abstract class BaseProxyProtocolTest {
         Runtime.getRuntime().addShutdownHook(new Thread(this::stopServer, "stopServerHook"));
     }
 
-    void startClient() throws Exception {
+    final void startClient() throws Exception {
         String host = "localhost";
         EventLoopGroup clientWorkGroup = new NioEventLoopGroup();
         Bootstrap b = new Bootstrap();
@@ -123,8 +122,8 @@ public abstract class BaseProxyProtocolTest {
         return new ProxyProtocolHeader(SOURCE_ADDRESS, DESTINATION_ADDRESS, SOURCE_PORT, DESTINATION_PORT);
     }
 
-    @After
-    public void tearDown() {
+    @AfterEach
+    final void tearDown() {
         stopServer();
         stopProxyServer();
     }

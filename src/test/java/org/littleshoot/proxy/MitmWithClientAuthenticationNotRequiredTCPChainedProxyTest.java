@@ -10,13 +10,9 @@ import static org.littleshoot.proxy.TransportProtocol.TCP;
  * Tests that when client authentication is not required, it doesn't matter what
  * certs the client sends.
  */
-public class MitmWithClientAuthenticationNotRequiredTCPChainedProxyTest extends
-        MitmWithChainedProxyTest {
-    private final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource(
-            "chain_proxy_keystore_1.jks");
-
-    private final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource(
-            "chain_proxy_keystore_1.jks", false, false);
+public final class MitmWithClientAuthenticationNotRequiredTCPChainedProxyTest extends MitmWithChainedProxyTest {
+    private final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
+    private final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks", false, false);
 
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {

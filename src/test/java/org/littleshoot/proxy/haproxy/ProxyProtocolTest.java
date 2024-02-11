@@ -1,11 +1,12 @@
 package org.littleshoot.proxy.haproxy;
 
 import io.netty.handler.codec.haproxy.HAProxyMessage;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class ProxyProtocolTest extends BaseProxyProtocolTest {
+import static java.lang.String.valueOf;
+import static org.assertj.core.api.Assertions.assertThat;
 
+public final class ProxyProtocolTest extends BaseProxyProtocolTest {
 
     private static final String LOCALHOST = "127.0.0.1";
     private static final boolean ACCEPT_PROXY = true;
@@ -17,29 +18,27 @@ public class ProxyProtocolTest extends BaseProxyProtocolTest {
     public void canRelayProxyProtocolHeader() throws Exception {
         setup(ACCEPT_PROXY, SEND_PROXY);
         HAProxyMessage haProxyMessage = getRelayedHaProxyMessage();
-        Assert.assertNotNull(haProxyMessage);
-        Assert.assertEquals(SOURCE_ADDRESS, haProxyMessage.sourceAddress());
-        Assert.assertEquals(DESTINATION_ADDRESS, haProxyMessage.destinationAddress());
-        Assert.assertEquals(SOURCE_PORT, String.valueOf(haProxyMessage.sourcePort()));
-        Assert.assertEquals(DESTINATION_PORT, String.valueOf(haProxyMessage.destinationPort()));
+        assertThat(haProxyMessage).isNotNull();
+        assertThat(haProxyMessage.sourceAddress()).isEqualTo(SOURCE_ADDRESS);
+        assertThat(haProxyMessage.destinationAddress()).isEqualTo(DESTINATION_ADDRESS);
+        assertThat(valueOf(haProxyMessage.sourcePort())).isEqualTo(SOURCE_PORT);
+        assertThat(valueOf(haProxyMessage.destinationPort())).isEqualTo(DESTINATION_PORT);
     }
 
     @Test
     public void canSendProxyProtocolHeader() throws Exception {
         setup(DO_NOT_ACCEPT_PROXY, SEND_PROXY);
         HAProxyMessage haProxyMessage = getRelayedHaProxyMessage();
-        Assert.assertNotNull(haProxyMessage);
-        Assert.assertEquals(LOCALHOST, haProxyMessage.sourceAddress());
-        Assert.assertEquals(LOCALHOST, haProxyMessage.destinationAddress());
-        Assert.assertEquals(String.valueOf(serverPort), String.valueOf(haProxyMessage.destinationPort()));
+        assertThat(haProxyMessage).isNotNull();
+        assertThat(haProxyMessage.sourceAddress()).isEqualTo(LOCALHOST);
+        assertThat(haProxyMessage.destinationAddress()).isEqualTo(LOCALHOST);
+        assertThat(valueOf(haProxyMessage.destinationPort())).isEqualTo(valueOf(serverPort));
     }
 
     @Test
     public void canAcceptProxyProtocolHeader() throws Exception {
         setup(ACCEPT_PROXY, DO_NOT_SEND_PROXY);
         HAProxyMessage haProxyMessage = getRelayedHaProxyMessage();
-        Assert.assertNull(haProxyMessage);
+        assertThat(haProxyMessage).isNull();
     }
-
-
 }

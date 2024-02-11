@@ -1,10 +1,11 @@
 package org.littleshoot.proxy;
 
 import io.netty.handler.codec.http.HttpRequest;
-import org.junit.Assert;
 import org.littleshoot.proxy.impl.ClientDetails;
 
 import java.util.Queue;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests a single proxy that requires username/password authentication.
@@ -57,7 +58,7 @@ public class AuthenticatingProxyWithChainingTest extends BaseProxyTest
     @Override
     protected void tearDown() throws Exception {
         super.tearDown();
-        Assert.assertEquals(getUsername(), savedClientDetails.getUserName());
-        Assert.assertTrue(savedClientDetails.getClientAddress().getAddress().isLoopbackAddress());
+        assertThat(savedClientDetails.getUserName()).isEqualTo(getUsername());
+        assertThat(savedClientDetails.getClientAddress().getAddress().isLoopbackAddress()).isTrue();
     }
 }

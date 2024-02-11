@@ -1,9 +1,9 @@
 package org.littleshoot.proxy;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
-public class StopProxyTest {
+public final class StopProxyTest {
     @Test
     public void testStop() {
         HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()

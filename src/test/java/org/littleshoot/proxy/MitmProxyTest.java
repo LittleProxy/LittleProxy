@@ -7,18 +7,18 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.HashSet;
 import java.util.Set;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.hamcrest.Matchers.hasItem;
-import static org.junit.Assert.assertEquals;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests just a single basic proxy running as a man in the middle.
  */
-public class MitmProxyTest extends BaseProxyTest {
+@ParametersAreNonnullByDefault
+public final class MitmProxyTest extends BaseProxyTest {
     private final Set<HttpMethod> requestPreMethodsSeen = new HashSet<>();
     private final Set<HttpMethod> requestPostMethodsSeen = new HashSet<>();
     private final StringBuilder responsePreBody = new StringBuilder();
@@ -94,7 +94,7 @@ public class MitmProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testSimpleGetRequest() throws Exception {
+    public void testSimpleGetRequest() {
         super.testSimpleGetRequest();
         assertMethodSeenInRequestFilters(HttpMethod.GET);
         assertMethodSeenInResponseFilters(HttpMethod.GET);
@@ -102,7 +102,7 @@ public class MitmProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testSimpleGetRequestOverHTTPS() throws Exception {
+    public void testSimpleGetRequestOverHTTPS() {
         super.testSimpleGetRequestOverHTTPS();
         assertMethodSeenInRequestFilters(HttpMethod.CONNECT);
         assertMethodSeenInRequestFilters(HttpMethod.GET);
@@ -111,7 +111,7 @@ public class MitmProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testSimplePostRequest() throws Exception {
+    public void testSimplePostRequest() {
         super.testSimplePostRequest();
         assertMethodSeenInRequestFilters(HttpMethod.POST);
         assertMethodSeenInResponseFilters(HttpMethod.POST);
@@ -119,7 +119,7 @@ public class MitmProxyTest extends BaseProxyTest {
     }
 
     @Override
-    public void testSimplePostRequestOverHTTPS() throws Exception {
+    public void testSimplePostRequestOverHTTPS() {
         super.testSimplePostRequestOverHTTPS();
         assertMethodSeenInRequestFilters(HttpMethod.CONNECT);
         assertMethodSeenInRequestFilters(HttpMethod.POST);
@@ -128,32 +128,26 @@ public class MitmProxyTest extends BaseProxyTest {
     }
 
     private void assertMethodSeenInRequestFilters(HttpMethod method) {
-        assertThat(method
-                        + " should have been seen in clientToProxyRequest filter",
-                requestPreMethodsSeen, hasItem(method));
-        assertThat(method
-                        + " should have been seen in proxyToServerRequest filter",
-                requestPostMethodsSeen, hasItem(method));
+        assertThat(requestPreMethodsSeen)
+          .as(method + " should have been seen in clientToProxyRequest filter")
+          .contains(method);
+        assertThat(requestPostMethodsSeen)
+          .as(method + " should have been seen in proxyToServerRequest filter")
+          .contains(method);
     }
 
     private void assertMethodSeenInResponseFilters(HttpMethod method) {
-        assertThat(
-                method
-                        + " should have been seen as the original request's method in serverToProxyResponse filter",
-                responsePreOriginalRequestMethodsSeen, hasItem(method));
-        assertThat(
-                method
-                        + " should have been seen as the original request's method in proxyToClientResponse filter",
-                responsePostOriginalRequestMethodsSeen, hasItem(method));
+        assertThat(responsePreOriginalRequestMethodsSeen)
+          .as(method + " should have been seen as the original request's method in serverToProxyResponse filter")
+          .contains(method);
+        assertThat(responsePostOriginalRequestMethodsSeen)
+          .as(method + " should have been seen as the original request's method in proxyToClientResponse filter")
+          .contains(method);
     }
 
     private void assertResponseFromFiltersMatchesActualResponse() {
-        assertEquals(
-                "Data received through HttpFilters.serverToProxyResponse should match response",
-                lastResponse, responsePreBody.toString());
-        assertEquals(
-                "Data received through HttpFilters.proxyToClientResponse should match response",
-                lastResponse, responsePostBody.toString());
+      assertThat(lastResponse).as(responsePreBody.toString()).isEqualTo("Data received through HttpFilters.serverToProxyResponse should match response");
+      assertThat(lastResponse).as(responsePostBody.toString()).isEqualTo("Data received through HttpFilters.proxyToClientResponse should match response");
     }
 
 }

@@ -1,11 +1,11 @@
 package org.littleshoot.proxy;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests that when there are no chained proxies, we get a bad gateway.
  */
-public class NoChainedProxiesTest extends AbstractProxyTest {
+public final class NoChainedProxiesTest extends AbstractProxyTest {
     @Override
     protected void setUp() {
         proxyServer = bootstrapProxy()
@@ -18,7 +18,7 @@ public class NoChainedProxiesTest extends AbstractProxyTest {
     }
 
     @Test
-    public void testNoChainedProxy() throws Exception {
+    public void testNoChainedProxy() {
         ResponseInfo response = httpGetWithApacheClient(webHost,
                 DEFAULT_RESOURCE, true, false);
         assertReceivedBadGateway(response);

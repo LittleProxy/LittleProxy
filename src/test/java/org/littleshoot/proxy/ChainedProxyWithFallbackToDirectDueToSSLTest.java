@@ -5,8 +5,7 @@ package org.littleshoot.proxy;
  * the downstream proxy is unavailable, the downstream proxy should just fall
  * back to a direct connection.
  */
-public class ChainedProxyWithFallbackToDirectDueToSSLTest extends
-        BadServerAuthenticationTCPChainedProxyTest {
+public final class ChainedProxyWithFallbackToDirectDueToSSLTest extends BadServerAuthenticationTCPChainedProxyTest {
     @Override
     protected boolean isChained() {
         // Set this to false since we don't actually expect anything to go
