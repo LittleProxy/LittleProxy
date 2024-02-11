@@ -20,7 +20,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 
 @Tag("slow-test")
 public final class WebSocketClientServerTest {
@@ -137,8 +136,8 @@ public final class WebSocketClientServerTest {
                 Thread.sleep(CONNECT_TIMEOUT.toMillis() / 2);
             }
         }
-        if (!connected) {
-            fail("Connection timed out after " + MAX_CONNECTION_ATTEMPTS + " attempts");
-        }
+        assertThat(connected)
+          .as("Connection timed out after " + MAX_CONNECTION_ATTEMPTS + " attempts")
+          .isTrue();
     }
 }
