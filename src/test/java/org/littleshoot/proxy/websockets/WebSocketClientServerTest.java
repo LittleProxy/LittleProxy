@@ -66,14 +66,14 @@ public final class WebSocketClientServerTest {
     @Test
     @Timeout(TEST_TIMEOUT_SECONDS)
     public void directInsecureConnection() throws Exception {
-        testIntegration(false, false);
+        testIntegration(false);
     }
 
     @Disabled("Only useful for debugging issues with the proxy tests")
     @Test
     @Timeout(TEST_TIMEOUT_SECONDS)
     public void directSecureConnection() throws Exception {
-        testIntegration(true, false);
+        testIntegration(true);
     }
 
     @Test
@@ -100,8 +100,8 @@ public final class WebSocketClientServerTest {
         testIntegration(true, true, "https");
     }
 
-    private void testIntegration(final boolean withSsl, final boolean withProxy) throws Exception {
-        testIntegration(withSsl, withProxy, withSsl ? "wss" : "ws");
+    private void testIntegration(final boolean withSsl) throws Exception {
+        testIntegration(withSsl, false, withSsl ? "wss" : "ws");
     }
     
     private void testIntegration(final boolean withSsl, final boolean withProxy, final String scheme) throws Exception {

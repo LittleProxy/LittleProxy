@@ -14,6 +14,8 @@ import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLSession;
 import java.io.IOException;
@@ -63,6 +65,10 @@ public abstract class AbstractProxyTest {
     private final AtomicInteger clientSSLHandshakeSuccesses = new AtomicInteger(0);
     private final AtomicInteger clientDisconnects = new AtomicInteger(0);
 
+    protected Logger logger() {
+        return LoggerFactory.getLogger(getClass());
+    }
+
     @BeforeEach
     final void runSetUp() throws Exception {
         webServer = TestUtils.startWebServer(true);
@@ -80,8 +86,10 @@ public abstract class AbstractProxyTest {
 
         webHost = new HttpHost("127.0.0.1", webServerPort);
         httpsWebHost = new HttpHost("127.0.0.1", httpsWebServerPort, "https");
+        logger().info("Started webserver http:{}, https:{}", webServerPort, httpsWebServerPort);
 
         setUp();
+        logger().info("Started proxy server {}", proxyServer.getListenAddress());
     }
 
     protected abstract void setUp() throws Exception;
@@ -93,10 +101,12 @@ public abstract class AbstractProxyTest {
         } finally {
             try {
                 if (proxyServer != null) {
+                    logger().info("Stop proxy server {}", proxyServer.getListenAddress());
                     proxyServer.abort();
                 }
             } finally {
                 if (webServer != null) {
+                    logger().info("Stop webserver http:{}, https:{}", webServerPort, httpsWebServerPort);
                     webServer.stop();
                 }
             }

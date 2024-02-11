@@ -41,7 +41,12 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-report
+          name: test-report-${{matrix.platform}}
+          retention-days: 5
           path: |
             target/surefire-reports
             target/site
+            target/*.hprof
+            target/*.txt
+            target/*.jks
+            target/*_cert*

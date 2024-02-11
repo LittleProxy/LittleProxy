@@ -61,6 +61,11 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <excludedGroups>slow-test</excludedGroups>
+                            <includes>
+                                <include>**/WebSocketClientServerTest*</include>
+                                <include>**/KeepAliveTest*</include>
+                            </includes>
+                            <argLine>-ea -Xmx512m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=target/smoke-tests.hprof</argLine>
                         </configuration>
                     </plugin>
                 </plugins>
@@ -75,9 +80,7 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                           <groups>slow-test</groups>
-                          <excludes>
-                            <exclude>**/WebSocketClientServerTest*</exclude>
-                          </excludes>
+                          <argLine>-ea -Xmx512m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=target/slow-tests.hprof</argLine>
                         </configuration>
                     </plugin>
                 </plugins>
