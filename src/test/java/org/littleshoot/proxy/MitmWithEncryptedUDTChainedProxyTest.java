@@ -9,7 +9,7 @@ import static org.littleshoot.proxy.TestUtils.disableOnMac;
 import static org.littleshoot.proxy.TransportProtocol.UDT;
 
 public final class MitmWithEncryptedUDTChainedProxyTest extends MitmWithChainedProxyTest {
-    private final SslEngineSource sslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
+    private final SslEngineSource sslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks");
 
     @BeforeAll
     static void beforeClass() {

@@ -16,6 +16,10 @@ public class SelfSignedMitmManager implements MitmManager {
         selfSignedSslEngineSource = new SelfSignedSslEngineSource(true);
     }
 
+    SelfSignedMitmManager(String keyStorePath, boolean trustAllServers, boolean sendCerts) {
+        selfSignedSslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
+    }
+
     public SelfSignedMitmManager(SelfSignedSslEngineSource selfSignedSslEngineSource) {
         this.selfSignedSslEngineSource = selfSignedSslEngineSource;
     }

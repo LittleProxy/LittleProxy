@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -24,8 +25,7 @@ import static java.util.Objects.requireNonNullElse;
  * file doesn't yet exist.
  */
 public class SelfSignedSslEngineSource implements SslEngineSource {
-    private static final Logger LOG = LoggerFactory
-            .getLogger(SelfSignedSslEngineSource.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SelfSignedSslEngineSource.class);
 
     private static final String PROTOCOL = "TLS";
 
@@ -82,6 +82,10 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
     }
 
     private void initializeKeyStore(File keyStoreLocalFile) {
+        initializeKeyStore(keyStoreLocalFile, "littleproxy_cert");
+    }
+
+    private void initializeKeyStore(File keyStoreLocalFile, String certificateFileName) {
         File keyStoreLocalAbsoluteFile = keyStoreLocalFile.getAbsoluteFile();
 
         nativeCall("keytool", "-genkey",
@@ -95,12 +99,16 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
                 "-keystore", keyStoreLocalAbsoluteFile.getPath()
         );
 
+        LOG.info("Generated LittleProxy keystore in {}", keyStoreLocalAbsoluteFile);
+
+        Path certificateFile = Paths.get(keyStoreLocalAbsoluteFile.getParent(), certificateFileName);
         nativeCall("keytool", "-exportcert",
                 "-alias", alias,
                 "-keystore", keyStoreLocalAbsoluteFile.getPath(),
                 "-storepass", password,
-                "-file", Paths.get(keyStoreLocalAbsoluteFile.getParent(),"littleproxy_cert").toString()
+                "-file", certificateFile.toString()
         );
+        LOG.info("Generated LittleProxy certificate in {}", certificateFile);
     }
 
     private void initializeSSLContext() {
@@ -135,24 +143,26 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
     }
 
     private KeyStore loadKeyStore() throws IOException, GeneralSecurityException {
-        final KeyStore keyStore = KeyStore.getInstance("JKS");
         URL resourceUrl = getClass().getResource(keyStoreFile);
-        if(resourceUrl != null) {
-            loadKeyStore(keyStore, resourceUrl);
-        } else {
+        if (resourceUrl != null) {
+            return loadKeyStore(resourceUrl);
+        }
+        else {
             File keyStoreLocalFile = new File(keyStoreFile);
-            if(!keyStoreLocalFile.isFile()) {
+            if (!keyStoreLocalFile.isFile()) {
                 initializeKeyStore(keyStoreLocalFile);
             }
-            loadKeyStore(keyStore, keyStoreLocalFile.toURI().toURL());
+            return loadKeyStore(keyStoreLocalFile.toURI().toURL());
         }
-        return keyStore;
     }
 
-    private void loadKeyStore(KeyStore keyStore, URL url) throws IOException, GeneralSecurityException {
-        try(InputStream is = url.openStream()) {
+    private KeyStore loadKeyStore(URL url) throws IOException, GeneralSecurityException {
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        try (InputStream is = url.openStream()) {
             keyStore.load(is, password.toCharArray());
         }
+        LOG.debug("Loaded LittleProxy keystore from {}", url);
+        return keyStore;
     }
 
     private void nativeCall(final String... commands) {

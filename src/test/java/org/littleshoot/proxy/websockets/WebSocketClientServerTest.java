@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.HttpProxyServer;
 import org.littleshoot.proxy.HttpProxyServerBootstrap;
-import org.littleshoot.proxy.extras.SelfSignedMitmManager;
+import org.littleshoot.proxy.extras.TestMitmManager;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +57,7 @@ public final class WebSocketClientServerTest {
     private void startProxy(final boolean withSsl) {
         final HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer.bootstrap().withTransparent(true).withPort(0);
         if (withSsl) {
-            bootstrap.withManInTheMiddle(new SelfSignedMitmManager());
+            bootstrap.withManInTheMiddle(new TestMitmManager());
         }
         proxy = bootstrap.start();
     }

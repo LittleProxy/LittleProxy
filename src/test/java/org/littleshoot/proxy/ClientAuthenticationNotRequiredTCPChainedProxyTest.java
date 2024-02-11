@@ -11,8 +11,8 @@ import static org.littleshoot.proxy.TransportProtocol.TCP;
  * certs the client sends.
  */
 public final class ClientAuthenticationNotRequiredTCPChainedProxyTest extends BaseChainedProxyTest {
-    private final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
-    private final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks", false, false);
+    private final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks");
+    private final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks", false, false);
 
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {

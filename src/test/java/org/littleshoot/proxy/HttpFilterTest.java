@@ -601,7 +601,7 @@ public final class HttpFilterTest {
         final HttpProxyServer chainedProxy = DefaultHttpProxyServer.bootstrap()
                 .withName("ChainedProxy")
                 .withPort(0)
-                .withSslEngineSource(new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks"))
+                .withSslEngineSource(new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks"))
                 .start();
 
         final HttpFiltersMethodInvokedAdapter filter = new HttpFiltersMethodInvokedAdapter();
@@ -631,7 +631,7 @@ public final class HttpFilterTest {
                     @Override
                     public SSLEngine newSslEngine() {
                         // use the same "bad" keystore as BadServerAuthenticationTCPChainedProxyTest
-                        return new SelfSignedSslEngineSource("chain_proxy_keystore_2.jks").newSslEngine();
+                        return new SelfSignedSslEngineSource("target/chain_proxy_keystore_2.jks").newSslEngine();
                     }
                 }))
                 .start();

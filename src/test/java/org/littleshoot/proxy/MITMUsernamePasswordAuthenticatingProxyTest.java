@@ -1,6 +1,6 @@
 package org.littleshoot.proxy;
 
-import org.littleshoot.proxy.extras.SelfSignedMitmManager;
+import org.littleshoot.proxy.extras.TestMitmManager;
 
 /**
  * Tests a single proxy that requires username/password authentication and that
@@ -14,7 +14,7 @@ public class MITMUsernamePasswordAuthenticatingProxyTest extends
         proxyServer = bootstrapProxy()
                 .withPort(0)
                 .withProxyAuthenticator(this)
-                .withManInTheMiddle(new SelfSignedMitmManager())
+                .withManInTheMiddle(new TestMitmManager())
                 .start();
     }
 

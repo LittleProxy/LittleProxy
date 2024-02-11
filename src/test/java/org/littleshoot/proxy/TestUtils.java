@@ -84,7 +84,7 @@ public class TestUtils {
 
         if (enableHttps) {
             // Add SSL connector
-            SelfSignedSslEngineSource contextSource = new SelfSignedSslEngineSource();
+            SelfSignedSslEngineSource contextSource = new SelfSignedSslEngineSource("target/littleproxy_keystore.jks");
             ServerConnector connector = createServerConnector(contextSource, httpServer);
             connector.setPort(0);
             connector.setIdleTimeout(0);

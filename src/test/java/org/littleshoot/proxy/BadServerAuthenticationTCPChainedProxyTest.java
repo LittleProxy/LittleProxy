@@ -11,8 +11,8 @@ import static org.littleshoot.proxy.TransportProtocol.TCP;
  * get an error.
  */
 public class BadServerAuthenticationTCPChainedProxyTest extends BaseChainedProxyTest {
-    protected final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
-    protected final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_2.jks");
+    protected final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks");
+    protected final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_2.jks");
 
     @Override
     protected boolean expectBadGatewayForEverything() {

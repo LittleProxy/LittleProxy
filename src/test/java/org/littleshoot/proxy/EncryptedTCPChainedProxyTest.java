@@ -7,7 +7,7 @@ import javax.net.ssl.SSLEngine;
 import static org.littleshoot.proxy.TransportProtocol.TCP;
 
 public final class EncryptedTCPChainedProxyTest extends BaseChainedProxyTest {
-    private final SslEngineSource sslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
+    private final SslEngineSource sslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks");
 
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {

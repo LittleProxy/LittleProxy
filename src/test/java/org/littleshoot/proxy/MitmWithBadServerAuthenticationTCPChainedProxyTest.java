@@ -11,8 +11,8 @@ import static org.littleshoot.proxy.TransportProtocol.TCP;
  * get an error.
  */
 public final class MitmWithBadServerAuthenticationTCPChainedProxyTest extends MitmWithChainedProxyTest {
-    private final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_1.jks");
-    private final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("chain_proxy_keystore_2.jks");
+    private final SslEngineSource serverSslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks");
+    private final SslEngineSource clientSslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_2.jks");
 
     @Override
     protected boolean expectBadGatewayForEverything() {
