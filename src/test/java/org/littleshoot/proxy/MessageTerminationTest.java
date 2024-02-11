@@ -15,6 +15,7 @@ import org.mockserver.matchers.Times;
 import org.mockserver.model.ConnectionOptions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -62,7 +63,7 @@ public final class MessageTerminationTest {
                 .start();
         int proxyServerPort = proxyServer.getListenAddress().getPort();
 
-        HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
+        HttpClient httpClient = createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpGet("http://127.0.0.1:" + mockServerPort + "/"));
 
       assertThat(response.getStatusLine().getStatusCode())
@@ -103,7 +104,7 @@ public final class MessageTerminationTest {
                 .start();
         int proxyServerPort = proxyServer.getListenAddress().getPort();
 
-        HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
+        HttpClient httpClient = createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpGet("http://127.0.0.1:" + mockServerPort + "/"));
 
         assertThat(response.getStatusLine().getStatusCode()).as("Expected to receive a 200 from the server").isEqualTo(200);
@@ -147,7 +148,7 @@ public final class MessageTerminationTest {
         int proxyServerPort = proxyServer.getListenAddress().getPort();
 
 
-        HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
+        HttpClient httpClient = createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpGet("http://127.0.0.1:" + mockServerPort + "/"));
 
         assertThat(response.getStatusLine().getStatusCode())
@@ -187,7 +188,7 @@ public final class MessageTerminationTest {
                 .start();
         int proxyServerPort = proxyServer.getListenAddress().getPort();
 
-        HttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServerPort);
+        HttpClient httpClient = createProxiedHttpClient(proxyServerPort);
         HttpResponse response = httpClient.execute(new HttpHead("http://127.0.0.1:" + mockServerPort + "/"));
 
         assertThat(response.getStatusLine().getStatusCode()).as("Expected to receive a 200 from the server").isEqualTo(200);

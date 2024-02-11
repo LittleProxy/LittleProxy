@@ -17,6 +17,7 @@ import java.util.Arrays;
 
 import static org.apache.http.client.utils.HttpClientUtils.closeQuietly;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 @Tag("slow-test")
 public final class ThrottlingTest {
@@ -92,10 +93,8 @@ public final class ThrottlingTest {
         int proxyPort = proxyServer.getListenAddress().getPort();
 
         HttpGet request = createHttpGet();
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)){
-
+        try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
             EntityUtils.consumeQuietly(httpClient.execute(new HttpHost("127.0.0.1", writeWebServerPort), request).getEntity());
-
             EntityUtils.consumeQuietly(httpClient.execute(new HttpHost("127.0.0.1", readWebServerPort), request).getEntity());
         }
     }
@@ -111,7 +110,7 @@ public final class ThrottlingTest {
 
         final HttpPost request = createHttpPost();
 
-        try (CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
             long start = System.currentTimeMillis();
             org.apache.http.HttpResponse response = httpClient.execute(new HttpHost("127.0.0.1", writeWebServerPort), request);
@@ -136,7 +135,7 @@ public final class ThrottlingTest {
 
         final HttpPost request = createHttpPost();
 
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try(CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
             long start = System.currentTimeMillis();
             final org.apache.http.HttpResponse response = httpClient.execute(
@@ -163,7 +162,7 @@ public final class ThrottlingTest {
 
         final HttpGet request = createHttpGet();
 
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try(CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
             long start = System.currentTimeMillis();
             final org.apache.http.HttpResponse response = httpClient.execute(
@@ -200,7 +199,7 @@ public final class ThrottlingTest {
 
         final HttpGet request = createHttpGet();
 
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try(CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
             long start = System.currentTimeMillis();
             final org.apache.http.HttpResponse response = httpClient.execute(
@@ -237,7 +236,7 @@ public final class ThrottlingTest {
 
         final HttpGet request = createHttpGet();
 
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try(CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
             long firstStart = System.currentTimeMillis();
             org.apache.http.HttpResponse response = httpClient.execute(
@@ -301,7 +300,7 @@ public final class ThrottlingTest {
 
         final HttpGet request = createHttpGet();
 
-        try(CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try(CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
             long firstStart = System.currentTimeMillis();
             org.apache.http.HttpResponse response = httpClient.execute(

@@ -19,6 +19,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Utility methods for creating HTTP clients and sending requests to servers via a LittleProxy instance.
  */
 public class HttpClientUtil {
+    public static org.apache.http.HttpResponse performLocalHttpGet(int port, String path, HttpProxyServer proxyServer) {
+        return performHttpGet("http://localhost:" + port + path, proxyServer);
+    }
+
     /**
      * Creates a new HTTP client that uses the specified LittleProxy instance to perform a GET to the specified URL.
      * The HTTP client is closed and discarded after the request is completed.

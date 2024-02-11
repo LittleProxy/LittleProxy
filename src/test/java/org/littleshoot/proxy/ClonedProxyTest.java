@@ -9,7 +9,7 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
+import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -64,7 +64,7 @@ public final class ClonedProxyTest {
                                 .withBody("success")
                 );
 
-        HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + "/testClonedProxyHandlesRequests", clonedProxy);
+        HttpResponse response = performLocalHttpGet(mockServerPort, "/testClonedProxyHandlesRequests", clonedProxy);
         assertThat(response.getStatusLine().getStatusCode())
             .as("Expected to receive a 200 when making a request using the cloned proxy server")
             .isEqualTo(200);
@@ -91,7 +91,7 @@ public final class ClonedProxyTest {
                                 .withBody("success")
                 );
 
-        HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + "/testClonedProxyHandlesRequests", originalProxy);
+        HttpResponse response = performLocalHttpGet(mockServerPort, "/testClonedProxyHandlesRequests", originalProxy);
         assertThat(response.getStatusLine().getStatusCode())
           .as("Expected to receive a 200 when making a request using the cloned proxy server")
           .isEqualTo(200);
@@ -118,7 +118,7 @@ public final class ClonedProxyTest {
                                 .withBody("success")
                 );
 
-        HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + "/testClonedProxyHandlesRequests", clonedProxy);
+        HttpResponse response = performLocalHttpGet(mockServerPort, "/testClonedProxyHandlesRequests", clonedProxy);
         assertThat(response.getStatusLine().getStatusCode())
           .as("Expected to receive a 200 when making a request using the cloned proxy server")
           .isEqualTo(200);

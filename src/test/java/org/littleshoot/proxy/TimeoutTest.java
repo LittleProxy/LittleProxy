@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -66,7 +67,7 @@ public final class TimeoutTest {
                                 .withDelay(new Delay(TimeUnit.SECONDS, 5))
                 );
 
-        try (CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
+        try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
             long start = System.nanoTime();
             HttpGet get = new HttpGet("http://127.0.0.1:" + mockServerPort + "/idleconnection");
             long stop = System.nanoTime();
@@ -90,7 +91,7 @@ public final class TimeoutTest {
                 .withConnectTimeout(1000)
                 .start();
 
-        try (CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
+        try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
 
             HttpGet get = new HttpGet(UNUSED_URI_FOR_BAD_GATEWAY);
 

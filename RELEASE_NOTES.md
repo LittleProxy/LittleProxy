@@ -1,7 +1,7 @@
 # Release Notes
 
 - 2.1.3 (in progress, https://github.com/LittleProxy/LittleProxy/milestone/31?closed=1)
-  - ...
+  - Migrate from JUnit4/Hamcrest to JUnit5/AssertJ (#373)
 
 - 2.1.2 (07.02.2024, https://github.com/LittleProxy/LittleProxy/milestone/30?closed=1)
   - Refactoring & code cleanup & setup IDEA inspections (#370) (#371)

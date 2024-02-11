@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
+import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
 
 /**
  * This class tests direct requests to the proxy server, which causes endless
@@ -62,7 +63,7 @@ public final class DirectRequestTest {
         startProxyServerWithFilterAnsweringStatusCode(403);
 
         int proxyPort = proxyServer.getListenAddress().getPort();
-        org.apache.http.HttpResponse response = performHttpGet("http://localhost:" + proxyPort + "/directToProxy", proxyServer);
+        org.apache.http.HttpResponse response = performLocalHttpGet(proxyPort, "/directToProxy", proxyServer);
         int statusCode = response.getStatusLine().getStatusCode();
 
         assertThat(statusCode).as("Expected to receive an HTTP 403 from the server").isEqualTo(403);
@@ -138,7 +139,7 @@ public final class DirectRequestTest {
 
         int proxyPort = proxyServer.getListenAddress().getPort();
 
-        org.apache.http.HttpResponse response = performHttpGet("http://localhost:" + proxyPort + "/originrequest", proxyServer);
+        org.apache.http.HttpResponse response = performLocalHttpGet(proxyPort, "/originrequest", proxyServer);
         int statusCode = response.getStatusLine().getStatusCode();
 
         assertThat(statusCode).as("Expected to receive a 204 response from the filter").isEqualTo(204);

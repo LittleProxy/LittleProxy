@@ -23,6 +23,7 @@ import java.util.Arrays;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 /**
  * Tests cases where either the client or the server is slower than the other.
@@ -54,7 +55,7 @@ public final class VariableSpeedClientServerTest {
         DefaultHttpProxyServer.bootstrap().withPort(proxyPort).start();
         Thread.yield();
         Thread.sleep(400);
-        try (CloseableHttpClient client = TestUtils.createProxiedHttpClient(proxyPort)) {
+        try (CloseableHttpClient client = createProxiedHttpClient(proxyPort)) {
 
             log.info("------------------ Memory Usage At Beginning ------------------");
             TestUtils.getOpenFileDescriptorsAndPrintMemoryUsage();

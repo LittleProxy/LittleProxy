@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
+import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockserver.model.HttpRequest.request;
@@ -439,7 +440,7 @@ public final class HttpFilterTest {
 
         setUpHttpProxyServer(filtersSource);
 
-        performHttpGet("http://localhost:" + webServerPort + "/", proxyServer);
+        performLocalHttpGet(webServerPort, "/", proxyServer);
         Thread.sleep(500);
 
         assertThat(resolutionSucceeded.get()).as("proxyToServerResolutionSucceeded method was not called").isTrue();
@@ -690,7 +691,7 @@ public final class HttpFilterTest {
                 .withIdleConnectionTimeout(3)
                 .start();
 
-        org.apache.http.HttpResponse httpResponse = performHttpGet("http://localhost:" + mockServerPort + "/servertimeout", proxyServer);
+        org.apache.http.HttpResponse httpResponse = performLocalHttpGet(mockServerPort, "/servertimeout", proxyServer);
         assertThat(httpResponse.getStatusLine().getStatusCode())
           .as("Expected to receive an HTTP 504 Gateway Timeout from proxy")
           .isEqualTo(504);
@@ -766,7 +767,7 @@ public final class HttpFilterTest {
         lastHttpContentProcessed.set(false);
         requestSentCallbackInvoked.set(false);
 
-        performHttpGet("http://localhost:" + webServerPort + "/", proxyServer);
+        performLocalHttpGet(webServerPort, "/", proxyServer);
         Thread.sleep(500);
 
         assertThat(lastHttpContentProcessed.get()).as("proxyToServerRequest callback was not invoked for LastHttpContent for GET").isTrue();
@@ -796,7 +797,7 @@ public final class HttpFilterTest {
 
         setUpHttpProxyServer(filtersSource);
 
-        org.apache.http.HttpResponse httpResponse = performHttpGet("http://localhost:" + mockServerPort + "/testNullHttpFilterSource", proxyServer);
+        org.apache.http.HttpResponse httpResponse = performLocalHttpGet(mockServerPort, "/testNullHttpFilterSource", proxyServer);
         Thread.sleep(500);
 
         assertThat(httpResponse.getStatusLine().getStatusCode())

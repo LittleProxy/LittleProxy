@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 
 import static java.time.Duration.ofSeconds;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -123,7 +124,7 @@ public final class EndToEndStoppingTest {
                     }
                 }).start();
 
-        try (CloseableHttpClient client = TestUtils.createProxiedHttpClient(proxy.getListenAddress().getPort())) {
+        try (CloseableHttpClient client = createProxiedHttpClient(proxy.getListenAddress().getPort())) {
             // final HttpPost get = new HttpPost(site);
             final HttpGet get = new HttpGet(site);
 

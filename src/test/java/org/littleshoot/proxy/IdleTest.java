@@ -63,23 +63,20 @@ public final class IdleTest {
         System.out
                 .println("------------------ Memory Usage At Beginning ------------------");
         long initialFileDescriptors = TestUtils.getOpenFileDescriptorsAndPrintMemoryUsage();
-        Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(
-                "127.0.0.1", proxyServer.getListenAddress().getPort()));
+        Proxy proxy = new Proxy(Proxy.Type.HTTP, 
+          new InetSocketAddress("127.0.0.1", proxyServer.getListenAddress().getPort()));
         for (int i = 0; i < NUMBER_OF_CONNECTIONS_TO_OPEN; i++) {
-            new URL("http://localhost:" + webServerPort)
-                    .openConnection(proxy).connect();
+            new URL("http://localhost:" + webServerPort).openConnection(proxy).connect();
         }
 
         System.gc();
-        System.out
-                .println("\n\n------------------ Memory Usage Before Idle Timeout ------------------");
+        System.out.println("\n\n------------------ Memory Usage Before Idle Timeout ------------------");
 
         long fileDescriptorsWhileConnectionsOpen = TestUtils.getOpenFileDescriptorsAndPrintMemoryUsage();
         Thread.sleep(10000);
 
         System.gc();
-        System.out
-                .println("\n\n------------------ Memory Usage After Idle Timeout ------------------");
+        System.out.println("\n\n------------------ Memory Usage After Idle Timeout ------------------");
         long fileDescriptorsAfterConnectionsClosed = TestUtils.getOpenFileDescriptorsAndPrintMemoryUsage();
 
         double fdDeltaToOpen = fileDescriptorsWhileConnectionsOpen

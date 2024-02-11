@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
+import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -124,12 +124,12 @@ public final class ServerGroupTest {
         // execute both requests in parallel, to increase the chance of blocking due to the single-threaded ThreadPoolConfiguration
 
         Runnable firstRequest = () -> {
-            HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + firstRequestPath, proxyServer);
+            HttpResponse response = performLocalHttpGet(mockServerPort, firstRequestPath, proxyServer);
             assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
         };
 
         Runnable secondRequest = () -> {
-            HttpResponse response = performHttpGet("http://localhost:" + mockServerPort + secondRequestPath, proxyServer);
+            HttpResponse response = performLocalHttpGet(mockServerPort, secondRequestPath, proxyServer);
             assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
         };
 

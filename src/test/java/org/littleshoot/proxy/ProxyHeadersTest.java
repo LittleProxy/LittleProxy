@@ -16,6 +16,7 @@ import org.mockserver.model.HttpRequest;
 import org.mockserver.model.NottableString;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
@@ -67,7 +68,7 @@ public final class ProxyHeadersTest {
                 .withPort(0)
                 .start();
 
-        try (CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
+        try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
             HttpResponse response = httpClient.execute(new HttpGet("http://localhost:" + mockServerPort + "/connectionheaders"));
             EntityUtils.consume(response.getEntity());
 
@@ -81,17 +82,16 @@ public final class ProxyHeadersTest {
 	@Test
 	public void testProxyRemovesHopByHopHeadersFromClient() throws Exception {
 		HttpRequest expectedServerRequest = request() //
-				.withMethod("GET") //
-				.withPath("/connectionheaders") //
-				.withHeader(NottableString.not("proxy-authenticate")) //
+				.withMethod("GET")
+				.withPath("/connectionheaders")
+				.withHeader(NottableString.not("proxy-authenticate"))
 				.withHeader(NottableString.not("proxy-authorization"));
-		mockServer.when(expectedServerRequest, Times.exactly(1)) //
+		mockServer.when(expectedServerRequest, Times.exactly(1))
 				.respond(response().withStatusCode(200).withBody("success"));
 
 		proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
 
-		try (CloseableHttpClient httpClient = TestUtils
-				.createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
+		try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
 			HttpGet clientRequest = new HttpGet("http://localhost:" + mockServerPort + "/connectionheaders");
 			clientRequest.addHeader("Proxy-Authenticate", "");
 			clientRequest.addHeader("Proxy-Authorization", "");

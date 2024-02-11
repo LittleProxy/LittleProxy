@@ -13,7 +13,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
+import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
 
 public final class ServerErrorTest {
     private HttpProxyServer proxyServer;
@@ -27,7 +27,7 @@ public final class ServerErrorTest {
         // we have to create our own socket here, since any proper http server (jetty, mockserver, etc.) won't allow us to
         // send invalid responses.
         try (ServerSocket socket = createServerWithBadResponse()) {
-            org.apache.http.HttpResponse response = performHttpGet("http://localhost:" + socket.getLocalPort(), proxyServer);
+            org.apache.http.HttpResponse response = performLocalHttpGet(socket.getLocalPort(), "/", proxyServer);
 
             assertThat(response.getStatusLine().getStatusCode())
               .as("Expected to receive a 502 Bad Gateway after server responded with invalid response")

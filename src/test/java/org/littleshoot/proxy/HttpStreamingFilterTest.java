@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 @ParametersAreNonnullByDefault
 public final class HttpStreamingFilterTest {
@@ -87,8 +88,7 @@ public final class HttpStreamingFilterTest {
         entity.setChunked(true);
         request.setEntity(entity);
 
-        try (CloseableHttpClient httpClient = TestUtils.createProxiedHttpClient(
-                proxyServer.getListenAddress().getPort())) {
+        try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyServer.getListenAddress().getPort())) {
 
             final org.apache.http.HttpResponse response = httpClient.execute(
               new HttpHost("127.0.0.1",
