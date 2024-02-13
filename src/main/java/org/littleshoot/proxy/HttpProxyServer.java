@@ -1,6 +1,7 @@
 package org.littleshoot.proxy;
 
 import java.net.InetSocketAddress;
+import java.time.Duration;
 
 /**
  * Interface for the top-level proxy server class.
@@ -9,7 +10,8 @@ public interface HttpProxyServer {
 
     int getIdleConnectionTimeout();
 
-    void setIdleConnectionTimeout(int idleConnectionTimeout);
+    void setIdleConnectionTimeout(int idleConnectionTimeoutInSeconds);
+    void setIdleConnectionTimeout(Duration idleConnectionTimeout);
 
     /**
      * Returns the maximum time to wait, in milliseconds, to connect to a server.

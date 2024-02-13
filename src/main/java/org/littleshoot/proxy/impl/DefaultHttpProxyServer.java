@@ -22,6 +22,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Properties;
@@ -93,7 +94,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private final HttpFiltersSource filtersSource;
     private final boolean transparent;
     private volatile int connectTimeout;
-    private volatile int idleConnectionTimeout;
+    private volatile Duration idleConnectionTimeout;
     private final HostResolver serverResolver;
     private volatile GlobalTrafficShapingHandler globalTrafficShapingHandler;
     private final int maxInitialLineLength;
@@ -215,7 +216,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             MitmManager mitmManager,
             HttpFiltersSource filtersSource,
             boolean transparent,
-            int idleConnectionTimeout,
+            Duration idleConnectionTimeout,
             Collection<ActivityTracker> activityTrackers,
             int connectTimeout,
             HostResolver serverResolver,
@@ -289,11 +290,16 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
     @Override
     public int getIdleConnectionTimeout() {
-        return idleConnectionTimeout;
+        return (int) idleConnectionTimeout.toSeconds();
     }
 
     @Override
-    public void setIdleConnectionTimeout(int idleConnectionTimeout) {
+    public void setIdleConnectionTimeout(int idleConnectionTimeoutInSeconds) {
+        this.idleConnectionTimeout = Duration.ofSeconds(idleConnectionTimeoutInSeconds);
+    }
+
+    @Override
+    public void setIdleConnectionTimeout(Duration idleConnectionTimeout) {
         this.idleConnectionTimeout = idleConnectionTimeout;
     }
 
@@ -596,7 +602,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         private MitmManager mitmManager;
         private HttpFiltersSource filtersSource = new HttpFiltersSourceAdapter();
         private boolean transparent;
-        private int idleConnectionTimeout = 70;
+        private Duration idleConnectionTimeout = Duration.ofSeconds(70);
         private final Collection<ActivityTracker> activityTrackers = new ConcurrentLinkedQueue<>();
         private int connectTimeout = 40000;
         private HostResolver serverResolver = new DefaultHostResolver();
@@ -627,7 +633,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 ChainedProxyManager chainProxyManager,
                 MitmManager mitmManager,
                 HttpFiltersSource filtersSource,
-                boolean transparent, int idleConnectionTimeout,
+                boolean transparent, Duration idleConnectionTimeout,
                 @Nullable Collection<ActivityTracker> activityTrackers,
                 int connectTimeout, HostResolver serverResolver,
                 long readThrottleBytesPerSecond,
@@ -670,8 +676,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                     props, "dnssec"));
             transparent = ProxyUtils.extractBooleanDefaultFalse(
                     props, "transparent");
-            idleConnectionTimeout = ProxyUtils.extractInt(props,
-                    "idle_connection_timeout");
+            idleConnectionTimeout = Duration.ofSeconds(ProxyUtils.extractInt(
+                    props, "idle_connection_timeout"));
             connectTimeout = ProxyUtils.extractInt(props,
                     "connect_timeout", 0);
             maxInitialLineLength = ProxyUtils.extractInt(props,
@@ -805,8 +811,13 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         }
 
         @Override
-        public HttpProxyServerBootstrap withIdleConnectionTimeout(
-                int idleConnectionTimeout) {
+        public HttpProxyServerBootstrap withIdleConnectionTimeout(int idleConnectionTimeoutInSeconds) {
+            this.idleConnectionTimeout = Duration.ofSeconds(idleConnectionTimeoutInSeconds);
+            return this;
+        }
+        
+        @Override
+        public HttpProxyServerBootstrap withIdleConnectionTimeout(Duration idleConnectionTimeout) {
             this.idleConnectionTimeout = idleConnectionTimeout;
             return this;
         }

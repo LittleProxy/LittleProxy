@@ -1,12 +1,13 @@
 package org.littleshoot.proxy;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
-import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.littleshoot.proxy.impl.ServerGroup;
+import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 
 /**
  * Configures and starts an {@link HttpProxyServer}. The HttpProxyServer is
@@ -204,8 +205,15 @@ public interface HttpProxyServerBootstrap {
      * Default = 70
      * </p>
      */
-    HttpProxyServerBootstrap withIdleConnectionTimeout(
-            int idleConnectionTimeout);
+    HttpProxyServerBootstrap withIdleConnectionTimeout(int idleConnectionTimeoutInSeconds);
+
+    /**
+     * Specify the timeout after which to disconnect idle connections
+     * <p>
+     * Default = 70 seconds
+     * </p>
+     */
+    HttpProxyServerBootstrap withIdleConnectionTimeout(Duration idleConnectionTimeout);
 
     /**
      * <p>
