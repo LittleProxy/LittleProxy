@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
+import org.mockserver.cache.LRUCache;
 import org.opentest4j.TestAbortedException;
 import org.slf4j.Logger;
 
@@ -15,7 +16,9 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -31,6 +34,7 @@ public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback,
   @Override
   public void beforeAll(ExtensionContext context) {
     getLogger(context.getDisplayName()).info("Starting tests ({})", memory());
+    LRUCache.allCachesEnabled(false);
   }
 
   @Override
@@ -48,10 +52,19 @@ public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback,
   }
 
   @Override
-  public void afterEach(ExtensionContext context) {
+  public void afterEach(ExtensionContext context) throws Exception {
     logger(context).info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
     ScheduledExecutorService executor = (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
     executor.shutdown();
+    clearMockServerCache();
+  }
+
+  private void clearMockServerCache() throws Exception {
+    LRUCache.clearAllCaches();
+    Field allCachesField = LRUCache.class.getDeclaredField("allCaches");
+    allCachesField.setAccessible(true);
+    List<?> allCaches = (List<?>) allCachesField.get(null);
+    allCaches.clear();
   }
 
   private static Logger logger(ExtensionContext context) {
