@@ -39,7 +39,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.*;
  * vary a little depending on the concrete implementation of ProxyConnection.
  * However, all ProxyConnections share the following lifecycle events:
  * </p>
- * 
+ *
  * <ul>
  * <li>{@link #connected()} - Once the underlying channel is active, the
  * ProxyConnection is considered connected and moves into
@@ -50,13 +50,13 @@ import static org.littleshoot.proxy.impl.ConnectionState.*;
  * <li>{@link #becameWritable()} - When the underlying channel becomes
  * writeable, this callback is invoked.</li>
  * </ul>
- * 
+ *
  * <p>
  * By default, incoming data on the underlying channel is automatically read and
  * passed to the {@link #read(Object)} method. Reading can be stopped and
  * resumed using {@link #stopReading()} and {@link #resumeReading()}.
  * </p>
- * 
+ *
  * @param <I>
  *            the type of "initial" message. This will be either
  *            {@link HttpResponse} or {@link HttpRequest}.
@@ -83,7 +83,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
 
     /**
      * Construct a new ProxyConnection.
-     * 
+     *
      * @param initialState
      *            the state in which this connection starts out
      * @param proxyServer
@@ -117,9 +117,13 @@ abstract class ProxyConnection<I extends HttpObject> extends
             readRaw((ByteBuf) msg);
         } else if ( msg instanceof HAProxyMessage) {
             readHAProxyMessage((HAProxyMessage)msg);
-        } else {
+        } else if (msg instanceof HttpObject) {
             // If not tunneling, then we are always dealing with HttpObjects.
             readHTTP((HttpObject) msg);
+        } else if (msg instanceof ByteBuf) {
+            readRaw((ByteBuf) msg);
+        } else {
+            throw new UnsupportedOperationException("Unsupported message type: " + msg.getClass().getName());
         }
     }
 
@@ -301,7 +305,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
      * Enables tunneling on this connection by dropping the HTTP related
      * encoders and decoders, as well as idle timers.
      * </p>
-     * 
+     *
      * <p>
      * Note - the work is done on the {@link ChannelHandlerContext}'s executor
      * because {@link ChannelPipeline#remove(String)} can deadlock if called
@@ -331,7 +335,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
 
     /**
      * Encrypts traffic on this connection with SSL/TLS.
-     * 
+     *
      * @param sslEngine
      *            the {@link SSLEngine} for doing the encryption
      * @param authenticateClients
@@ -345,7 +349,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
 
     /**
      * Encrypts traffic on this connection with SSL/TLS.
-     * 
+     *
      * @param pipeline
      *            the ChannelPipeline on which to enable encryption
      * @param sslEngine
@@ -380,7 +384,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
 
     /**
      * Encrypts the channel using the provided {@link SSLEngine}.
-     * 
+     *
      * @param sslEngine
      *            the {@link SSLEngine} for doing the encryption
      */
@@ -429,7 +433,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
      */
     protected void exceptionCaught(Throwable cause) {
     }
-    
+
     /**
      * Removes the handler with the given name if it is present in the pipeline.
      * @param pipeline the pipeline from which to remove the handler.
@@ -447,7 +451,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
     /**
      * Disconnects. This will wait for pending writes to be flushed before
      * disconnecting.
-     * 
+     *
      * @return {@code Future<Void>} for when we're done disconnecting. If we weren't
      *         connected, this returns null.
      */
@@ -535,10 +539,10 @@ abstract class ProxyConnection<I extends HttpObject> extends
 
     /**
      * Request the ProxyServer for Filters.
-     * 
+     *
      * By default, no-op filters are returned by DefaultHttpProxyServer.
      * Subclasses of ProxyConnection can change this behaviour.
-     * 
+     *
      * @param httpRequest
      *            Filter attached to the give HttpRequest (if any)
      */
@@ -626,7 +630,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
      * We're looking for {@link IdleStateEvent}s to see if we need to
      * disconnect.
      * </p>
-     * 
+     *
      * <p>
      * Note - we don't care what kind of IdleState we got. Thanks to <a
      * href="https://github.com/qbast">bast</a> for pointing this out.
