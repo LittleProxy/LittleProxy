@@ -1,7 +1,12 @@
 # Release Notes
 
-- 2.2.4 (??.08.2024, https://github.com/LittleProxy/LittleProxy/milestone/35)
+- 2.2.5 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/36)
   - ...
+
+- 2.2.4 (04.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/35?closed=1)
+  - Bump Selenium from 4.22.0 to 4.24.0
+  - Bump Netty from 4.1.111.Final to 4.1.112.Final
+  - Bump dnsjava from 3.5.3 to 3.6.1
 
 - 2.2.3 (21.06.2024, https://github.com/LittleProxy/LittleProxy/milestone/34?closed=1)
   - Bump selenium from 4.21.0 to 4.22.0 (#433)
