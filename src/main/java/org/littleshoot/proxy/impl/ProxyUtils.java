@@ -5,7 +5,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.udt.nio.NioUdtProvider;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -43,7 +42,7 @@ import java.util.regex.Pattern;
 public class ProxyUtils {
     /**
      * Hop-by-hop headers that should be removed when proxying, as defined by the
-     * (<a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html#sec13.5.1">HTTP 1.1 spec, section 13.5.1</a>). 
+     * (<a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html#sec13.5.1">HTTP 1.1 spec, section 13.5.1</a>).
      * Transfer-Encoding is NOT included in this list, since LittleProxy
      * does not typically modify the transfer encoding. See also {@link #shouldRemoveHopByHopHeader(String)}.
      * <p>
@@ -77,7 +76,7 @@ public class ProxyUtils {
     /**
      * Strips the host from a URI string. This will turn "https://host.com/path"
      * into "/path".
-     * 
+     *
      * @param uri
      *            The URI to transform.
      * @return A string with the URI stripped.
@@ -99,7 +98,7 @@ public class ProxyUtils {
     /**
      * If an HttpObject implements the market interface LastHttpContent, it
      * represents the last chunk of a transfer.
-     * 
+     *
      * @see io.netty.handler.codec.http.LastHttpContent
      */
     public static boolean isLastChunk(final HttpObject httpObject) {
@@ -109,7 +108,7 @@ public class ProxyUtils {
     /**
      * If an HttpObject is not the last chunk, then that means there are other
      * chunks that will follow.
-     * 
+     *
      * @see io.netty.handler.codec.http.FullHttpMessage
      */
     public static boolean isChunked(final HttpObject httpObject) {
@@ -118,7 +117,7 @@ public class ProxyUtils {
 
     /**
      * Parses the host and port an HTTP request is being sent to.
-     * 
+     *
      * @param httpRequest
      *            The request.
      * @return The host and port string.
@@ -129,7 +128,7 @@ public class ProxyUtils {
 
     /**
      * Parses the host and port an HTTP request is being sent to.
-     * 
+     *
      * @param uri
      *            The URI.
      * @return The host and port string.
@@ -156,7 +155,7 @@ public class ProxyUtils {
 
     /**
      * Make a copy of the response including all mutable fields.
-     * 
+     *
      * @param original
      *            The original response to copy from.
      * @return The copy with all mutable fields from the original.
@@ -193,7 +192,7 @@ public class ProxyUtils {
          a pseudonym.
      * </pre>
      *
-     * 
+     *
      * @param httpMessage HTTP message to add the Via header to
      * @param alias the alias to provide in the Via header for this proxy
      */
@@ -219,7 +218,7 @@ public class ProxyUtils {
     /**
      * Returns <code>true</code> if the specified string is either "true" or
      * "on" ignoring case.
-     * 
+     *
      * @param val
      *            The string in question.
      * @return <code>true</code> if the specified string is either "true" or
@@ -232,7 +231,7 @@ public class ProxyUtils {
     /**
      * Returns <code>true</code> if the specified string is either "false" or
      * "off" ignoring case.
-     * 
+     *
      * @param val
      *            The string in question.
      * @return <code>true</code> if the specified string is either "false" or
@@ -254,7 +253,7 @@ public class ProxyUtils {
     public static int extractInt(final Properties props, final String key) {
         return extractInt(props, key, -1);
     }
-    
+
     public static int extractInt(final Properties props, final String key, int defaultValue) {
         final String readThrottleString = props.getProperty(key);
         if (StringUtils.isNotBlank(readThrottleString) && NumberUtils.isCreatable(readThrottleString)) {
@@ -490,7 +489,7 @@ public class ProxyUtils {
     public static void stripHopByHopHeaders(HttpHeaders headers) {
       // Not explicitly documented, but remove is case-insensitive as HTTP header handling function should be
       SHOULD_NOT_PROXY_HOP_BY_HOP_HEADERS.forEach(headers::remove);
-    }    
+    }
 
     /**
      * Splits comma-separated header values into tokens. For example, if the value of the Connection header is "Transfer-Encoding, close",
@@ -503,22 +502,6 @@ public class ProxyUtils {
      */
     public static List<String> splitCommaSeparatedHeaderValues(String headerValue) {
         return ImmutableList.copyOf(COMMA_SEPARATED_HEADER_VALUE_SPLITTER.split(headerValue));
-    }
-
-    /**
-     * Determines if UDT is available on the classpath.
-     *
-     * @return true if UDT is available
-     */
-    public static boolean isUdtAvailable() {
-        try {
-            return NioUdtProvider.BYTE_PROVIDER != null;
-        } catch (NoClassDefFoundError e) {
-            return false;
-            // necessary for Android which throws VerifyError if the field BYTE_PROVIDER is accessed of the unavailable class
-        } catch (VerifyError e) {
-            return false;
-        }
     }
 
     /**
@@ -539,7 +522,7 @@ public class ProxyUtils {
     }
 
     /**
-     * Creates a new {@link FullHttpResponse} with no body content
+     * Creates a new {@link FullHttpResponse} with no content
      *
      * @param httpVersion HTTP version of the response
      * @param status HTTP status code
