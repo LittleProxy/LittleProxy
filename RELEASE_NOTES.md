@@ -1,8 +1,8 @@
 # Release Notes
 
-- 2.2.5 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/36)
+- 2.3.0 (06.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/36)
+  - #487 remove UDP protocol support (#488)
   - Bump Netty from 4.1.112.Final to 4.1.113.Final (#486)
-  - ...
 
 - 2.2.4 (04.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/35?closed=1)
   - Bump Selenium from 4.22.0 to 4.24.0
