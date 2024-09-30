@@ -1,7 +1,9 @@
 # Release Notes
 
-- 2.3.1 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/37)
-  - ...
+- 2.3.1 (30.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/37?closed=1)
+  - Bump org.seleniumhq.selenium:selenium-java from 4.24.0 to 4.25.0 (#492)
+  - Bump dnsjava:dnsjava from 3.6.1 to 3.6.2 (#491)
+  - Bump org.apache.logging.log4j:log4j-core from 2.23.1 to 2.24.1 (#489) (#497)
 
 - 2.3.0 (06.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/36?closed=1)
   - #487 remove UDP protocol support (#488)
