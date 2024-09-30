@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.3.2 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/38)
+  - work in progress
+
 - 2.3.1 (30.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/37?closed=1)
   - Bump org.seleniumhq.selenium:selenium-java from 4.24.0 to 4.25.0 (#492)
   - Bump dnsjava:dnsjava from 3.6.1 to 3.6.2 (#491)
