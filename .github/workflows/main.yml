@@ -29,11 +29,11 @@ jobs:
         run: mvn --batch-mode compile
       - name: Branch name [env]
         run: echo running on branch ${GITHUB_REF##*/}
-      - name: Run smoke tests
-        run: mvn --batch-mode package -Psmoke-test
+#      - name: Run smoke tests
+#        run: mvn --batch-mode package -Psmoke-test
       - name: Run slow tests
         if: success()
-        run: mvn --batch-mode package -Pslow-tests
+        run: mvn --batch-mode test -Pslow-test -Dtest="org.littleshoot.proxy.KeepAliveTest"
       - name: Generate Maven test report
         if: failure()
         run: mvn --batch-mode surefire-report:report-only

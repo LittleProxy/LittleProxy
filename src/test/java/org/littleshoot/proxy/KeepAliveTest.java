@@ -14,8 +14,8 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.SocketClientUtil;
 import org.slf4j.Logger;
@@ -100,7 +100,7 @@ public final class KeepAliveTest {
     /**
      * Tests that the proxy does not close the connection after a successful HTTP 1.1 GET request and response.
      */
-    @Test
+    @RepeatedTest(100)
     public void testHttp11DoesNotCloseConnectionByDefault() throws IOException, InterruptedException {
         mockServer.stubFor(any(ANY).willReturn(ok("success-1")));
 
@@ -145,7 +145,7 @@ public final class KeepAliveTest {
      * Tests that the proxy keeps the connection to the client open after a server disconnect, even when the server is using
      * connection closure to indicate the end of a message.
      */
-    @Test
+    @RepeatedTest(100)
     public void testProxyKeepsClientConnectionOpenAfterServerDisconnect() throws IOException, InterruptedException {
         mockServer.stubFor(WireMock.get("/load-2").willReturn(ok("success-2")
           .withHeader("Connection", "close")));
@@ -197,7 +197,7 @@ public final class KeepAliveTest {
     /**
      * Tests that the proxy does not close the connection after a 502 Bad Gateway response.
      */
-    @Test
+    @RepeatedTest(100)
     public void testBadGatewayDoesNotCloseConnection() throws IOException, InterruptedException {
         mockServer.stubFor(any(ANY).willReturn(ok("success-5")));
 
@@ -237,7 +237,7 @@ public final class KeepAliveTest {
     /**
      * Tests that the proxy does not close the connection after a 504 Gateway Timeout response.
      */
-    @Test
+    @RepeatedTest(100)
     public void testGatewayTimeoutDoesNotCloseConnection() throws IOException {
         mockServer.stubFor(WireMock.get("/load-3").willReturn(ok("success-3")
           .withFixedDelay(secondsToMillis(10))));
@@ -279,7 +279,7 @@ public final class KeepAliveTest {
     /**
      * Tests that the proxy does not close the connection by default after a short-circuit response.
      */
-    @Test
+    @RepeatedTest(100)
     public void testShortCircuitResponseDoesNotCloseConnectionByDefault() throws IOException, InterruptedException {
         mockServer.stubFor(WireMock.get("/load-4").willReturn(aResponse()
           .withStatus(500)
@@ -341,7 +341,7 @@ public final class KeepAliveTest {
      * Tests that the proxy will close the connection after a short circuit response if the short circuit response
      * contains a Connection: close header.
      */
-    @Test
+    @RepeatedTest(100)
     public void testShortCircuitResponseCanCloseConnection() throws IOException, InterruptedException {
         mockServer.stubFor(WireMock.get("/load-6").willReturn(
           aResponse().withStatus(500).withBody("this response should never be sent")));
