@@ -222,6 +222,13 @@
         </dependency>
 
         <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.8.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.mock-server</groupId>
             <artifactId>mockserver-netty</artifactId>
             <version>5.15.0</version>
