@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import io.netty.channel.ChannelHandlerContext;
 import org.littleshoot.proxy.impl.ClientToProxyConnection;
 import org.littleshoot.proxy.impl.ProxyToServerConnection;
 
@@ -10,12 +11,14 @@ import org.littleshoot.proxy.impl.ProxyToServerConnection;
 public class FullFlowContext extends FlowContext {
     private final String serverHostAndPort;
     private final ChainedProxy chainedProxy;
+    private final ChannelHandlerContext ctx;
 
     public FullFlowContext(ClientToProxyConnection clientConnection,
             ProxyToServerConnection serverConnection) {
         super(clientConnection);
         serverHostAndPort = serverConnection.getServerHostAndPort();
         chainedProxy = serverConnection.getChainedProxy();
+        this.ctx = serverConnection.getContext();
     }
 
     /**
@@ -30,6 +33,13 @@ public class FullFlowContext extends FlowContext {
      */
     public ChainedProxy getChainedProxy() {
         return chainedProxy;
+    }
+
+    /**
+     * The proxy to server channel context.
+     */
+    public ChannelHandlerContext getProxyToServerContext() {
+        return ctx;
     }
 
 }
