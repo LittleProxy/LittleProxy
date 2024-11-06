@@ -572,7 +572,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     @Override
     protected void timedOut() {
         // idle timeout fired on the client channel. if we aren't waiting on a response from a server, hang up
-        if (currentServerConnection == null || lastReadTime <= currentServerConnection.lastReadTime) {
+        if (currentServerConnection == null || currentServerConnection.lastReadTime == 0 || lastReadTime <= currentServerConnection.lastReadTime) {
             super.timedOut();
         }
     }
