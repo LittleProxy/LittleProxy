@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.3.3 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/39)
+  - 
+
 - 2.3.2 (06.11.2024, https://github.com/LittleProxy/LittleProxy/milestone/38?closed=1)
   - Expose proxy to server ctx to access client address  --  thanks to Teodora Kostova (#520)
   - Bump Netty from 4.1.113.Final to 4.1.114.Final
