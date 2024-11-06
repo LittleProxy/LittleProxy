@@ -1,7 +1,9 @@
 # Release Notes
 
-- 2.3.2 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/38)
-  - work in progress
+- 2.3.2 (06.11.2024, https://github.com/LittleProxy/LittleProxy/milestone/38?closed=1)
+  - Expose proxy to server ctx to access client address  --  thanks to Teodora Kostova (#520)
+  - Bump Netty from 4.1.113.Final to 4.1.114.Final
+  - Bump Selenium from 4.25.0 to 4.26.0
 
 - 2.3.1 (30.09.2024, https://github.com/LittleProxy/LittleProxy/milestone/37?closed=1)
   - Bump org.seleniumhq.selenium:selenium-java from 4.24.0 to 4.25.0 (#492)
