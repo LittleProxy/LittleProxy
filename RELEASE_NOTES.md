@@ -1,7 +1,9 @@
 # Release Notes
 
-- 2.3.3 (??.??.2024, https://github.com/LittleProxy/LittleProxy/milestone/39)
-  - 
+- 2.3.3 (04.12.2024, https://github.com/LittleProxy/LittleProxy/milestone/39?closed=1)
+  - Bump Netty from 4.1.114.Final to 4.1.115.Final (#521)
+  - Bump Selenium from 4.26.0 to 4.27.0 (#524)
+  - Bump Jackson from 2.18.1 to 2.18.2 (#525)
 
 - 2.3.2 (06.11.2024, https://github.com/LittleProxy/LittleProxy/milestone/38?closed=1)
   - Expose proxy to server ctx to access client address  --  thanks to Teodora Kostova (#520)
