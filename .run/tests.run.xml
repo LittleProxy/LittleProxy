@@ -4,7 +4,7 @@
     <option name="MAIN_CLASS_NAME" value="" />
     <option name="METHOD_NAME" value="" />
     <option name="TEST_OBJECT" value="directory" />
-    <option name="VM_PARAMETERS" value="-ea -Xmx128m" />
+    <option name="VM_PARAMETERS" value="-ea -Xmx512m" />
     <dir value="$PROJECT_DIR$/src/test/java/org/littleshoot/proxy" />
     <method v="2">
       <option name="Make" enabled="true" />
