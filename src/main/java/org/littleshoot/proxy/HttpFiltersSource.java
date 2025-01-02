@@ -20,7 +20,7 @@ public interface HttpFiltersSource {
      * want to filter the request and/or its responses.
      */
     @Nullable
-    HttpFilters filterRequest(@NonNull HttpRequest originalRequest, @NonNull ChannelHandlerContext ctx);
+    HttpFilters filterRequest(@NonNull HttpRequest originalRequest, @Nullable ChannelHandlerContext ctx);
 
     /**
      * Indicate how many (if any) bytes to buffer for incoming

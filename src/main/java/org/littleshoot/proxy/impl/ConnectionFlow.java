@@ -25,11 +25,11 @@ class ConnectionFlow {
     private volatile ConnectionFlowStep currentStep;
     private volatile boolean suppressInitialRequest;
     private final Object connectLock;
-    
+
     /**
      * Construct a new {@link ConnectionFlow} for the given client and server
      * connections.
-     * 
+     *
      * @param clientConnection
      * @param serverConnection
      * @param connectLock
@@ -104,7 +104,7 @@ class ConnectionFlow {
      * <p>
      * Process the current {@link ConnectionFlowStep}. With each step, we:
      * </p>
-     * 
+     *
      * <ol>
      * <li>Change the state of the associated {@link ProxyConnection} to the
      * value of {@link ConnectionFlowStep#getState()}</li>

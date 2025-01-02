@@ -3,6 +3,7 @@ package org.littleshoot.proxy.impl;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -22,6 +23,7 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.AsciiString;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,7 +124,9 @@ public class ProxyUtils {
      *            The request.
      * @return The host and port string.
      */
-    public static String parseHostAndPort(final HttpRequest httpRequest) {
+    @NonNull
+    @CheckReturnValue
+    public static String parseHostAndPort(@NonNull final HttpRequest httpRequest) {
         return parseHostAndPort(httpRequest.uri());
     }
 
@@ -133,7 +137,9 @@ public class ProxyUtils {
      *            The URI.
      * @return The host and port string.
      */
-    public static String parseHostAndPort(final String uri) {
+    @NonNull
+    @CheckReturnValue
+    public static String parseHostAndPort(@NonNull final String uri) {
         final String tempUri;
         if (!HTTP_PREFIX.matcher(uri).matches()) {
             // Browsers particularly seem to send requests in this form when

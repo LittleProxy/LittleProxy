@@ -201,7 +201,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
      * Implement this to handle reading the initial object (e.g.
      * {@link HttpRequest} or {@link HttpResponse}).
      */
-    protected abstract ConnectionState readHTTPInitial(I httpObject);
+    abstract ConnectionState readHTTPInitial(I httpObject);
 
     /**
      * Implement this to handle reading a chunk in a chunked transfer.

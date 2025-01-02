@@ -12,6 +12,8 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.DefaultHostResolver;
@@ -30,8 +32,6 @@ import org.littleshoot.proxy.UnknownTransportProtocolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.jspecify.annotations.Nullable;
-import org.jspecify.annotations.NullMarked;
 import javax.net.ssl.SSLEngine;
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,11 +40,12 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.util.Objects.requireNonNullElseGet;
 
 /**
  * <p>
@@ -600,15 +601,21 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     @NullMarked
     private static class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
         private String name = "LittleProxy";
+        @Nullable
         private ServerGroup serverGroup;
         private TransportProtocol transportProtocol = TransportProtocol.TCP;
+        @Nullable
         private InetSocketAddress requestedAddress;
         private int port = 8080;
         private boolean allowLocalOnly = true;
+        @Nullable
         private SslEngineSource sslEngineSource;
         private boolean authenticateSslClients = true;
+        @Nullable
         private ProxyAuthenticator proxyAuthenticator;
+        @Nullable
         private ChainedProxyManager chainProxyManager;
+        @Nullable
         private MitmManager mitmManager;
         private HttpFiltersSource filtersSource = new HttpFiltersSourceAdapter();
         private boolean transparent;
@@ -618,7 +625,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         private HostResolver serverResolver = new DefaultHostResolver();
         private long readThrottleBytesPerSecond;
         private long writeThrottleBytesPerSecond;
+        @Nullable
         private InetSocketAddress localAddress;
+        @Nullable
         private String proxyAlias;
         private int clientToProxyAcceptorThreads = ServerGroup.DEFAULT_INCOMING_ACCEPTOR_THREADS;
         private int clientToProxyWorkerThreads = ServerGroup.DEFAULT_INCOMING_WORKER_THREADS;
@@ -916,19 +925,17 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         }
 
         private DefaultHttpProxyServer build() {
-            final ServerGroup serverGroup;
-
-          serverGroup = Objects.requireNonNullElseGet(this.serverGroup, () -> new ServerGroup(name, clientToProxyAcceptorThreads, clientToProxyWorkerThreads, proxyToServerWorkerThreads));
+            final ServerGroup serverGroup = requireNonNullElseGet(this.serverGroup, () -> new ServerGroup(name, clientToProxyAcceptorThreads, clientToProxyWorkerThreads, proxyToServerWorkerThreads));
 
             return new DefaultHttpProxyServer(serverGroup,
-                    transportProtocol, determineListenAddress(),
-                    sslEngineSource, authenticateSslClients,
-                    proxyAuthenticator, chainProxyManager, mitmManager,
-                    filtersSource, transparent,
-                    idleConnectionTimeout, activityTrackers, connectTimeout,
-                    serverResolver, readThrottleBytesPerSecond, writeThrottleBytesPerSecond,
-                    localAddress, proxyAlias, maxInitialLineLength, maxHeaderSize, maxChunkSize,
-                    allowRequestToOriginServer, acceptProxyProtocol, sendProxyProtocol);
+              transportProtocol, determineListenAddress(),
+              sslEngineSource, authenticateSslClients,
+              proxyAuthenticator, chainProxyManager, mitmManager,
+              filtersSource, transparent,
+              idleConnectionTimeout, activityTrackers, connectTimeout,
+              serverResolver, readThrottleBytesPerSecond, writeThrottleBytesPerSecond,
+              localAddress, proxyAlias, maxInitialLineLength, maxHeaderSize, maxChunkSize,
+              allowRequestToOriginServer, acceptProxyProtocol, sendProxyProtocol);
         }
 
         private InetSocketAddress determineListenAddress() {
