@@ -1,6 +1,7 @@
 package org.littleshoot.proxy.impl;
 
 import com.google.common.io.BaseEncoding;
+import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -29,16 +30,17 @@ import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import org.apache.commons.lang3.StringUtils;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HttpFilters;
-import org.littleshoot.proxy.HttpFiltersAdapter;
 import org.littleshoot.proxy.ProxyAuthenticator;
 import org.littleshoot.proxy.SslEngineSource;
 
-import org.jspecify.annotations.Nullable;
-import org.jspecify.annotations.NullMarked;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSession;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -57,6 +59,10 @@ import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.format.DateTimeFormatter.ofPattern;
+import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
+import static java.util.Optional.ofNullable;
+import static org.littleshoot.proxy.HttpFiltersAdapter.NOOP_FILTER;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CHUNK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_PROXY_AUTHENTICATION;
@@ -137,13 +143,15 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
      * This is the current server connection that we're using while transferring
      * chunked data.
      */
+    @Nullable
     private volatile ProxyToServerConnection currentServerConnection;
 
     /**
      * The current filters to apply to incoming requests/chunks.
      */
-    private volatile HttpFilters currentFilters = HttpFiltersAdapter.NOOP_FILTER;
+    private volatile HttpFilters currentFilters = NOOP_FILTER;
 
+    @Nullable
     private volatile SSLSession clientSslSession;
 
     /**
@@ -158,6 +166,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     /**
      * The current HTTP request that this connection is currently servicing.
      */
+    @Nullable
     private volatile HttpRequest currentRequest;
 
     private final ClientDetails clientDetails = new ClientDetails();
@@ -174,7 +183,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
         if (sslEngineSource != null) {
             LOG.debug("Enabling encryption of traffic from client to proxy");
-            encrypt(pipeline, sslEngineSource.newSslEngine(),
+            SSLEngine sslEngine = sslEngineSource.newSslEngine();
+            encrypt(pipeline, sslEngine,
                     authenticateClients)
                     .addListener(
                             future -> {
@@ -199,7 +209,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
      **************************************************************************/
 
     @Override
-    protected ConnectionState readHTTPInitial(HttpRequest httpRequest) {
+    ConnectionState readHTTPInitial(HttpRequest httpRequest) {
         LOG.debug("Received raw request: {}", httpRequest);
 
         // if we cannot parse the request, immediately return a 400 and close the connection, since we do not know what state
@@ -249,12 +259,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
         // Set up our filters based on the original request. If the HttpFiltersSource returns null (meaning the request/response
         // should not be filtered), fall back to the default no-op filter source.
-        HttpFilters filterInstance = proxyServer.getFiltersSource().filterRequest(currentRequest, ctx);
-        if (filterInstance != null) {
-            currentFilters = filterInstance;
-        } else {
-            currentFilters = HttpFiltersAdapter.NOOP_FILTER;
-        }
+        HttpFilters filterInstance = proxyServer.getFiltersSource().filterRequest(requireNonNull(currentRequest), ctx);
+        currentFilters = requireNonNullElse(filterInstance, NOOP_FILTER);
 
         // Send the request through the clientToProxyRequest filter, and respond with the short-circuit response if required
         HttpResponse clientToProxyFilterResponse = currentFilters.clientToProxyRequest(httpRequest);
@@ -284,32 +290,25 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         // Identify our server and chained proxy
         String serverHostAndPort = identifyHostAndPort(httpRequest);
 
-        LOG.debug("Ensuring that hostAndPort are available in {}",
-                httpRequest.uri());
-        if (serverHostAndPort == null || StringUtils.isBlank(serverHostAndPort)) {
+        LOG.debug("Ensuring that hostAndPort are available in {}", httpRequest.uri());
+        if (StringUtils.isBlank(serverHostAndPort)) {
             LOG.warn("No host and port found in {}", httpRequest.uri());
             boolean keepAlive = writeBadGateway(httpRequest);
-            if (keepAlive) {
-                return AWAITING_INITIAL;
-            } else {
-                return DISCONNECT_REQUESTED;
-            }
+          return keepAlive ? AWAITING_INITIAL : DISCONNECT_REQUESTED;
         }
 
         LOG.debug("Finding ProxyToServerConnection for: {}", serverHostAndPort);
-        currentServerConnection = isMitming() || isTunneling() ?
-                currentServerConnection
-                : serverConnectionsByHostAndPort.get(serverHostAndPort);
+        if (!isMitming() && !isTunneling()) {
+            currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
+        }
 
         boolean newConnectionRequired = false;
         if (ProxyUtils.isCONNECT(httpRequest)) {
             LOG.debug(
-                    "Not reusing existing ProxyToServerConnection because request is a CONNECT for: {}",
-                    serverHostAndPort);
+              "Not reusing existing ProxyToServerConnection because request is a CONNECT for: {}", serverHostAndPort);
             newConnectionRequired = true;
         } else if (currentServerConnection == null) {
-            LOG.debug("Didn't find existing ProxyToServerConnection for: {}",
-                    serverHostAndPort);
+            LOG.debug("Didn't find existing ProxyToServerConnection for: {}", serverHostAndPort);
             newConnectionRequired = true;
         }
 
@@ -333,8 +332,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
                     }
                 }
                 // Remember the connection for later
-                serverConnectionsByHostAndPort.put(serverHostAndPort,
-                        currentServerConnection);
+                serverConnectionsByHostAndPort.put(serverHostAndPort, requireNonNull(currentServerConnection));
             } catch (UnknownHostException uhe) {
                 LOG.info("Bad Host {}", httpRequest.uri());
                 boolean keepAlive = writeBadGateway(httpRequest);
@@ -346,8 +344,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
                 }
             }
         } else {
-            LOG.debug("Reusing existing server connection: {}",
-                    currentServerConnection);
+            LOG.debug("Reusing existing server connection: {}", currentServerConnection);
             numberOfReusedServerConnections.incrementAndGet();
         }
 
@@ -366,7 +363,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         }
 
         LOG.debug("Writing request to ProxyToServerConnection");
-        currentServerConnection.write(httpRequest, currentFilters);
+        requireNonNull(currentServerConnection).write(httpRequest, currentFilters);
 
         // Figure out our next state
         if (ProxyUtils.isCONNECT(httpRequest)) {
@@ -1082,6 +1079,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     /**
      * Copy the given {@link HttpRequest} verbatim.
      */
+    @NonNull
+    @CheckReturnValue
     private HttpRequest copy(HttpRequest original) {
         if (original instanceof FullHttpRequest) {
             return ((FullHttpRequest) original).copy();
@@ -1366,7 +1365,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     /**
      * Identify the host and port for a request.
      */
-    private String identifyHostAndPort(HttpRequest httpRequest) {
+    @NonNull
+    @CheckReturnValue
+    private String identifyHostAndPort(@NonNull HttpRequest httpRequest) {
         String hostAndPort = ProxyUtils.parseHostAndPort(httpRequest);
         if (StringUtils.isBlank(hostAndPort)) {
             List<String> hosts = httpRequest.headers().getAll(
@@ -1496,11 +1497,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         }
     }
 
+    @Nullable
     public InetSocketAddress getClientAddress() {
-        if (channel == null) {
-            return null;
-        }
-        return (InetSocketAddress) channel.remoteAddress();
+        return ofNullable(channel)
+          .map(c -> (InetSocketAddress) c.remoteAddress())
+          .orElse(null);
     }
 
     private FlowContext flowContext() {

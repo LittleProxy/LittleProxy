@@ -40,6 +40,9 @@ public final class ProxyUtilsTest {
         assertThat(parseHostAndPort("http://www.test.com")).isEqualTo("www.test.com");
         assertThat(parseHostAndPort("www.test.com")).isEqualTo("www.test.com");
         assertThat(parseHostAndPort("httpbin.org:443/get")).isEqualTo("httpbin.org:443");
+        assertThat(parseHostAndPort("")).isEqualTo("");
+        assertThat(parseHostAndPort("invalid")).isEqualTo("invalid");
+        assertThat(parseHostAndPort("invalid://")).isEqualTo("invalid:");
     }
 
     @Test

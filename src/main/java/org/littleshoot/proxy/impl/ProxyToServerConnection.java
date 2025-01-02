@@ -1,6 +1,7 @@
 package org.littleshoot.proxy.impl;
 
 import com.google.common.net.HostAndPort;
+import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -55,6 +56,8 @@ import io.netty.resolver.AddressResolverGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.ChainedProxyAdapter;
@@ -67,7 +70,6 @@ import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.UnknownTransportProtocolException;
 import org.littleshoot.proxy.extras.HAProxyMessageEncoder;
 
-import org.jspecify.annotations.NullMarked;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLProtocolException;
 import javax.net.ssl.SSLSession;
@@ -122,10 +124,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     private volatile ChainedProxyType chainedProxyType;
     private volatile InetSocketAddress remoteAddress;
     private volatile InetSocketAddress localAddress;
+    @Nullable
     private volatile AddressResolverGroup<?> remoteAddressResolver;
+    @Nullable
     private volatile String username;
+    @Nullable
     private volatile String password;
     private final String serverHostAndPort;
+    @Nullable
     private volatile ChainedProxy chainedProxy;
     private final Queue<ChainedProxy> availableChainedProxies;
 
@@ -138,6 +144,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      * Encapsulates the flow for establishing a connection, which can vary
      * depending on how things are configured.
      */
+    @Nullable
     private volatile ConnectionFlow connectionFlow;
 
     /**
@@ -158,18 +165,21 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      * This is the initial request received prior to connecting. We keep track
      * of it so that we can process it after connection finishes.
      */
+    @Nullable
     private volatile HttpRequest initialRequest;
 
     /**
      * Keeps track of HttpRequests that have been issued so that we can
      * associate them with responses that we get back
      */
+    @Nullable
     private volatile HttpRequest currentHttpRequest;
 
     /**
      * While we're doing a chunked transfer, this keeps track of the initial
      * HttpResponse object for our transfer (which is useful for its headers).
      */
+    @Nullable
     private volatile HttpResponse currentHttpResponse;
 
     /**
@@ -180,6 +190,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     /**
      * Create a new ProxyToServerConnection.
      */
+    @Nullable
+    @CheckReturnValue
     static ProxyToServerConnection create(DefaultHttpProxyServer proxyServer,
             ClientToProxyConnection clientConnection,
             String serverHostAndPort,
@@ -253,7 +265,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
 
     @Override
-    protected ConnectionState readHTTPInitial(HttpResponse httpResponse) {
+    ConnectionState readHTTPInitial(HttpResponse httpResponse) {
         LOG.debug("Received raw response: {}", httpResponse);
 
         if (httpResponse.decoderResult().isFailure()) {
@@ -514,15 +526,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         return getChainedProxyAddress() != null;
     }
 
+    @Nullable
     public InetSocketAddress getChainedProxyAddress() {
         return chainedProxy == null ? null : chainedProxy
                 .getChainedProxyAddress();
     }
 
+    @Nullable
     public ChainedProxy getChainedProxy() {
         return chainedProxy;
     }
 
+    @Nullable
     public HttpRequest getInitialRequest() {
         return initialRequest;
     }
