@@ -1,7 +1,10 @@
 # Release Notes
 
-- 2.4.0 (??.01.2025, https://github.com/LittleProxy/LittleProxy/milestone/40)
-  - 
+- 2.4.0 (02.01.2025, https://github.com/LittleProxy/LittleProxy/milestone/40)
+  - Migrate nullability annotations from JSR 305 to JSpecify (#533) (#534)
+  - Bump Netty from 4.1.115.Final to 4.1.116.Final (#530)
+  - Bump Log4j from 2.24.2 to 2.24.3 (#527)
+  - Bump Guava from 33.3.1-jre to 33.4.0-jre (#528)
 
 - 2.3.3 (04.12.2024, https://github.com/LittleProxy/LittleProxy/milestone/39?closed=1)
   - Bump Netty from 4.1.114.Final to 4.1.115.Final (#521)
