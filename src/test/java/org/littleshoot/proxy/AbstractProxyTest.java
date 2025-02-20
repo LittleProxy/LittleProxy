@@ -1,6 +1,7 @@
 package org.littleshoot.proxy;
 
 import io.netty.handler.codec.http.HttpRequest;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -172,7 +173,11 @@ public abstract class AbstractProxyTest {
                 HttpHead request = new HttpHead(resourceUrl);
                 request.setConfig(TestUtils.REQUEST_TIMEOUT_CONFIG);
                 HttpResponse response = httpClient.execute(host, request);
-                contentLength = Integer.valueOf(response.getFirstHeader("Content-Length").getValue());
+                Header contentLengthHeader = response.getFirstHeader("Content-Length");
+                if (contentLengthHeader == null) {
+                    throw new IllegalArgumentException("Content-Length header not found in response " + response + " for request " + request);
+                }
+                contentLength = Integer.valueOf(contentLengthHeader.getValue());
             }
 
             HttpGet request = new HttpGet(resourceUrl);
