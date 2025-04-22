@@ -1,7 +1,14 @@
 # Release Notes
 
-- 2.4.1 (??.??.2025, https://github.com/LittleProxy/LittleProxy/milestone/41)
+- 2.4.2 (??.??.2025, https://github.com/LittleProxy/LittleProxy/milestone/42)
   - 
+
+- 2.4.1 (22.04.2025, https://github.com/LittleProxy/LittleProxy/milestone/41?closed=1)
+  - Bump netty from 4.1.116.Final to 4.2.0.Final (#550) (#564)
+  - Bump selenium from 4.27.0 to 4.31.0 (#546) (#560) (#566)
+  - Bump dnsjava from 3.6.2 to 3.6.3
+  - Bump slf4j from 2.0.16 to 2.0.17 (#549)
+  - Bump jackson from 2.18.2 to 2.18.3 (#554)
 
 - 2.4.0 (02.01.2025, https://github.com/LittleProxy/LittleProxy/milestone/40?closed=1)
   - Migrate nullability annotations from JSR 305 to JSpecify (#533) (#534)
