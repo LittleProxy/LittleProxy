@@ -26,6 +26,11 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           cache: maven
+      - uses: browser-actions/setup-chrome@v1
+        id: setup-chrome
+        with:
+          install-chromedriver: true
+      - run: ${{ steps.setup-chrome.outputs.chrome-path }} --version
       - name: Compile code
         run: mvn --batch-mode compile
       - name: Branch name [env]
