@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.SocketClientUtil;
 import org.mockserver.integration.ClientAndServer;
@@ -37,6 +38,7 @@ import static org.mockserver.model.HttpResponse.response;
  */
 @Tag("slow-test")
 @NullMarked
+@Timeout(10)
 public final class KeepAliveTest {
     private static final Logger log = LoggerFactory.getLogger(KeepAliveTest.class);
     @Nullable
@@ -186,6 +188,7 @@ public final class KeepAliveTest {
      * Tests that the proxy does not close the connection after a 502 Bad Gateway response.
      */
     @Test
+    @Timeout(15)
     public void testBadGatewayDoesNotCloseConnection() throws IOException, InterruptedException {
         mockServer.when(request()
                         .withMethod("GET")
@@ -231,6 +234,7 @@ public final class KeepAliveTest {
      * Tests that the proxy does not close the connection after a 504 Gateway Timeout response.
      */
     @Test
+    @Timeout(15)
     public void testGatewayTimeoutDoesNotCloseConnection() throws IOException {
         mockServer.when(request()
                         .withMethod("GET")

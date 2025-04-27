@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 import java.util.Arrays;
@@ -20,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 @Tag("slow-test")
+@Timeout(15)
 public final class ThrottlingTest {
     private static final int LARGE_DATA_SIZE = 200000;
     private static final long THROTTLED_READ_BYTES_PER_SECOND = 25000L;
@@ -226,6 +228,7 @@ public final class ThrottlingTest {
     }
 
     @Test
+    @Timeout(20)
     public void testChangeThrottling() throws Exception {
         proxyServer = DefaultHttpProxyServer.bootstrap()
                 .withPort(0)
