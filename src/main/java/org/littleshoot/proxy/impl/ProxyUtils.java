@@ -38,6 +38,9 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static java.lang.System.nanoTime;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 /**
  * Utilities for the proxy.
  */
@@ -446,15 +449,18 @@ public class ProxyUtils {
      * @return the local machine's hostname, or null if a hostname cannot be determined
      */
     public static String getHostName() {
+        long start = nanoTime();
         try {
-            return InetAddress.getLocalHost().getHostName();
+            String hostName = InetAddress.getLocalHost().getHostName();
+            LOG.info("got host name '{}' in {} ms.", hostName, NANOSECONDS.toMillis(nanoTime() - start));
+            return hostName;
         } catch (IOException | RuntimeException e) {
-            LOG.debug("Ignored exception", e);
+            LOG.info("Ignored exception", e);
         } // An exception here must not stop the proxy. Android could throw a
         // runtime exception, since it not allows network access in the main
         // process.
 
-        LOG.info("Could not lookup localhost");
+        LOG.info("Could not lookup localhost in {} ms.", NANOSECONDS.toMillis(nanoTime() - start));
         return null;
     }
 
