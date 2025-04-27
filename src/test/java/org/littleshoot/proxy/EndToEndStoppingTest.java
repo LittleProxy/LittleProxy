@@ -12,6 +12,7 @@ import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
@@ -150,6 +151,7 @@ public final class EndToEndStoppingTest {
      * This test actually launches a browser!
      */
     @Test
+    @Timeout(60)
     public void testWithWebDriver() {
         String os = System.getProperty("os.name", "unknown").toLowerCase(ROOT);
         log.info("OS: {} (is windows: {})", os, os.contains("win"));

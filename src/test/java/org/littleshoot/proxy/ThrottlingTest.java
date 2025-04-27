@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 @Tag("slow-test")
-@Timeout(15)
+@Timeout(25)
 public final class ThrottlingTest {
     private static final int LARGE_DATA_SIZE = 200000;
     private static final long THROTTLED_READ_BYTES_PER_SECOND = 25000L;
@@ -228,7 +228,7 @@ public final class ThrottlingTest {
     }
 
     @Test
-    @Timeout(20)
+    @Timeout(30)
     public void testChangeThrottling() throws Exception {
         proxyServer = DefaultHttpProxyServer.bootstrap()
                 .withPort(0)

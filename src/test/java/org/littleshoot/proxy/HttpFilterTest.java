@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.test.HttpClientUtil;
@@ -673,6 +674,7 @@ public final class HttpFilterTest {
     }
 
     @Test
+    @Timeout(20)
     public void testResponseTimedOutInvokedAfterServerTimeout() throws Exception {
         mockServer.when(request()
                         .withMethod("GET")
