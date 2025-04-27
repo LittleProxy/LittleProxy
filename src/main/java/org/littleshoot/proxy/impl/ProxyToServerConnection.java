@@ -389,6 +389,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
             // already disconnected
             if (isConnecting() || getCurrentState().isDisconnectingOrDisconnected()) {
                 LOG.debug("Connection failed or timed out while waiting to write message to server. Message will be discarded: {}", msg);
+                if (msg instanceof ReferenceCounted ) {
+                    // fix: when connection was disconnecting or disconnected, retain() the refCnt = 2, can not release the msg , final leading to OutOfDirectMemoryError.
+                    ((ReferenceCounted) msg).release();
+                }
                 return channel.newFailedFuture(new Exception("Connection failed or timed out while waiting to write message to server. Message will be discarded."));
             }
 
