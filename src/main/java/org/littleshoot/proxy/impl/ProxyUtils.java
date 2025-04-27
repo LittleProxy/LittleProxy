@@ -27,8 +27,6 @@ import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -451,10 +449,10 @@ public class ProxyUtils {
     public static String getHostName() {
         long start = nanoTime();
         try {
-            String hostName = InetAddress.getLocalHost().getHostName();
+            String hostName = "localhost";
             LOG.info("got host name '{}' in {} ms.", hostName, NANOSECONDS.toMillis(nanoTime() - start));
             return hostName;
-        } catch (IOException | RuntimeException e) {
+        } catch (RuntimeException e) {
             LOG.info("Ignored exception", e);
         } // An exception here must not stop the proxy. Android could throw a
         // runtime exception, since it not allows network access in the main
