@@ -34,7 +34,7 @@ jobs:
           install-chromedriver: true
       - name: Show Chrome version
         if: ${{ contains(matrix.platform, 'windows') }}
-        run: ${{ steps.setup-chrome.outputs.chrome-path }} --version
+        run: ${{ steps.setup-chrome.outputs.chrome-path }} --version --no-sandbox --disable-dev-shm-usage
       - name: Compile code
         run: mvn --batch-mode compile
       - name: Branch name [env]
