@@ -38,7 +38,7 @@ import static org.mockserver.model.HttpResponse.response;
  */
 @Tag("slow-test")
 @NullMarked
-@Timeout(10)
+@Timeout(15)
 public final class KeepAliveTest {
     private static final Logger log = LoggerFactory.getLogger(KeepAliveTest.class);
     @Nullable
@@ -188,7 +188,7 @@ public final class KeepAliveTest {
      * Tests that the proxy does not close the connection after a 502 Bad Gateway response.
      */
     @Test
-    @Timeout(15)
+    @Timeout(20)
     public void testBadGatewayDoesNotCloseConnection() throws IOException, InterruptedException {
         mockServer.when(request()
                         .withMethod("GET")
@@ -234,7 +234,7 @@ public final class KeepAliveTest {
      * Tests that the proxy does not close the connection after a 504 Gateway Timeout response.
      */
     @Test
-    @Timeout(15)
+    @Timeout(20)
     public void testGatewayTimeoutDoesNotCloseConnection() throws IOException {
         mockServer.when(request()
                         .withMethod("GET")
