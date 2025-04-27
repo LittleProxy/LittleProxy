@@ -24,6 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
@@ -53,9 +54,10 @@ public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback,
 
   @Override
   public void afterEach(ExtensionContext context) throws Exception {
-    logger(context).info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
     ScheduledExecutorService executor = (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
     executor.shutdown();
+    boolean stopped = executor.awaitTermination(10, SECONDS);
+    logger(context).info("finished {} - {}, executor stopped: {} ({})", context.getDisplayName(), verdict(context), stopped, memory());
     clearMockServerCache();
   }
 
