@@ -182,7 +182,13 @@ public final class EndToEndStoppingTest {
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
 
-        WebDriver driver = new ChromeDriver(options);
+        File logFile = new File("target/chromedriver-" + System.currentTimeMillis() + ".txt");
+        boolean folderCreated = logFile.getParentFile().mkdirs();
+        log.info("Starting webdriver with logs in {} (folder created: {}, folder exists: {})",
+          logFile.getAbsolutePath(), folderCreated, logFile.getParentFile().exists());
+
+        ChromeDriverService service = new ChromeDriverService.Builder().withLogFile(logFile).build();
+        WebDriver driver = new ChromeDriver(service, options);
         try {
             driver.manage().timeouts().pageLoadTimeout(ofSeconds(30));
 
