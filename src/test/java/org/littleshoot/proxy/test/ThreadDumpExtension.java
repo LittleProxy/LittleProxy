@@ -28,7 +28,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
   private static final Namespace NAMESPACE = Namespace.create("ThreadDumpExtension");
-  private static final int INITIAL_DELAY_MS = 5000;
+  private static final int INITIAL_DELAY_MS = 8000;
   private static final int DELAY_MS = 1000;
 
   @Override
