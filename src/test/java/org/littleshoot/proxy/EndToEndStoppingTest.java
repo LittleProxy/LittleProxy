@@ -183,14 +183,6 @@ public final class EndToEndStoppingTest {
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
 
-        String browserBinary = System.getenv("BROWSER_BINARY");
-        if (browserBinary != null) {
-            log.info("Setting browser binary to {}", browserBinary);
-            options.setBinary(browserBinary);
-        } else {
-            log.info("Setting BROWSER_BINARY not set. Will search browser binary in PATH.");
-        }
-
         File logFile = new File("target/chromedriver-" + System.currentTimeMillis() + ".txt");
         boolean folderCreated = logFile.getParentFile().mkdirs();
         log.info("Starting webdriver with logs in {} (folder created: {}, folder exists: {})",

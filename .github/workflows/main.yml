@@ -26,21 +26,12 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           cache: maven
-      - name: Install Chrome
-        if: ${{ contains(matrix.platform, 'windows') }}
-        uses: browser-actions/setup-chrome@v1
-        id: setup-chrome
-        with:
-          install-chromedriver: true
-      - name: Show Chrome version
-        if: ${{ contains(matrix.platform, 'windows') }}
-        run: ${{ steps.setup-chrome.outputs.chrome-path }} --version --no-sandbox --disable-dev-shm-usage
       - name: Compile code
         run: mvn --batch-mode compile
       - name: Branch name [env]
         run: echo running on branch ${GITHUB_REF##*/}
       - name: Run smoke tests
-        run: BROWSER_BINARY=${{ steps.setup-chrome.outputs.chrome-path }} mvn --batch-mode package -Psmoke-test
+        run: mvn --batch-mode package -Psmoke-test
       - name: Run slow tests
         if: success()
         run: mvn --batch-mode package -Pslow-tests
