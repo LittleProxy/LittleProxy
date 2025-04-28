@@ -180,7 +180,6 @@ public final class EndToEndStoppingTest {
         ChromeOptions options = new ChromeOptions();
         options.setCapability(CapabilityType.PROXY, proxy);
         options.addArguments("--headless=new");
-        options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
 
         File logFile = new File("target/chromedriver-" + System.currentTimeMillis() + ".txt");
