@@ -182,7 +182,7 @@ public final class EndToEndStoppingTest {
         ChromeDriverService service = new ChromeDriverService.Builder()
           .withLogFile(logFile)
           .build();
-        ClientConfig timeouts = defaultConfig().connectionTimeout(ofSeconds(20)).readTimeout(ofSeconds(50));
+        ClientConfig timeouts = defaultConfig().connectionTimeout(ofSeconds(180)).readTimeout(ofSeconds(70));
         WebDriver driver = new ChromeDriver(service, options, timeouts
         );
         try {
