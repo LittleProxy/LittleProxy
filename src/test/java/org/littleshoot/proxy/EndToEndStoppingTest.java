@@ -24,6 +24,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.remote.CapabilityType;
+import org.openqa.selenium.remote.http.ClientConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -195,8 +196,13 @@ public final class EndToEndStoppingTest {
         log.info("Starting webdriver with logs in {} (folder created: {}, folder exists: {})",
           logFile.getAbsolutePath(), folderCreated, logFile.getParentFile().exists());
 
-        ChromeDriverService service = new ChromeDriverService.Builder().withLogFile(logFile).build();
-        WebDriver driver = new ChromeDriver(service, options);
+        ChromeDriverService service = new ChromeDriverService.Builder()
+          .withLogFile(logFile)
+          .build();
+        WebDriver driver = new ChromeDriver(service, options, ClientConfig.defaultConfig()
+          .connectionTimeout(ofSeconds(5))
+            .readTimeout(ofSeconds(30))
+        );
         try {
             driver.manage().timeouts().pageLoadTimeout(ofSeconds(30));
 
