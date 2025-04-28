@@ -56,6 +56,7 @@ public final class EndToEndStoppingTest {
     private void tryProxyWithBrowser() {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--headless=new");
+        options.addArguments("--remote-debugging-pipe");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
         options.addArguments("--proxy-bypass-list=<-loopback>");
