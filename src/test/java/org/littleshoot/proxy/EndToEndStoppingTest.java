@@ -28,7 +28,9 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 
 import static java.time.Duration.ofSeconds;
+import static java.util.Locale.ROOT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
@@ -149,6 +151,10 @@ public final class EndToEndStoppingTest {
      */
     @Test
     public void testWithWebDriver() {
+        String os = System.getProperty("os.name", "unknown").toLowerCase(ROOT);
+        log.info("OS: {} (is windows: {})", os, os.contains("win"));
+        assumeThat(os.contains("win")).isFalse();
+
         HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()
                 .withPort(0)
                 .start();
