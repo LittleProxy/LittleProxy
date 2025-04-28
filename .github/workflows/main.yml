@@ -40,7 +40,7 @@ jobs:
       - name: Branch name [env]
         run: echo running on branch ${GITHUB_REF##*/}
       - name: Run smoke tests
-        run: mvn --batch-mode package -Psmoke-test
+        run: BROWSER_BINARY=${{ steps.setup-chrome.outputs.chrome-path }} mvn --batch-mode package -Psmoke-test
       - name: Run slow tests
         if: success()
         run: mvn --batch-mode package -Pslow-tests
