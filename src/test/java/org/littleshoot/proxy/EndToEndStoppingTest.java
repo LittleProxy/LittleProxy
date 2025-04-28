@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.time.Duration.ofSeconds;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -172,6 +174,11 @@ public final class EndToEndStoppingTest {
         options.addArguments("--headless=new");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
+        options.addArguments("--proxy-bypass-list=<-loopback>");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-search-engine-choice-screen");
+        options.addArguments("--unsafely-disable-devtools-self-xss-warnings");
+        options.addArguments(createHeadlessArguments());
 
         log.info("Starting webdriver with options: {}", options);
 
@@ -198,5 +205,32 @@ public final class EndToEndStoppingTest {
         finally {
             driver.quit();
         }
+    }
+
+    private List<String> createHeadlessArguments() {
+        List<String> arguments = new ArrayList<>();
+        arguments.add("--disable-background-networking");
+        arguments.add("--enable-features=NetworkService,NetworkServiceInProcess");
+        arguments.add("--disable-background-timer-throttling");
+        arguments.add("--disable-backgrounding-occluded-windows");
+        arguments.add("--disable-breakpad");
+        arguments.add("--disable-client-side-phishing-detection");
+        arguments.add("--disable-component-extensions-with-background-pages");
+        arguments.add("--disable-default-apps");
+        arguments.add("--disable-features=TranslateUI");
+        arguments.add("--disable-hang-monitor");
+        arguments.add("--disable-ipc-flooding-protection");
+        arguments.add("--disable-popup-blocking");
+        arguments.add("--disable-prompt-on-repost");
+        arguments.add("--disable-renderer-backgrounding");
+        arguments.add("--disable-sync");
+        arguments.add("--force-color-profile=srgb");
+        arguments.add("--metrics-recording-only");
+        arguments.add("--no-first-run");
+        arguments.add("--password-store=basic");
+        arguments.add("--use-mock-keychain");
+        arguments.add("--hide-scrollbars");
+        arguments.add("--mute-audio");
+        return arguments;
     }
 }
