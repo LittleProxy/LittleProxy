@@ -63,6 +63,9 @@
                         <configuration>
                             <excludedGroups>slow-test</excludedGroups>
                             <argLine>-ea -Xmx256m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=target/smoke-tests.hprof</argLine>
+                            <includes>
+                                <include>**/*EndToEndStoppingTest*</include>
+                            </includes>
                         </configuration>
                     </plugin>
                 </plugins>
