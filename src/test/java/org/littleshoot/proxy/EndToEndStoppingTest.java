@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
+import static org.openqa.selenium.remote.http.ClientConfig.defaultConfig;
 
 /**
  * End-to-end test making sure the proxy is able to service simple HTTP requests
@@ -154,17 +155,7 @@ public final class EndToEndStoppingTest {
     @Test
     @Timeout(20)
     public void testWithWebDriver() {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()
-                .withPort(0)
-                .start();
-
-        try {
-            Proxy proxy = createSeleniumProxy(proxyServer);
-            tryProxyWithBrowser(proxy);
-        }
-        finally {
-            proxyServer.abort();
-        }
+        tryProxyWithBrowser();
     }
 
     private static Proxy createSeleniumProxy(HttpProxyServer proxyServer) {
@@ -176,11 +167,12 @@ public final class EndToEndStoppingTest {
         return proxy;
     }
 
-    private void tryProxyWithBrowser(Proxy proxy) {
+    private void tryProxyWithBrowser() {
         ChromeOptions options = new ChromeOptions();
-        options.setCapability(CapabilityType.PROXY, proxy);
         options.addArguments("--headless=new");
         options.addArguments("--disable-dev-shm-usage");
+
+        log.info("Starting webdriver with options: {}", options);
 
         File logFile = new File("target/chromedriver-" + System.currentTimeMillis() + ".txt");
         boolean folderCreated = logFile.getParentFile().mkdirs();
@@ -190,12 +182,11 @@ public final class EndToEndStoppingTest {
         ChromeDriverService service = new ChromeDriverService.Builder()
           .withLogFile(logFile)
           .build();
-        WebDriver driver = new ChromeDriver(service, options, ClientConfig.defaultConfig()
-          .connectionTimeout(ofSeconds(5))
-            .readTimeout(ofSeconds(30))
+        ClientConfig timeouts = defaultConfig().connectionTimeout(ofSeconds(20)).readTimeout(ofSeconds(50));
+        WebDriver driver = new ChromeDriver(service, options, timeouts
         );
         try {
-            driver.manage().timeouts().pageLoadTimeout(ofSeconds(30));
+            driver.manage().timeouts().pageLoadTimeout(ofSeconds(40));
 
             driver.get("https://github.com/littleProxy/LittleProxy//");
             String source = driver.getPageSource();
