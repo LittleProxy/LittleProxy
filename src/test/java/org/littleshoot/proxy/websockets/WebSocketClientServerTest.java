@@ -1,7 +1,6 @@
 package org.littleshoot.proxy.websockets;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,25 +28,13 @@ public final class WebSocketClientServerTest {
     private static final long TEST_TIMEOUT_SECONDS = 60L;
     private static final Logger logger = LoggerFactory.getLogger(WebSocketClientServerTest.class);
     private HttpProxyServer proxy;
-    private WebSocketServer server;
-    private WebSocketClient client;
-
-    @BeforeEach
-    void setUp() {
-        server = new WebSocketServer();
-        client = new WebSocketClient();
-    }
+    private final WebSocketServer server = new WebSocketServer();
+    private final WebSocketClient client = new WebSocketClient();
 
     @AfterEach
     void tearDown() throws Exception {
-        if (client != null) {
-            client.close();
-            client = null;
-        }
-        if (server != null) {
-            server.stop();
-            server = null;
-        }
+        client.close();
+        server.stop();
         if (proxy != null) {
             proxy.stop();
             proxy = null;
@@ -103,26 +90,26 @@ public final class WebSocketClientServerTest {
     private void testIntegration(final boolean withSsl) throws Exception {
         testIntegration(withSsl, false, withSsl ? "wss" : "ws");
     }
-    
+
     private void testIntegration(final boolean withSsl, final boolean withProxy, final String scheme) throws Exception {
         final InetSocketAddress serverAddress = server.start(withSsl, CONNECT_TIMEOUT);
         if (withProxy) {
             startProxy(withSsl);
         }
-        
+
         final URI serverUri = URI.create(scheme + "://" + serverAddress.getHostString() + ":" + serverAddress.getPort()
                 + WebSocketServer.WEBSOCKET_PATH);
 
         openClient(serverUri, withProxy);
 
-        final String request = "test";
+        final String request = "test 1 test 2 test 3 test 4";
         assertThat(client.send(request).awaitUninterruptibly(RESPONSE_TIMEOUT.toMillis()))
           .as("Timed out waiting for message to be sent after %s s.", RESPONSE_TIMEOUT)
           .isTrue();
         final String response = client.waitForResponse(RESPONSE_TIMEOUT);
         assertThat(response).isEqualTo(request.toUpperCase());
     }
-    
+
     private void openClient(final URI uri, final boolean withProxy) throws InterruptedException {
         final Optional<InetSocketAddress> proxyAddress = Optional.ofNullable(proxy).filter(httpProxy -> withProxy).map(HttpProxyServer::getListenAddress);
         int connectionAttempt = 0;
