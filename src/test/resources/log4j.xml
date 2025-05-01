@@ -25,6 +25,12 @@
     <logger name="org.littleshoot.proxy">
         <level value="info"/>
     </logger>
+    <logger name="io.netty">
+        <level value="debug"/>
+    </logger>
+    <logger name="org.littleshoot.proxy.websockets.WebSocketClientServerTest">
+        <level value="debug"/>
+    </logger>
     <root>
         <level value="INFO"/>
         <appender-ref ref="TextFile"/>
