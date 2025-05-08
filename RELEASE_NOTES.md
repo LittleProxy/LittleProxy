@@ -1,7 +1,12 @@
 # Release Notes
 
-- 2.4.2 (??.??.2025, https://github.com/LittleProxy/LittleProxy/milestone/42)
-  - 
+- 2.4.3 (??.??.2025, https://github.com/LittleProxy/LittleProxy/milestone/43)
+  -
+
+- 2.4.2 (08.05.2025, https://github.com/LittleProxy/LittleProxy/milestone/42?closed=1)
+  - fix memory leak in ProxyToServerConnection (#573)
+  - Bump selenium from 4.31.0 to 4.32.0 (#576)
+  - Bump netty from 4.2.0.Final to 4.2.1.Final (#577)
 
 - 2.4.1 (22.04.2025, https://github.com/LittleProxy/LittleProxy/milestone/41?closed=1)
   - Bump netty from 4.1.116.Final to 4.2.0.Final (#550) (#564)
