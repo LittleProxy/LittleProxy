@@ -1,6 +1,7 @@
 # Release Notes
 
 - 2.4.3 (??.??.2025, https://github.com/LittleProxy/LittleProxy/milestone/43)
+  - Bump selenium from 4.32.0 to 4.33.0
   -
 
 - 2.4.2 (08.05.2025, https://github.com/LittleProxy/LittleProxy/milestone/42?closed=1)
