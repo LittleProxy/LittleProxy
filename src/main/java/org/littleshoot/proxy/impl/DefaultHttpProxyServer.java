@@ -3,7 +3,6 @@ package org.littleshoot.proxy.impl;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.group.ChannelGroup;
@@ -139,7 +138,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     /**
      * Keep track of all channels created by this proxy server for later shutdown when the proxy is stopped.
      */
-    private final ChannelGroup allChannels = new DefaultChannelGroup("HTTP-Proxy-Server", GlobalEventExecutor.INSTANCE);
+    private final ChannelGroup allChannels =
+            new DefaultChannelGroup("HTTP-Proxy-Server", GlobalEventExecutor.INSTANCE, true);
 
     /**
      * JVM shutdown hook to shut down this proxy server. Declared as a class-level variable to allow removing the shutdown hook when the
@@ -545,20 +545,16 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 throw new UnknownTransportProtocolException(transportProtocol);
         }
         serverBootstrap.childHandler(initializer);
-        ChannelFuture future = serverBootstrap.bind(requestedAddress)
-                .addListener((ChannelFutureListener) future1 -> {
-                    if (future1.isSuccess()) {
-                        registerChannel(future1.channel());
-                    }
-                }).awaitUninterruptibly();
+        ChannelFuture future = serverBootstrap.bind(requestedAddress).awaitUninterruptibly();
 
         Throwable cause = future.cause();
         if (cause != null) {
             abort();
             throw new RuntimeException(cause);
         }
-
-        boundAddress = ((InetSocketAddress) future.channel().localAddress());
+        Channel serverChannel = future.channel();
+        registerChannel(serverChannel);
+        boundAddress = (InetSocketAddress) serverChannel.localAddress();
         LOG.info("Proxy started at address: {}", boundAddress);
 
         Runtime.getRuntime().addShutdownHook(jvmShutdownHook);
