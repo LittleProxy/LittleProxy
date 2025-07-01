@@ -552,6 +552,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             abort();
             throw new RuntimeException(cause);
         }
+
         Channel serverChannel = future.channel();
         registerChannel(serverChannel);
         boundAddress = (InetSocketAddress) serverChannel.localAddress();
