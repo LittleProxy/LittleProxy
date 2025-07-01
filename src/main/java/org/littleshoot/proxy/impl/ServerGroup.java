@@ -1,6 +1,8 @@
 package org.littleshoot.proxy.impl;
 
 import io.netty.channel.EventLoopGroup;
+import java.util.HashSet;
+import java.util.Set;
 import org.littleshoot.proxy.HttpProxyServer;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.UnknownTransportProtocolException;
@@ -58,12 +60,13 @@ public class ServerGroup {
     private final int incomingAcceptorThreads;
     private final int incomingWorkerThreads;
     private final int outgoingWorkerThreads;
+    private final boolean autoStop;
 
     /**
      * List of all servers registered to use this ServerGroup. Any access to this list should be synchronized using the
      * {@link #SERVER_REGISTRATION_LOCK}.
      */
-    public final List<HttpProxyServer> registeredServers = new ArrayList<>(1);
+    public final Set<HttpProxyServer> registeredServers = new HashSet<>(1);
 
     /**
      * A mapping of {@link TransportProtocol}s to their initialized {@link ProxyThreadPools}. Each transport uses a
@@ -97,11 +100,27 @@ public class ServerGroup {
      * @param outgoingWorkerThreads number of proxy-to-server worker threads per protocol
      */
     public ServerGroup(String name, int incomingAcceptorThreads, int incomingWorkerThreads, int outgoingWorkerThreads) {
+        this(name, incomingAcceptorThreads, incomingWorkerThreads, outgoingWorkerThreads, true);
+    }
+
+    /**
+     * Creates a new ServerGroup instance for a proxy. Threads created for this ServerGroup will have the specified
+     * ServerGroup name in the Thread name. This constructor does not actually initialize any thread pools; instead,
+     * thread pools for specific transport protocols are lazily initialized as needed.
+     *
+     * @param name ServerGroup name to include in thread names
+     * @param incomingAcceptorThreads number of acceptor threads per protocol
+     * @param incomingWorkerThreads number of client-to-proxy worker threads per protocol
+     * @param outgoingWorkerThreads number of proxy-to-server worker threads per protocol
+     * @param autoStop if this group should stop after removal of the last proxy server
+     */
+    public ServerGroup(String name, int incomingAcceptorThreads, int incomingWorkerThreads, int outgoingWorkerThreads, boolean autoStop) {
         this.name = name;
         this.serverGroupId = serverGroupCount.getAndIncrement();
         this.incomingAcceptorThreads = incomingAcceptorThreads;
         this.incomingWorkerThreads = incomingWorkerThreads;
         this.outgoingWorkerThreads = outgoingWorkerThreads;
+        this.autoStop = autoStop;
     }
 
     /**
@@ -179,7 +198,7 @@ public class ServerGroup {
                 log.warn("Attempted to unregister proxy server from ServerGroup that it was not registered with. Was the proxy unregistered twice?");
             }
 
-            if (registeredServers.isEmpty()) {
+            if (registeredServers.isEmpty() && autoStop) {
                 log.debug("Proxy server unregistered from ServerGroup. No proxy servers remain registered, so shutting down ServerGroup.");
 
                 shutdown(graceful);
@@ -194,7 +213,7 @@ public class ServerGroup {
      *
      * @param graceful when true, event loops will "gracefully" terminate, waiting for submitted tasks to finish
      */
-    private void shutdown(boolean graceful) {
+    public void shutdown(boolean graceful) {
         if (!stopped.compareAndSet(false, true)) {
             log.info("Shutdown requested, but ServerGroup is already stopped. Doing nothing.");
 
