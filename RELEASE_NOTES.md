@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.4.4 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/44)
+  - TBD
+
 - 2.4.3 (02.07.2025, https://github.com/LittleProxy/LittleProxy/milestone/43?closed=1)
   - added "autoStop" property for ServerGroup (#590)  --  thanks to Alex Panchenko
   - fix problem when proxy is stopped quickly after starting (#590)  --  thanks to Alex Panchenko
