@@ -1,8 +1,12 @@
 # Release Notes
 
-- 2.4.3 (??.??.2025, https://github.com/LittleProxy/LittleProxy/milestone/43)
-  - Bump selenium from 4.32.0 to 4.33.0
-  -
+- 2.4.3 (02.07.2025, https://github.com/LittleProxy/LittleProxy/milestone/43?closed=1)
+  - added "autoStop" property for ServerGroup (#590)  --  thanks to Alex Panchenko
+  - fix problem when proxy is stopped quickly after starting (#590)  --  thanks to Alex Panchenko
+  - Bump selenium from 4.32.0 to 4.34.0 (#588)
+  - Bump netty from 4.2.1.Final to 4.2.2.Final (#582)
+  - Bump jackson from 2.19.0 to 2.19.1 (#584)
+  - Bump log4j from 2.24.3 to 2.25.0 (#585)
 
 - 2.4.2 (08.05.2025, https://github.com/LittleProxy/LittleProxy/milestone/42?closed=1)
   - fix memory leak in ProxyToServerConnection (#573)
