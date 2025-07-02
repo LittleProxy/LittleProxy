@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.HttpProxyServer;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ServerGroupTest {
@@ -19,14 +20,16 @@ class ServerGroupTest {
     void autoStop() {
         serverGroup = new ServerGroup("Test", 4, 4, 4);
         startAndStopProxyServer();
-        assertTrue(serverGroup.isStopped(), "server group stopped");
+        assertTrue(serverGroup.isStopped(), "serverGroup.isStopped");
+        assertThrows(IllegalStateException.class, this::startAndStopProxyServer);
     }
 
     @Test
     void manualStop() {
         serverGroup = new ServerGroup("Test", 4, 4, 4, false);
         startAndStopProxyServer();
-        assertFalse(serverGroup.isStopped(), "server group stopped");
+        assertFalse(serverGroup.isStopped(), "serverGroup.isStopped");
+        startAndStopProxyServer();
     }
 
     @AfterEach
