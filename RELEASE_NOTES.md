@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.4.5 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/45)
+  - TBD
+
 - 2.4.4 (10.08.2025, https://github.com/LittleProxy/LittleProxy/milestone/44?closed=1)
   - Bump Netty from 4.2.2.Final to 4.2.3.Final (#596)
   - Bump Jackson from 2.19.1 to 2.19.2 (#598)
