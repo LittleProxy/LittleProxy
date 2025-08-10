@@ -1,7 +1,9 @@
 # Release Notes
 
-- 2.4.4 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/44)
-  - TBD
+- 2.4.4 (10.08.2025, https://github.com/LittleProxy/LittleProxy/milestone/44?closed=1)
+  - Bump Netty from 4.2.2.Final to 4.2.3.Final (#596)
+  - Bump Jackson from 2.19.1 to 2.19.2 (#598)
+  - Bump Log4j from 2.25.0 to 2.25.1 (#595)
 
 - 2.4.3 (02.07.2025, https://github.com/LittleProxy/LittleProxy/milestone/43?closed=1)
   - added "autoStop" property for ServerGroup (#590)  --  thanks to Alex Panchenko
