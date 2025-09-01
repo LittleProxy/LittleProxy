@@ -5,7 +5,6 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
 import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 import org.littleshoot.proxy.extras.ProxyProtocolMessage;
 
 import java.util.Deque;
@@ -18,11 +17,11 @@ import java.net.InetSocketAddress;
  * processing, and so on.
  */
 class ConnectionFlow {
-    private final Deque<ConnectionFlowStep> steps = new ConcurrentLinkedDeque<>();
+    private final Deque<ConnectionFlowStep<?>> steps = new ConcurrentLinkedDeque<>();
 
     private final ClientToProxyConnection clientConnection;
     private final ProxyToServerConnection serverConnection;
-    private volatile ConnectionFlowStep currentStep;
+    private volatile ConnectionFlowStep<?> currentStep;
     private volatile boolean suppressInitialRequest;
     private final Object connectLock;
 
@@ -51,7 +50,7 @@ class ConnectionFlow {
     /**
      * Add a {@link ConnectionFlowStep} to the beginning of this flow.
      */
-    ConnectionFlow first(ConnectionFlowStep step) {
+    ConnectionFlow first(ConnectionFlowStep<?> step) {
         steps.addFirst(step);
         return this;
     }
@@ -59,7 +58,7 @@ class ConnectionFlow {
     /**
      * Add a {@link ConnectionFlowStep} to the end of this flow.
      */
-    ConnectionFlow then(ConnectionFlowStep step) {
+    ConnectionFlow then(ConnectionFlowStep<?> step) {
         steps.addLast(step);
         return this;
     }
@@ -118,7 +117,7 @@ class ConnectionFlow {
      * </ol>
      */
     private void processCurrentStep() {
-        final ProxyConnection connection = currentStep.getConnection();
+        final ProxyConnection<?> connection = currentStep.getConnection();
         final ProxyConnectionLogger LOG = connection.getLOG();
 
         LOG.debug("Processing connection flow step: {}", currentStep);
@@ -137,7 +136,6 @@ class ConnectionFlow {
      * Does the work of processing the current step, checking the result and
      * handling success/failure.
      */
-    @SuppressWarnings("unchecked")
     private void doProcessCurrentStep(final ProxyConnectionLogger LOG) {
         currentStep.execute().addListener(
                 future -> {
@@ -190,12 +188,11 @@ class ConnectionFlow {
      * Disconnects the {@link ProxyToServerConnection} and informs the
      * {@link ClientToProxyConnection} that our connection failed.
      */
-    @SuppressWarnings("unchecked")
     void fail(final Throwable cause) {
         final ConnectionState lastStateBeforeFailure = serverConnection
                 .getCurrentState();
         serverConnection.disconnect().addListener(
-                (GenericFutureListener) future -> {
+                 future -> {
                     synchronized (connectLock) {
                         if (!clientConnection.serverConnectionFailed(
                                 serverConnection,
