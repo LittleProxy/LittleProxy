@@ -532,7 +532,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     /**
      * Tells the Client that its HTTP CONNECT request was successful.
      */
-    final ConnectionFlowStep RespondCONNECTSuccessful = new ConnectionFlowStep(this, NEGOTIATING_CONNECT) {
+    final ConnectionFlowStep<HttpRequest> RespondCONNECTSuccessful = new ConnectionFlowStep<>(this, NEGOTIATING_CONNECT) {
         @Override
         boolean shouldSuppressInitialRequest() {
             return true;

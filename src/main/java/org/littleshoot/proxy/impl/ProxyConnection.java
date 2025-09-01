@@ -317,7 +317,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
      * directly.
      * </p>
      */
-    protected final ConnectionFlowStep StartTunneling = new ConnectionFlowStep(this, NEGOTIATING_CONNECT) {
+    protected final ConnectionFlowStep<I> StartTunneling = new ConnectionFlowStep<>(this, NEGOTIATING_CONNECT) {
         @Override
         boolean shouldSuppressInitialRequest() {
             return true;
@@ -393,8 +393,8 @@ abstract class ProxyConnection<I extends HttpObject> extends
      * @param sslEngine
      *            the {@link SSLEngine} for doing the encryption
      */
-    protected ConnectionFlowStep EncryptChannel(final SSLEngine sslEngine) {
-        return new ConnectionFlowStep(this, HANDSHAKING) {
+    protected ConnectionFlowStep<I> EncryptChannel(final SSLEngine sslEngine) {
+        return new ConnectionFlowStep<>(this, HANDSHAKING) {
             @Override
             boolean shouldExecuteOnEventLoop() {
                 return false;
@@ -413,7 +413,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
      */
     protected void aggregateContentForFiltering(ChannelPipeline pipeline,
             int numberOfBytesToBuffer) {
-        pipeline.addLast("inflater", new HttpContentDecompressor());
+        pipeline.addLast("inflater", new HttpContentDecompressor(false, 0));
         pipeline.addLast("aggregator", new HttpObjectAggregator(
                 numberOfBytesToBuffer));
     }
