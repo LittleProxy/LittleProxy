@@ -1,7 +1,10 @@
 # Release Notes
 
-- 2.4.5 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/45)
-  - TBD
+- 2.4.5 (08.09.2025, https://github.com/LittleProxy/LittleProxy/milestone/45?closed=1)
+  - fix compile warnnings (#610) by leeyazhou
+  - bump Selenium from 4.34.0 to 4.35.0 (#604)
+  - bump Netty from 4.2.3.Final to 4.2.5.Final (#611) (#605)
+  - bump Jackson from 2.19.2 to 2.20.0 (#609)
 
 - 2.4.4 (10.08.2025, https://github.com/LittleProxy/LittleProxy/milestone/44?closed=1)
   - Bump Netty from 4.2.2.Final to 4.2.3.Final (#596)
