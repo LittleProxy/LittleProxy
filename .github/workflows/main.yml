@@ -6,7 +6,29 @@ name: Java CI with Maven
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '.idea/**'
+      - '.run/**'
+      - '**/*.md'
+      - 'src/site/**'
+      - '**/.editorconfig'
+      - '**/.gitattributes'
+      - '**/.gitignore'
+      - '/*.txt'
+      - '/*.bash'
+      - 'release'
   pull_request:
+    paths-ignore:
+      - '.idea/**'
+      - '.run/**'
+      - '**/*.md'
+      - 'src/site/**'
+      - '**/.editorconfig'
+      - '**/.gitattributes'
+      - '**/.gitignore'
+      - '/*.txt'
+      - '/*.bash'
+      - 'release'
 
 jobs:
   build:
