@@ -1,20 +1,5 @@
 package org.littleshoot.proxy.websockets;
 
-import java.net.InetSocketAddress;
-import java.security.cert.CertificateException;
-import java.time.Duration;
-import java.util.Optional;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import javax.net.ssl.SSLException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Preconditions;
-
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -33,6 +18,19 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.net.ssl.SSLException;
+import java.net.InetSocketAddress;
+import java.security.cert.CertificateException;
+import java.time.Duration;
+import java.util.Optional;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Simple WebSocket server for use in unit tests that receives text frames and
@@ -103,7 +101,7 @@ public class WebSocketServer {
         private final Optional<SslContext> sslCtx;
 
         public WebSocketServerInitializer(final Optional<SslContext> sslCtx) {
-            this.sslCtx = Preconditions.checkNotNull(sslCtx);
+            this.sslCtx = requireNonNull(sslCtx);
         }
 
         @Override

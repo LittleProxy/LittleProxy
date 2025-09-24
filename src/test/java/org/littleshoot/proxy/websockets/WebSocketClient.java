@@ -1,6 +1,5 @@
 package org.littleshoot.proxy.websockets;
 
-import com.google.common.base.Preconditions;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -42,6 +41,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -150,9 +150,9 @@ public class WebSocketClient {
 
         public WebSocketClientChannelInitializer(final WebSocketClientHandler handler, final URI uri,
                 final Optional<InetSocketAddress> httpProxy) {
-            this.handler = Preconditions.checkNotNull(handler);
-            this.uri = Preconditions.checkNotNull(uri);
-            this.httpProxy = Preconditions.checkNotNull(httpProxy);
+            this.handler = requireNonNull(handler);
+            this.uri = requireNonNull(uri);
+            this.httpProxy = requireNonNull(httpProxy);
         }
 
         @Override
