@@ -1,7 +1,10 @@
 # Release Notes
 
-- 2.4.6 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/46)
-  - TBD
+- 2.4.6 (28.10.2025, https://github.com/LittleProxy/LittleProxy/milestone/46?closed=1)
+  - Bump Netty from 4.2.5.Final to 4.2.7.Final
+  - Bump Log4j from 2.25.1 to 2.25.2
+  - Bump Selenium from 4.35.0 to 4.38.0
+  - remove most Guava usages
 
 - 2.4.5 (08.09.2025, https://github.com/LittleProxy/LittleProxy/milestone/45?closed=1)
   - fix compile warnings (#610) by leeyazhou

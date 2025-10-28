@@ -9,7 +9,7 @@ Contribution guide for LittleProxy
 
 ## Release
 
-* Update the release notes (file README.md)
+* Update the release notes (file RELEASE_NOTES.md)
 * Change version in the pom.xml file (e.g. "2.4.5-SNAPSHOT" -> "2.4.5") 
 * Change version in README.md (e.g. "2.4.4" -> "2.4.5")
 * Run `mvn clean install`
