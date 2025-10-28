@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.4.7 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/47)
+  - TBD 
+
 - 2.4.6 (28.10.2025, https://github.com/LittleProxy/LittleProxy/milestone/46?closed=1)
   - Bump Netty from 4.2.5.Final to 4.2.7.Final
   - Bump Log4j from 2.25.1 to 2.25.2
