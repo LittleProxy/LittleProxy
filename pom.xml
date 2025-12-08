@@ -470,8 +470,16 @@
                         <target>${java.version}</target>
                         <encoding>UTF-8</encoding>
                         <compilerArgs>
-                            <arg>-XDcompilePolicy=simple</arg>
-                            <arg>-Xplugin:ErrorProne -Xep:MissingSummary:OFF -Xep:JdkObsolete:OFF -Xep:ReferenceEquality:OFF -Xep:OperatorPrecedence:OFF</arg>
+                            <!-- for ErrorProne: -->
+                            -XDcompilePolicy=simple
+                            -Xplugin:ErrorProne -Xep:MissingSummary:OFF -Xep:JdkObsolete:OFF -Xep:ReferenceEquality:OFF -Xep:OperatorPrecedence:OFF
+                            <!-- for ErrorProne + JDK 17 -->
+                            --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
+                            --add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED
+                            --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED
+                            --add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED
+                            --add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED
+                            --add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED
                         </compilerArgs>
                         <annotationProcessorPaths>
                             <path>
