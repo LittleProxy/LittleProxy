@@ -66,7 +66,7 @@ jobs:
         if: failure()
         run: mvn --batch-mode surefire-report:report-only
       - name: Upload test report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: test-report-${{matrix.platform}}
