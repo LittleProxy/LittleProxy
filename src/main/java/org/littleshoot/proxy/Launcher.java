@@ -30,6 +30,8 @@ public class Launcher {
 
     private static final String OPTION_NIC = "nic";
 
+    private static final String OPTION_CONFIG = "config";
+
     /**
      * Starts the proxy from the command line.
      * 
@@ -42,6 +44,7 @@ public class Launcher {
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
+        options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
         options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
         options.addOption(null, OPTION_NIC, true, "Run on a specified Nic");
         options.addOption(null, OPTION_HELP, false,
@@ -82,8 +85,16 @@ public class Launcher {
 
 
         System.out.println("About to start server on port: " + port);
+
+        String proxyConfigurationPath = "./littleproxy.properties";
+        if (cmd.hasOption(OPTION_CONFIG)) {
+            proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
+            LOG.info("Using configuration file: {}",proxyConfigurationPath);
+            cmd.getOptionValue(OPTION_CONFIG);
+        }
+
         HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
-                .bootstrapFromFile("./littleproxy.properties")
+                .bootstrapFromFile(proxyConfigurationPath)
                 .withPort(port)
                 .withAllowLocalOnly(false);
 
