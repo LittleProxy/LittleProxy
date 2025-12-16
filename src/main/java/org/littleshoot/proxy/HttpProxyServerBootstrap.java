@@ -73,12 +73,6 @@ public interface HttpProxyServerBootstrap {
      */
     HttpProxyServerBootstrap withAllowLocalOnly(boolean allowLocalOnly);
 
-    /**
-     * This method has no effect and will be removed in a future release.
-     * @deprecated use {@link #withNetworkInterface(InetSocketAddress)} to avoid listening on all local addresses
-     */
-    @Deprecated
-    HttpProxyServerBootstrap withListenOnAllAddresses(boolean listenOnAllAddresses);
 
     /**
      * <p>
