@@ -6,7 +6,11 @@ LittleProxy is a high performance HTTP proxy written in Java atop Trustin Lee's
 excellent [Netty](http://netty.io) event-based networking library. It's quite
 stable, performs well, and is easy to integrate into your projects. 
 
-One option is to clone LittleProxy and run it from the command line. This is as simple as:
+# Usage
+
+## Command Line
+
+One option is to clone LittleProxy and run it from the command line. This is as simple as running the following commands :
 
 ```
 $ git clone git@github.com:LittleProxy/LittleProxy.git
@@ -14,7 +18,57 @@ $ cd LittleProxy
 $ ./run.bash
 ```
 
-You can embed LittleProxy in your own projects through Maven with the following:
+### Options
+
+Multiple options can be passed to the script as arguments. The following options are supported :
+
+#### DNSSec
+
+This will start LittleProxy with DNSSEC validation enabled ; i.e, it will use secure DNS lookups for outbound
+connections.
+
+```bash
+$ ./run.bash --dnssec true
+```
+
+#### Port
+
+This will start LittleProxy on port `8080` by default.
+You can customize the port by passing a port number as an argument to the script :
+
+```bash
+$ ./run.bash --port 9090
+```
+
+#### NIC
+
+This will start LittleProxy on the default network interface. You can customize the network interface by passing
+a NIC name (`eth0` in the example below) as an argument to the script :
+
+```bash
+$ ./run.bash --nic eth0
+```
+
+#### MITM Manager
+
+If you pass this option, this will start LittleProxy with the default MITM manager (`SelfSignedMitmManager` implementation).
+It will generate a self-signed certificate for each domain you visit.
+
+```bash
+$ ./run.bash --mitm-manager
+```
+
+#### Help
+
+This will print the help message:
+
+```bash 
+$ ./run.bash --help
+```
+
+## Embedding in your own projects
+
+You can embed LittleProxy in your own projects through Maven with the following :
 ```
     <dependency>
         <groupId>io.github.littleproxy</groupId>
