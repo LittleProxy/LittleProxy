@@ -750,12 +750,6 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             return this;
         }
 
-        @Override
-        @Deprecated
-        public HttpProxyServerBootstrap withListenOnAllAddresses(boolean listenOnAllAddresses) {
-            LOG.warn("withListenOnAllAddresses() is deprecated and will be removed in a future release. Use withNetworkInterface().");
-            return this;
-        }
 
         @Override
         public HttpProxyServerBootstrap withSslEngineSource(
