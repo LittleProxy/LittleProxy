@@ -62,6 +62,10 @@ $ ./run.bash --mitm-manager
 
 This will start LittleProxy as a server, i.e it will not stop, until you stop the process running it (via a `kill`kill command).
 
+```bash
+$ ./run.bash --server
+```
+
 #### Help
 
 This will print the help message:
