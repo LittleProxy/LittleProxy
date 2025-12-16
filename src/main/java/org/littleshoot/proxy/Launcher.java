@@ -30,11 +30,12 @@ public class Launcher {
 
     private static final String OPTION_NIC = "nic";
 
+    private static final String OPTION_SERVER = "server";
+
     /**
      * Starts the proxy from the command line.
-     * 
-     * @param args
-     *            Any command line arguments.
+     *
+     * @param args Any command line arguments.
      */
     public static void main(final String... args) {
         pollLog4JConfigurationFileIfAvailable();
@@ -47,7 +48,8 @@ public class Launcher {
         options.addOption(null, OPTION_HELP, false,
                 "Display command line help.");
         options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
-        
+        options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
+
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
         try {
@@ -79,9 +81,8 @@ public class Launcher {
         } else {
             port = defaultPort;
         }
+        LOG.info("About to start server on port: " + port);
 
-
-        System.out.println("About to start server on port: " + port);
         HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
                 .bootstrapFromFile("./littleproxy.properties")
                 .withPort(port)
@@ -96,7 +97,7 @@ public class Launcher {
             LOG.info("Running as Man in the Middle");
             bootstrap.withManInTheMiddle(new SelfSignedMitmManager());
         }
-        
+
         if (cmd.hasOption(OPTION_DNSSEC)) {
             final String val = cmd.getOptionValue(OPTION_DNSSEC);
             if (ProxyUtils.isTrue(val)) {
@@ -112,12 +113,24 @@ public class Launcher {
             }
         }
 
-        System.out.println("About to start...");
-        bootstrap.start();
+        LOG.info("About to start...");
+        HttpProxyServer httpProxyServer = bootstrap.start();
+        if (cmd.hasOption(OPTION_SERVER)) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                LOG.info("Shutting down...");
+                httpProxyServer.stop();
+            }));
+            try {
+                Thread.currentThread().join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
     }
 
     private static void printHelp(final Options options,
-            final String errorMessage) {
+                                  final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
             LOG.error(errorMessage);
             System.err.println(errorMessage);
