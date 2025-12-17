@@ -24,7 +24,7 @@ Multiple options can be passed to the script as arguments. The following options
 
 #### Config File
 
-This will start LittleProxy with the configuration (path relative to the working directory or absolute) 
+This will start LittleProxy with the configuration (path relative to the working directory or absolute)
 specified in the given file.
 
 ```bash
@@ -38,6 +38,21 @@ connections.
 
 ```bash
 $ ./run.bash --dnssec true
+```
+
+#### Log configuration file
+
+This will start LittleProxy with the specified log configuration file.
+Path of the log configuration file can be relative or absolute. 
+
+If it is relative, it will be resolved relative to the current working directory :
+```bash
+$ ./run.bash --log-config ./log4j.xml
+```
+If it is absolute, it will be resolved as is :
+
+```bash
+$ ./run.bash --log-config /home/user/log4j.xml
 ```
 
 #### Port
@@ -65,6 +80,14 @@ It will generate a self-signed certificate for each domain you visit.
 
 ```bash
 $ ./run.bash --mitm-manager
+```
+
+### server
+
+This will start LittleProxy as a server, i.e it will not stop, until you stop the process running it (via a `kill`kill command).
+
+```bash
+$ ./run.bash --server
 ```
 
 #### Help
