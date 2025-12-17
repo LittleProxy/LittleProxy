@@ -41,8 +41,7 @@ public class Launcher {
      * @param args Any command line arguments.
      */
     public static void main(final String... args) {
-        pollLog4JConfigurationFileIfAvailable();
-        LOG.info("Running LittleProxy with args: {}", Arrays.asList(args));
+
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
