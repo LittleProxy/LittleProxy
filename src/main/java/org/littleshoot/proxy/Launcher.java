@@ -39,12 +39,13 @@ public class Launcher {
      * @param args Any command line arguments.
      */
     public static void main(final String... args) {
-        pollLog4JConfigurationFileIfAvailable();
-        LOG.info("Running LittleProxy with args: {}", Arrays.asList(args));
+
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
         options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
+        options.addOption(null, OPTION_LOG_CONFIG, true,
+                "Path to log4j configuration file (relative to current directory or absolute).");
         options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
         options.addOption(null, OPTION_NIC, true, "Run on a specified Nic");
         options.addOption(null, OPTION_HELP, false,
@@ -66,6 +67,15 @@ public class Launcher {
                     "Could not parse command line: " + Arrays.asList(args));
             return;
         }
+
+        String logConfigPath = "src/test/resources/log4j.xml";
+        if(cmd.hasOption(OPTION_LOG_CONFIG)){
+            logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
+        }
+        pollLog4JConfigurationFileIfAvailable(logConfigPath);
+
+        LOG.info("Running LittleProxy with args: {}", Arrays.asList(args));
+
         if (cmd.hasOption(OPTION_HELP)) {
             printHelp(options, null);
             return;
@@ -152,8 +162,8 @@ public class Launcher {
         formatter.printHelp("littleproxy", options);
     }
 
-    private static void pollLog4JConfigurationFileIfAvailable() {
-        File log4jConfigurationFile = new File("src/test/resources/log4j.xml");
+    private static void pollLog4JConfigurationFileIfAvailable(String pathname) {
+        File log4jConfigurationFile = new File(pathname);
         if (log4jConfigurationFile.exists()) {
             DOMConfigurator.configureAndWatch(
                     log4jConfigurationFile.getAbsolutePath(), 15);

@@ -40,6 +40,21 @@ connections.
 $ ./run.bash --dnssec true
 ```
 
+#### Log configuration file
+
+This will start LittleProxy with the specified log configuration file.
+Path of the log configuration file can be relative or absolute. 
+
+If it is relative, it will be resolved relative to the current working directory :
+```bash
+$ ./run.bash --log-config ./log4j.xml
+```
+If it is absolute, it will be resolved as is :
+
+```bash
+$ ./run.bash --log-config /home/user/log4j.xml
+```
+
 #### Port
 
 This will start LittleProxy on port `8080` by default.
