@@ -32,6 +32,7 @@ public class Launcher {
 
     private static final String OPTION_CONFIG = "config";
     private static final String OPTION_SERVER = "server";
+    private static final String OPTION_LOG_CONFIG = "log-config";
 
     /**
      * Starts the proxy from the command line.
