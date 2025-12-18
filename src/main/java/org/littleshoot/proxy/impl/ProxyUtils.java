@@ -20,12 +20,14 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.AsciiString;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.logging.log4j.util.Strings;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -152,6 +154,22 @@ public class ProxyUtils {
             hostAndPort = tempUri;
         }
         return hostAndPort;
+    }
+
+    public static InetSocketAddress resolveSocketAddress(String address) {
+        if(Strings.isBlank(address)) {
+            return null;
+        }
+        String[] parts = address.split(":");
+        String host = parts[0];
+        int port = Integer.parseInt(parts[1]);
+
+        // remove hooks for IPv6
+        if (host.startsWith("[") && host.endsWith("]")) {
+            host = host.substring(1, host.length() - 1);
+        }
+
+        return new InetSocketAddress(host, port);
     }
 
     /**

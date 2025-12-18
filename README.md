@@ -114,6 +114,14 @@ This will start LittleProxy with the specified name. This name will be used to n
 $ ./run.bash --name MyProxy
 ```
 
+#### address
+
+This will start LittleProxy binding to the specified address. IPV4,IPV6 and hostname addresses are supported.
+
+```bash
+$ ./run.bash --name MyProxy
+```
+
 #### server
 
 This will start LittleProxy as a server, i.e it will not stop, until you stop the process running it (via a `kill`kill command).

@@ -704,6 +704,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             maxChunkSize = ProxyUtils.extractInt(props,
                     "max_chunk_size", MAX_CHUNK_SIZE_DEFAULT);
             name = props.getProperty("name", DEFAULT_LITTLE_PROXY_NAME);
+
+            requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty("address"));
+
         }
 
         @Override
