@@ -30,6 +30,8 @@ public class Launcher {
 
     private static final String OPTION_NIC = "nic";
 
+    private static final String OPTION_CONFIG = "config";
+
     private static final String OPTION_LOG_CONFIG = "log-config";
     private static final String OPTION_SERVER = "server";
 
@@ -43,6 +45,7 @@ public class Launcher {
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
+        options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
         options.addOption(null, OPTION_LOG_CONFIG, true,
                 "Path to log4j configuration file (relative to current directory or absolute).");
         options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
@@ -92,10 +95,18 @@ public class Launcher {
         } else {
             port = defaultPort;
         }
-        LOG.info("About to start server on port: " + port);
+        LOG.info("About to start server on port: '{}'",port);
+
+
+        String proxyConfigurationPath = "./littleproxy.properties";
+        if (cmd.hasOption(OPTION_CONFIG)) {
+            proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
+            LOG.info("Using configuration file: {}",proxyConfigurationPath);
+            cmd.getOptionValue(OPTION_CONFIG);
+        }
 
         HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
-                .bootstrapFromFile("./littleproxy.properties")
+                .bootstrapFromFile(proxyConfigurationPath)
                 .withPort(port)
                 .withAllowLocalOnly(false);
 
