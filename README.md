@@ -43,6 +43,8 @@ The config file is a properties file with the following properties :
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
 - `address` : string value to set the proxy server address (default : `0.0.0.0:8080`)
 - `port` : integer value to set the proxy server port (default : `8080`)
+- `nic` : string value to set the network interface card (default : `0.0.0.0`)
+- `proxy_alias` : string value to set the proxy alias (default : hostname of the machine)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -59,6 +61,8 @@ max_chunk_size=16384
 name=LittleProxy
 address=12.45.666.789:8080
 port=8080
+nic=eth0
+proxy_alias=myproxy
 ````
 #### DNSSec
 
@@ -136,7 +140,8 @@ $ ./run.bash --nic eth0
 
 #### proxy_alias
 
-This will start LittleProxy with the specified proxy alias. This alias will be used to identify the proxy in the logs.
+This will start LittleProxy with the specified proxy alias.
+The alias or pseudonym for this proxy, used when adding the Via header.
 
 ```bash
 $ ./run.bash --proxy_alias MyProxy
@@ -165,13 +170,13 @@ You can embed LittleProxy in your own projects through Maven with the following 
     <dependency>
         <groupId>io.github.littleproxy</groupId>
         <artifactId>littleproxy</artifactId>
-        <version>2.4.7</version>
+        <version>2.4.8</version>
     </dependency>
 ```
 
 Or with Gradle like this
 
-`implementation "io.github.littleproxy:littleproxy:2.4.7"`
+`implementation "io.github.littleproxy:littleproxy:2.4.8"`
 
 Once you've included LittleProxy, you can start the server with the following:
 
