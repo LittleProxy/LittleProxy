@@ -710,7 +710,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             return this;
         }
 
+        /**
+         * @deprecated Use, because only TCP is supported (and available) by default.
+         * @param transportProtocol
+         */
         @Override
+        @Deprecated(forRemoval = true)
         public HttpProxyServerBootstrap withTransportProtocol(
                 TransportProtocol transportProtocol) {
             this.transportProtocol = transportProtocol;
