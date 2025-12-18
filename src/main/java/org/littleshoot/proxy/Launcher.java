@@ -33,10 +33,11 @@ public class Launcher {
 
     private static final String OPTION_CONFIG = "config";
 
-    private static final String OPTION_LOG_CONFIG = "log-config";
+    private static final String OPTION_LOG_CONFIG = "log_config";
     private static final String OPTION_SERVER = "server";
     private static final String OPTION_NAME = "name";
     private static final String OPTION_ADDRESS = "address";
+    private static final String OPTION_PROXY_ALIAS = "proxy_alias";
 
     /**
      * Starts the proxy from the command line.
@@ -59,6 +60,7 @@ public class Launcher {
         options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
         options.addOption(null, OPTION_NAME, true, "name of the proxy.");
         options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
+        options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -152,6 +154,14 @@ public class Launcher {
             InetSocketAddress address = ProxyUtils.resolveSocketAddress(val);
             if(address != null) {
                 bootstrap.withAddress(address);
+            }
+        }
+
+        if (cmd.hasOption(OPTION_PROXY_ALIAS)) {
+            final String val = cmd.getOptionValue(OPTION_PROXY_ALIAS);
+            LOG.info("Using proxy alias: '{}'", val);
+            if(val != null) {
+                bootstrap.withProxyAlias(val);
             }
         }
 

@@ -692,11 +692,22 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                     "max_header_size", MAX_HEADER_SIZE_DEFAULT);
             maxChunkSize = ProxyUtils.extractInt(props,
                     "max_chunk_size", MAX_CHUNK_SIZE_DEFAULT);
-            name = props.getProperty("name", DEFAULT_LITTLE_PROXY_NAME);
+            if(props.containsKey("name")) {
+                name = props.getProperty("name", DEFAULT_LITTLE_PROXY_NAME);
+            }
+            if(props.containsKey("address")) {
+                requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty("address"));
+            }
+            if(props.containsKey("port")) {
+                port = ProxyUtils.extractInt(props, "port", Launcher.DEFAULT_PORT);
+            }
+            if(props.containsKey("nic")) {
+                localAddress = new InetSocketAddress(props.getProperty("nic", DEFAULT_NIC_VALUE), 0);
+            }
+            if(props.containsKey("proxy_alias")) {
+                proxyAlias = props.getProperty("proxy_alias");
+            }
 
-            requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty("address"));
-            port = ProxyUtils.extractInt(props, "port", Launcher.DEFAULT_PORT);
-            localAddress = new InetSocketAddress(props.getProperty("nic", DEFAULT_NIC_VALUE),0);
         }
 
         @Override
