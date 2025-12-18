@@ -77,12 +77,12 @@ Path of the log configuration file can be relative or absolute.
 
 If it is relative, it will be resolved relative to the current working directory :
 ```bash
-$ ./run.bash --log-config ./log4j.xml
+$ ./run.bash --log_config ./log4j.xml
 ```
 If it is absolute, it will be resolved as is :
 
 ```bash
-$ ./run.bash --log-config /home/user/log4j.xml
+$ ./run.bash --log_config /home/user/log4j.xml
 ```
 
 #### Port
@@ -109,7 +109,7 @@ If you pass this option, this will start LittleProxy with the default MITM manag
 It will generate a self-signed certificate for each domain you visit.
 
 ```bash
-$ ./run.bash --mitm-manager
+$ ./run.bash --mitm
 ```
 #### name
 
@@ -124,7 +124,7 @@ $ ./run.bash --name MyProxy
 This will start LittleProxy binding to the specified address. IPV4,IPV6 and hostname addresses are supported.
 
 ```bash
-$ ./run.bash --name MyProxy
+$ ./run.bash --address 127.0.0.1:8080
 ```
 #### nic
 
@@ -134,7 +134,13 @@ This will start LittleProxy binding to the specified network interface.
 $ ./run.bash --nic eth0
 ```
 
+#### proxy_alias
 
+This will start LittleProxy with the specified proxy alias. This alias will be used to identify the proxy in the logs.
+
+```bash
+$ ./run.bash --proxy_alias MyProxy
+```
 
 #### server
 
