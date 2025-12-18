@@ -41,6 +41,8 @@ The config file is a properties file with the following properties :
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
+- `address` : string value to set the proxy server address (default : `0.0.0.0:8080`)
+- `port` : integer value to set the proxy server port (default : `8080`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -54,6 +56,9 @@ connect_timeout=30
 max_initial_line_length=8192
 max_header_size=16384
 max_chunk_size=16384
+name=LittleProxy
+address=12.45.666.789:8080
+port=8080
 ````
 #### DNSSec
 
@@ -121,6 +126,15 @@ This will start LittleProxy binding to the specified address. IPV4,IPV6 and host
 ```bash
 $ ./run.bash --name MyProxy
 ```
+#### nic
+
+This will start LittleProxy binding to the specified network interface.
+
+```bash
+$ ./run.bash --nic eth0
+```
+
+
 
 #### server
 

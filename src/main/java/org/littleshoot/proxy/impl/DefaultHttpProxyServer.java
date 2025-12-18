@@ -13,21 +13,7 @@ import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import org.littleshoot.proxy.ActivityTracker;
-import org.littleshoot.proxy.ChainedProxyManager;
-import org.littleshoot.proxy.DefaultHostResolver;
-import org.littleshoot.proxy.DnsSecServerResolver;
-import org.littleshoot.proxy.HostResolver;
-import org.littleshoot.proxy.HttpFilters;
-import org.littleshoot.proxy.HttpFiltersSource;
-import org.littleshoot.proxy.HttpFiltersSourceAdapter;
-import org.littleshoot.proxy.HttpProxyServer;
-import org.littleshoot.proxy.HttpProxyServerBootstrap;
-import org.littleshoot.proxy.MitmManager;
-import org.littleshoot.proxy.ProxyAuthenticator;
-import org.littleshoot.proxy.SslEngineSource;
-import org.littleshoot.proxy.TransportProtocol;
-import org.littleshoot.proxy.UnknownTransportProtocolException;
+import org.littleshoot.proxy.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,6 +71,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
      */
     private static final String FALLBACK_PROXY_ALIAS = "littleproxy";
     private static final String DEFAULT_LITTLE_PROXY_NAME = "LittleProxy";
+    public static final String LOCAL_ADDRESS = "127.0.0.1";
+    public static final int DEFAULT_PORT = 8080;
+    public static final String DEFAULT_NIC_VALUE = "0.0.0.0";
 
     /**
      * Our {@link ServerGroup}. Multiple proxy servers can share the same
@@ -604,7 +593,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         private TransportProtocol transportProtocol = TransportProtocol.TCP;
         @Nullable
         private InetSocketAddress requestedAddress;
-        private int port = 8080;
+        private int port = DEFAULT_PORT;
         private boolean allowLocalOnly = true;
         @Nullable
         private SslEngineSource sslEngineSource;
@@ -706,7 +695,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             name = props.getProperty("name", DEFAULT_LITTLE_PROXY_NAME);
 
             requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty("address"));
-
+            port = ProxyUtils.extractInt(props, "port", Launcher.DEFAULT_PORT);
+            localAddress = new InetSocketAddress(props.getProperty("nic", DEFAULT_NIC_VALUE),0);
         }
 
         @Override
@@ -946,7 +936,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 // Binding only to localhost can significantly improve the
                 // security of the proxy.
                 if (allowLocalOnly) {
-                    return new InetSocketAddress("127.0.0.1", port);
+                    return new InetSocketAddress(LOCAL_ADDRESS, port);
                 } else {
                     return new InetSocketAddress(port);
                 }
