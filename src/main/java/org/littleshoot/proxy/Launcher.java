@@ -95,7 +95,7 @@ public class Launcher {
         } else {
             port = defaultPort;
         }
-        LOG.info("About to start server on port: " + port);
+        LOG.info("About to start server on port: '{}'",port);
 
 
         String proxyConfigurationPath = "./littleproxy.properties";
