@@ -18,6 +18,7 @@ import java.util.Arrays;
  */
 public class Launcher {
 
+    public static final int DEFAULT_PORT = 8080;
     private static final Logger LOG = LoggerFactory.getLogger(Launcher.class);
 
     private static final String OPTION_DNSSEC = "dnssec";
@@ -99,7 +100,6 @@ public class Launcher {
                 .bootstrapFromFile(proxyConfigurationPath);
 
 
-        final int defaultPort = 8080;
         int port;
         if (cmd.hasOption(OPTION_PORT)) {
             final String val = cmd.getOptionValue(OPTION_PORT);
@@ -110,7 +110,7 @@ public class Launcher {
                 return;
             }
         } else {
-            port = defaultPort;
+            port = DEFAULT_PORT;
         }
         bootstrap.withPort(port);
         LOG.info("About to start server on port: '{}'", port);
