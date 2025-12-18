@@ -30,11 +30,35 @@ specified in the given file.
 ```bash
 $ ./run.bash --config path/to/config/littleproxy.properties
 ```
+##### config file description
 
+The config file is a properties file with the following properties :
+- `dnssec` : boolean value to enable/disable DNSSEC validation (default : `false`)
+- `transparent` : boolean value to enable/disable transparent proxy mode (default : `false`)
+- `idleConnectionTimeout` : integer value to set the idle connection timeout in seconds (default : `-1`, i.e. no timeout)
+-  `connect_timeout` : integer value to set the connect timeout in seconds (default : `0`, i.e. no timeout)
+- `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
+- `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
+- `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
+
+Options set from the command line, override the ones set in the config file.
+
+##### littleproxy.properties Example
+
+````properties
+dnssec=true
+transparent=false
+idleConnectionTimeout=60
+connect_timeout=30
+max_initial_line_length=8192
+max_header_size=16384
+max_chunk_size=16384
+````
 #### DNSSec
 
 This will start LittleProxy with DNSSEC validation enabled ; i.e, it will use secure DNS lookups for outbound
 connections.
+
 
 ```bash
 $ ./run.bash --dnssec true
