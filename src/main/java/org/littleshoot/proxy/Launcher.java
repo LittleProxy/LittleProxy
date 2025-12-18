@@ -34,6 +34,7 @@ public class Launcher {
 
     private static final String OPTION_LOG_CONFIG = "log-config";
     private static final String OPTION_SERVER = "server";
+    private static final String OPTION_NAME = "name";
 
     /**
      * Starts the proxy from the command line.
@@ -54,6 +55,7 @@ public class Launcher {
                 "Display command line help.");
         options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
         options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
+        options.addOption(null, OPTION_NAME, true, "name of the proxy.");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -82,6 +84,20 @@ public class Launcher {
             printHelp(options, null);
             return;
         }
+
+        String proxyConfigurationPath = "./littleproxy.properties";
+        if (cmd.hasOption(OPTION_CONFIG)) {
+            proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
+            LOG.info("Using configuration file: {}",proxyConfigurationPath);
+            cmd.getOptionValue(OPTION_CONFIG);
+        }
+
+
+        HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
+                .bootstrapFromFile(proxyConfigurationPath);
+
+
+
         final int defaultPort = 8080;
         int port;
         if (cmd.hasOption(OPTION_PORT)) {
@@ -95,20 +111,8 @@ public class Launcher {
         } else {
             port = defaultPort;
         }
+        bootstrap.withPort(port);
         LOG.info("About to start server on port: '{}'",port);
-
-
-        String proxyConfigurationPath = "./littleproxy.properties";
-        if (cmd.hasOption(OPTION_CONFIG)) {
-            proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
-            LOG.info("Using configuration file: {}",proxyConfigurationPath);
-            cmd.getOptionValue(OPTION_CONFIG);
-        }
-
-        HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
-                .bootstrapFromFile(proxyConfigurationPath)
-                .withPort(port)
-                .withAllowLocalOnly(false);
 
         if (cmd.hasOption(OPTION_NIC)) {
             final String val = cmd.getOptionValue(OPTION_NIC);
@@ -134,6 +138,13 @@ public class Launcher {
                 return;
             }
         }
+
+        if (cmd.hasOption(OPTION_NAME)) {
+            final String val = cmd.getOptionValue(OPTION_NAME);
+            LOG.info("Running with name: '{}'", val);
+            bootstrap.withName(val);
+        }
+
 
         LOG.info("About to start...");
         HttpProxyServer httpProxyServer = bootstrap.start();

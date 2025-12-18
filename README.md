@@ -40,6 +40,7 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
+- `name` : string value to set the proxy server name (default : `LittleProxy`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -105,8 +106,15 @@ It will generate a self-signed certificate for each domain you visit.
 ```bash
 $ ./run.bash --mitm-manager
 ```
+#### name
 
-### server
+This will start LittleProxy with the specified name. This name will be used to name the threads.
+
+```bash
+$ ./run.bash --name MyProxy
+```
+
+#### server
 
 This will start LittleProxy as a server, i.e it will not stop, until you stop the process running it (via a `kill`kill command).
 
