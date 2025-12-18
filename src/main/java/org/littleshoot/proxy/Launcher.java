@@ -38,6 +38,7 @@ public class Launcher {
     private static final String OPTION_NAME = "name";
     private static final String OPTION_ADDRESS = "address";
     private static final String OPTION_PROXY_ALIAS = "proxy_alias";
+    private static final String OPTION_ALLOW_LOCAL_ONLY = "allow_local_only";
 
     /**
      * Starts the proxy from the command line.
@@ -61,6 +62,7 @@ public class Launcher {
         options.addOption(null, OPTION_NAME, true, "name of the proxy.");
         options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
         options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
+        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true, "Allow only local connections to the proxy (true|false).");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -152,7 +154,7 @@ public class Launcher {
             final String val = cmd.getOptionValue(OPTION_ADDRESS);
             LOG.info("Binding to address: '{}'", val);
             InetSocketAddress address = ProxyUtils.resolveSocketAddress(val);
-            if(address != null) {
+            if (address != null) {
                 bootstrap.withAddress(address);
             }
         }
@@ -160,8 +162,16 @@ public class Launcher {
         if (cmd.hasOption(OPTION_PROXY_ALIAS)) {
             final String val = cmd.getOptionValue(OPTION_PROXY_ALIAS);
             LOG.info("Using proxy alias: '{}'", val);
-            if(val != null) {
+            if (val != null) {
                 bootstrap.withProxyAlias(val);
+            }
+        }
+
+        if (cmd.hasOption(OPTION_ALLOW_LOCAL_ONLY)) {
+            final String val = cmd.getOptionValue(OPTION_ALLOW_LOCAL_ONLY);
+            LOG.info("Setting allow local only to: '{}'", val);
+            if (val != null) {
+                bootstrap.withAllowLocalOnly(Boolean.parseBoolean(val));
             }
         }
 

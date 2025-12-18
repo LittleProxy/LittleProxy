@@ -707,6 +707,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             if(props.containsKey("proxy_alias")) {
                 proxyAlias = props.getProperty("proxy_alias");
             }
+            if(props.containsKey("allow_local_only")) {
+                allowLocalOnly = ProxyUtils.extractBooleanDefaultFalse(props, "allow_local_only");
+            }
 
         }
 

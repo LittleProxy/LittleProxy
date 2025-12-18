@@ -45,6 +45,7 @@ The config file is a properties file with the following properties :
 - `port` : integer value to set the proxy server port (default : `8080`)
 - `nic` : string value to set the network interface card (default : `0.0.0.0`)
 - `proxy_alias` : string value to set the proxy alias (default : hostname of the machine)
+- `allow_local_only` : boolean value to allow only local connections (default : `false`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -63,6 +64,7 @@ address=12.45.666.789:8080
 port=8080
 nic=eth0
 proxy_alias=myproxy
+allow_local_only=false
 ````
 #### DNSSec
 
@@ -145,6 +147,14 @@ The alias or pseudonym for this proxy, used when adding the Via header.
 
 ```bash
 $ ./run.bash --proxy_alias MyProxy
+```
+
+#### allow_local_only
+
+This will start LittleProxy allowing only local connections (default is false).
+
+```bash
+$ ./run.bash --allow_local_only true
 ```
 
 #### server
