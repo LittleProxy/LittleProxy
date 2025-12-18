@@ -84,6 +84,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
      * machine cannot be resolved.
      */
     private static final String FALLBACK_PROXY_ALIAS = "littleproxy";
+    private static final String DEFAULT_LITTLE_PROXY_NAME = "LittleProxy";
 
     /**
      * Our {@link ServerGroup}. Multiple proxy servers can share the same
@@ -597,7 +598,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     // TODO: refactor bootstrap into a separate class
     @NullMarked
     private static class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
-        private String name = "LittleProxy";
+        private String name = DEFAULT_LITTLE_PROXY_NAME;
         @Nullable
         private ServerGroup serverGroup;
         private TransportProtocol transportProtocol = TransportProtocol.TCP;
@@ -702,6 +703,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                     "max_header_size", MAX_HEADER_SIZE_DEFAULT);
             maxChunkSize = ProxyUtils.extractInt(props,
                     "max_chunk_size", MAX_CHUNK_SIZE_DEFAULT);
+            name = props.getProperty("name", DEFAULT_LITTLE_PROXY_NAME);
         }
 
         @Override
