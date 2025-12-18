@@ -35,6 +35,7 @@ public class Launcher {
     private static final String OPTION_LOG_CONFIG = "log-config";
     private static final String OPTION_SERVER = "server";
     private static final String OPTION_NAME = "name";
+    private static final String OPTION_ADDRESS = "address";
 
     /**
      * Starts the proxy from the command line.
@@ -56,6 +57,7 @@ public class Launcher {
         options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
         options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
         options.addOption(null, OPTION_NAME, true, "name of the proxy.");
+        options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -73,7 +75,7 @@ public class Launcher {
         }
 
         String logConfigPath = "src/test/resources/log4j.xml";
-        if(cmd.hasOption(OPTION_LOG_CONFIG)){
+        if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
         }
         pollLog4JConfigurationFileIfAvailable(logConfigPath);
@@ -88,14 +90,13 @@ public class Launcher {
         String proxyConfigurationPath = "./littleproxy.properties";
         if (cmd.hasOption(OPTION_CONFIG)) {
             proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
-            LOG.info("Using configuration file: {}",proxyConfigurationPath);
+            LOG.info("Using configuration file: {}", proxyConfigurationPath);
             cmd.getOptionValue(OPTION_CONFIG);
         }
 
 
         HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
                 .bootstrapFromFile(proxyConfigurationPath);
-
 
 
         final int defaultPort = 8080;
@@ -112,7 +113,7 @@ public class Launcher {
             port = defaultPort;
         }
         bootstrap.withPort(port);
-        LOG.info("About to start server on port: '{}'",port);
+        LOG.info("About to start server on port: '{}'", port);
 
         if (cmd.hasOption(OPTION_NIC)) {
             final String val = cmd.getOptionValue(OPTION_NIC);
@@ -143,6 +144,15 @@ public class Launcher {
             final String val = cmd.getOptionValue(OPTION_NAME);
             LOG.info("Running with name: '{}'", val);
             bootstrap.withName(val);
+        }
+
+        if (cmd.hasOption(OPTION_ADDRESS)) {
+            final String val = cmd.getOptionValue(OPTION_ADDRESS);
+            LOG.info("Binding to address: '{}'", val);
+            InetSocketAddress address = ProxyUtils.resolveSocketAddress(val);
+            if(address != null) {
+                bootstrap.withAddress(address);
+            }
         }
 
 
