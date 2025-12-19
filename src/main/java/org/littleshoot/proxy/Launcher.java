@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.util.Arrays;
 
 import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
@@ -112,8 +113,12 @@ public class Launcher {
                     "Could not parse command line: " + Arrays.asList(args));
             return;
         }
-
-        String logConfigPath = "src/test/resources/log4j.xml";
+        ClassLoader classLoader = Launcher.class.getClassLoader();
+        URL log4jxml = classLoader.getResource("log4j.xml");
+        if(log4jxml == null){
+            LOG.error("Could not find default log4j.xml");
+        }
+        String logConfigPath = log4jxml.getPath();
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
         }
@@ -126,7 +131,11 @@ public class Launcher {
             return;
         }
 
-        String proxyConfigurationPath = "./littleproxy.properties";
+        URL littleproxyProperties = classLoader.getResource("littleproxy.properties");
+        if(littleproxyProperties == null){
+            LOG.error("Could not find default littleproxy.properties");
+        }
+        String proxyConfigurationPath = littleproxyProperties.getPath();
         if (cmd.hasOption(OPTION_CONFIG)) {
             proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
             LOG.info("Using configuration file: {}", proxyConfigurationPath);
