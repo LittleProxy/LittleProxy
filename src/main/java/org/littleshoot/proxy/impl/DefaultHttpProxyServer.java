@@ -741,6 +741,10 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 writeThrottleBytesPerSecond = ProxyUtils.extractLong(props, "throttle_write_bytes_per_second", 0L);
             }
 
+            if(props.containsKey("allow_requests_to_origin_server")) {
+                allowRequestToOriginServer = ProxyUtils.extractBooleanDefaultFalse(props, "allow_requests_to_origin_server");
+            }
+
         }
 
         @Override
