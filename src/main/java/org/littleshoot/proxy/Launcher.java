@@ -47,6 +47,8 @@ public class Launcher {
     private static final String OPTION_SSL_CLIENTS_KEYSTORE_ALIAS = "ssl_clients_keystore_alias";
     private static final String OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD = "ssl_clients_keystore_password";
     private static final String OPTION_TRANSPARENT = "transparent";
+    private static final String OPTION_THROTTLING_READ_BYTES_PER_SECOND = "throttling_read_bytes_per_second";
+    private static final String OPTION_THROTTLING_WRITE_BYTES_PER_SECOND = "throttling_write_bytes_per_second";
 
     /**
      * Starts the proxy from the command line.
@@ -78,6 +80,8 @@ public class Launcher {
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true, "Password for the keystore for SSL clients.");
         options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
+        options.addOption(null, OPTION_THROTTLING_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
+        options.addOption(null, OPTION_THROTTLING_WRITE_BYTES_PER_SECOND, true,"Throttling write bytes per second.");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -196,11 +200,11 @@ public class Launcher {
             if (val != null) {
                 boolean trustAllServers = Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, "false"));
                 boolean sendCerts = Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_SEND_CERTS, "false"));
-                SelfSignedSslEngineSource sslEngineSource = null;
+                SelfSignedSslEngineSource sslEngineSource;
                 if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PATH)) {
                     String keyStorePath = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PATH);
-                    if(cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS) && cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD)){
-                        String keyStoreAlias = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS);
+                    if(cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD)){
+                        String keyStoreAlias = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS,"");
                         String keyStorePassword = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD);
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
                     }else{
@@ -220,6 +224,18 @@ public class Launcher {
             if(optionValue != null) {
                 bootstrap.withTransparent(Boolean.parseBoolean(optionValue));
             }
+        }
+        long throttlingReadBytesPerSecond = 0;
+        long throttlingWriteBytesPerSecond = 0;
+        if (cmd.hasOption(OPTION_THROTTLING_READ_BYTES_PER_SECOND)) {
+            throttlingReadBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLING_READ_BYTES_PER_SECOND));
+        }
+        if (cmd.hasOption(OPTION_THROTTLING_WRITE_BYTES_PER_SECOND)) {
+            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLING_WRITE_BYTES_PER_SECOND));
+        }
+        if(throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
+            LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
+            bootstrap.withThrottling(throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
         }
 
 
