@@ -55,7 +55,9 @@ The config file is a properties file with the following properties :
 - `throttle_read_bytes_per_second` : integer value to set the throttle read bytes per second (default : `0`)
 - `throttle_write_bytes_per_second` : integer value to set the throttle write bytes per second (default : `0`)
 - `allow_requests_to_origin_server` : boolean value to allow requests to origin server (default : `false`)
-
+- `allow_proxy_protocol` : boolean value to allow proxy protocol (default : `false`)
+- `send_proxy_protocol` : boolean value to send proxy protocol header (default : `false`)
+- 
 Options set from the command line, override the ones set in the config file.
 
 ##### littleproxy.properties Example
@@ -83,6 +85,8 @@ key_store_password=mypassword
 throttle_read_bytes_per_second=1024
 throttle_write_bytes_per_second=1024
 allow_requests_to_origin_server=true
+allow_proxy_protocol=true
+send_proxy_protocol=true
 ````
 #### DNSSec
 
@@ -239,6 +243,22 @@ This will start LittleProxy allowing requests to the origin server.
 
 ```bash
 $ ./run.bash --allow_request_to_origin_server true
+```
+
+#### allow_proxy_protocol
+
+This will start LittleProxy allowing the PROXY protocol.
+
+```bash
+$ ./run.bash --allow_proxy_protocol true
+```
+
+#### send_proxy_protocol
+
+This will start LittleProxy sending the PROXY protocol header.
+
+```bash
+$ ./run.bash --send_proxy_protocol true
 ```
 
 #### server
