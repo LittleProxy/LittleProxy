@@ -1,7 +1,14 @@
 # Release Notes
 
-- 2.4.8 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/48)
-  - TBD 
+- 2.5.0 (19.12.2025, https://github.com/LittleProxy/LittleProxy/milestone/48?closed=1)
+  - enhance documentation with run.bash script options (#659) by Charles Lescot
+  - add the --server option to Launch proxy as a server (#660) by Charles Lescot
+  - Add the --log-config option to launcher (#661) by Charles Lescot
+  - Add the --config option to launcher (#662) by Charles Lescot
+  - add options "--name", "--address", "--nic", "--allow_local_only", "--authenticate_ssl_clients", "--transparent", "--throttling", "--allow_requests_to_origin_server" (#666) by Charles Lescot
+  - add options "--proxy_alias", "--allow_proxy_protocol option", "--send_proxy_protocol", "--client_to_proxy_worker_threads", "--proxy_to_server_worker_threads" options (#666) by Charles Lescot
+  - remove unused and deprecated NetworkUtils.java (#663) by Charles Lescot
+  - remove "withListenOnAllAddresses" method from DefaultHttpProxyServer.java and HttpProxyServerBootstrap.java (#664) by Charles Lescot
 
 - 2.4.7 (15.12.2025, https://github.com/LittleProxy/LittleProxy/milestone/47?closed=1)
   - Bump Netty from 4.2.7.Final to 4.2.9.Final (#655) (#658)

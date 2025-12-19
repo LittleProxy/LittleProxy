@@ -309,13 +309,13 @@ You can embed LittleProxy in your own projects through Maven with the following 
     <dependency>
         <groupId>io.github.littleproxy</groupId>
         <artifactId>littleproxy</artifactId>
-        <version>2.4.8</version>
+        <version>2.5.0</version>
     </dependency>
 ```
 
 Or with Gradle like this
 
-`implementation "io.github.littleproxy:littleproxy:2.4.8"`
+`implementation "io.github.littleproxy:littleproxy:2.5.0"`
 
 Once you've included LittleProxy, you can start the server with the following:
 
