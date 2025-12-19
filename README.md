@@ -52,6 +52,8 @@ The config file is a properties file with the following properties :
 - `key_store_file_path` : string value to set the key store file path (default : `null`)
 - `key_store_alias` : string value to set the key store alias (default : `null`)
 - `key_store_password` : string value to set the key store password (default : `null`)
+- `throttle_read_bytes_per_second` : integer value to set the throttle read bytes per second (default : `0`)
+- `throttle_write_bytes_per_second` : integer value to set the throttle write bytes per second (default : `0`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -77,6 +79,8 @@ send_certs=false
 key_store_file_path=/path/to/keystore.jks
 key_store_alias=myalias
 key_store_password=mypassword
+throttle_read_bytes_per_second=1024
+throttle_write_bytes_per_second=1024
 ````
 #### DNSSec
 
@@ -155,7 +159,7 @@ $ ./run.bash --nic eth0
 #### proxy_alias
 
 This will start LittleProxy with the specified proxy alias.
-The alias or pseudonym for this proxy, used when adding the Via header.
+The alias or pseudonym for this proxy, used when adding the `Via` header.
 
 ```bash
 $ ./run.bash --proxy_alias MyProxy
@@ -163,10 +167,68 @@ $ ./run.bash --proxy_alias MyProxy
 
 #### allow_local_only
 
-This will start LittleProxy allowing only local connections (default is false).
+This will start LittleProxy allowing only local connections (default is `false`).
 
 ```bash
 $ ./run.bash --allow_local_only true
+```
+
+#### authenticate_ssl_clients
+
+This will start LittleProxy authenticating SSL clients (default is `false`).
+
+```bash
+$ ./run.bash --authenticate_ssl_clients true```
+
+#### trust_all_servers
+
+This will start LittleProxy authenticating SSL clients and trusting all servers (default is `false`).
+
+```bash
+$ ./run.bash --authenticate_ssl_clients true --trust_all_servers true
+```
+#### send_certs
+
+This will start LittleProxy authenticating SSL clients and sending certificates (default is `false`).
+
+```bash
+$ ./run.bash --authenticate_ssl_clients true --send_certs true```
+
+#### ssl_client_keystore_path
+
+This will start LittleProxy authenticating SSL clients and using the specified keystore path.
+
+```bash
+$ ./run.bash --authenticate_ssl_clients true --ssl_client_keystore_path /path/to/keystore`
+```
+#### ssl_client_keystore_alias
+
+This will start LittleProxy authenticating SSL clients and using the specified keystore alias.
+
+```bash
+$ ./run.bash --authenticate_ssl_clients true --ssl_client_keystore_alias myalias```
+```
+#### ssl_client_keystore_password
+
+This will start LittleProxy authenticating SSL clients and using the specified keystore password.
+
+```bash
+$ ./run.bash --authenticate_ssl_clients true --ssl_client_keystore_password mypassword```
+
+#### throttle_read_bytes_per_second
+
+This will start LittleProxy throttling the read bytes per second.
+
+```bash
+$ ./run.bash --throttle_read_bytes_per_second 1024
+```
+
+#### throttle_write_bytes_per_second
+
+This will start LittleProxy throttling the write bytes per second.
+
+```bash
+$ ./run.bash --throttle_write_bytes_per_second 1024
 ```
 
 #### server

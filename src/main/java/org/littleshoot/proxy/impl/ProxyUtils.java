@@ -281,6 +281,18 @@ public class ProxyUtils {
         return defaultValue;
     }
 
+    public static long extractLong(final Properties props, final String key) {
+        return extractLong(props, key, -1);
+    }
+
+    public static long extractLong(final Properties props, final String key, long defaultValue) {
+        final String readThrottleString = props.getProperty(key);
+        if (StringUtils.isNotBlank(readThrottleString) && NumberUtils.isCreatable(readThrottleString)) {
+            return Long.parseLong(readThrottleString);
+        }
+        return defaultValue;
+    }
+
     public static boolean isCONNECT(HttpObject httpObject) {
         return httpObject instanceof HttpRequest && HttpMethod.CONNECT.equals(((HttpRequest) httpObject).method());
     }

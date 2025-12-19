@@ -719,7 +719,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
                 if(authenticateSslClients && props.containsKey("ssl_clients_keystore_path")) {
                     String keyStorePath = props.getProperty("ssl_clients_keystore_path");
-                    if(props.containsKey("ssl_clients_keystore_alias")) {
+                    if(props.containsKey("ssl_clients_keystore_password")) {
                         String keyStoreAlias = props.getProperty("ssl_clients_keystore_alias", "");
                         String keyStorePassword = props.getProperty("ssl_clients_keystore_password", "");
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
@@ -732,6 +732,13 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             }
             if(props.containsKey("transparent")) {
                 transparent = ProxyUtils.extractBooleanDefaultFalse(props, "transparent");
+            }
+
+            if(props.containsKey("throttle_read_bytes_per_second")) {
+                readThrottleBytesPerSecond = ProxyUtils.extractLong(props, "throttle_read_bytes_per_second", 0L);
+            }
+            if(props.containsKey("throttle_write_bytes_per_second")) {
+                writeThrottleBytesPerSecond = ProxyUtils.extractLong(props, "throttle_write_bytes_per_second", 0L);
             }
 
         }
