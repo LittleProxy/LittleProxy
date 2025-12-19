@@ -744,6 +744,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             if(props.containsKey("allow_requests_to_origin_server")) {
                 allowRequestToOriginServer = ProxyUtils.extractBooleanDefaultFalse(props, "allow_requests_to_origin_server");
             }
+            if(props.containsKey("allow_proxy_protocol")) {
+                acceptProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, "allow_proxy_protocol");
+            }
+            if(props.containsKey("send_proxy_protocol")) {
+                sendProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, "send_proxy_protocol");
+            }
 
         }
 

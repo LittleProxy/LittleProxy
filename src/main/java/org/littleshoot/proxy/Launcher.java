@@ -50,6 +50,8 @@ public class Launcher {
     private static final String OPTION_THROTTLING_READ_BYTES_PER_SECOND = "throttling_read_bytes_per_second";
     private static final String OPTION_THROTTLING_WRITE_BYTES_PER_SECOND = "throttling_write_bytes_per_second";
     private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = "allow_request_to_origin_server";
+    private static final String OPTION_ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
+    private static final String OPTION_SEND_PROXY_PROTOCOL = "send_proxy_protocol";
 
     /**
      * Starts the proxy from the command line.
@@ -82,8 +84,10 @@ public class Launcher {
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true, "Password for the keystore for SSL clients.");
         options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
         options.addOption(null, OPTION_THROTTLING_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
-        options.addOption(null, OPTION_THROTTLING_WRITE_BYTES_PER_SECOND, true,"Throttling write bytes per second.");
-        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,"Allow requests to origin server (true|false).");
+        options.addOption(null, OPTION_THROTTLING_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
+        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true, "Allow requests to origin server (true|false).");
+        options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
+        options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -205,11 +209,11 @@ public class Launcher {
                 SelfSignedSslEngineSource sslEngineSource;
                 if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PATH)) {
                     String keyStorePath = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PATH);
-                    if(cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD)){
-                        String keyStoreAlias = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS,"");
+                    if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD)) {
+                        String keyStoreAlias = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, "");
                         String keyStorePassword = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD);
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
-                    }else{
+                    } else {
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
                     }
                 } else {
@@ -223,7 +227,7 @@ public class Launcher {
         if (cmd.hasOption(OPTION_TRANSPARENT)) {
             String optionValue = cmd.getOptionValue(OPTION_TRANSPARENT);
             LOG.info("Transparent proxy enabled :'{}'", optionValue);
-            if(optionValue != null) {
+            if (optionValue != null) {
                 bootstrap.withTransparent(Boolean.parseBoolean(optionValue));
             }
         }
@@ -235,7 +239,7 @@ public class Launcher {
         if (cmd.hasOption(OPTION_THROTTLING_WRITE_BYTES_PER_SECOND)) {
             throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLING_WRITE_BYTES_PER_SECOND));
         }
-        if(throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
+        if (throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
             LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
             bootstrap.withThrottling(throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
         }
@@ -243,8 +247,24 @@ public class Launcher {
         if (cmd.hasOption(OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER)) {
             String optionValue = cmd.getOptionValue(OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER);
             LOG.info("Allow request to origin server :'{}'", optionValue);
-            if(optionValue != null) {
+            if (optionValue != null) {
                 bootstrap.withAllowRequestToOriginServer(Boolean.parseBoolean(optionValue));
+            }
+        }
+
+        if (cmd.hasOption(OPTION_ALLOW_PROXY_PROTOCOL)) {
+            String optionValue = cmd.getOptionValue(OPTION_ALLOW_PROXY_PROTOCOL);
+            LOG.info("Allow proxy protocol :'{}'", optionValue);
+            if (optionValue != null) {
+                bootstrap.withAcceptProxyProtocol(Boolean.parseBoolean(optionValue));
+            }
+        }
+
+        if (cmd.hasOption(OPTION_SEND_PROXY_PROTOCOL)) {
+            String optionValue = cmd.getOptionValue(OPTION_SEND_PROXY_PROTOCOL);
+            LOG.info("Send proxy protocol header:'{}'", optionValue);
+            if (optionValue != null) {
+                bootstrap.withSendProxyProtocol(Boolean.parseBoolean(optionValue));
             }
         }
 
