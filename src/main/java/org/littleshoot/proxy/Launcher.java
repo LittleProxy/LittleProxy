@@ -15,6 +15,8 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
+
 /**
  * Launches a new HTTP proxy.
  */
@@ -42,20 +44,20 @@ public class Launcher {
     private static final String OPTION_PROXY_ALIAS = "proxy_alias";
     private static final String OPTION_ALLOW_LOCAL_ONLY = "allow_local_only";
     private static final String OPTION_AUTHENTICATE_SSL_CLIENTS = "authenticate_ssl_clients";
-    private static final String OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS = "ssl_clients_trust_all_servers";
-    private static final String OPTION_SSL_CLIENTS_SEND_CERTS = "ssl_clients_send_certs";
-    private static final String OPTION_SSL_CLIENTS_KEYSTORE_PATH = "ssl_clients_keystore_path";
-    private static final String OPTION_SSL_CLIENTS_KEYSTORE_ALIAS = "ssl_clients_keystore_alias";
-    private static final String OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD = "ssl_clients_keystore_password";
-    private static final String OPTION_TRANSPARENT = "transparent";
-    private static final String OPTION_THROTTLING_READ_BYTES_PER_SECOND = "throttling_read_bytes_per_second";
-    private static final String OPTION_THROTTLING_WRITE_BYTES_PER_SECOND = "throttling_write_bytes_per_second";
-    private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = "allow_request_to_origin_server";
-    private static final String OPTION_ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
-    private static final String OPTION_SEND_PROXY_PROTOCOL = "send_proxy_protocol";
-    private static final String OPTION_CLIENT_TO_PROXY_WORKER_THREADS = "client_to_proxy_worker_threads";
-    private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = "proxy_to_server_worker_threads";
-    private static final String OPTION_ACCEPTOR_THREADS = "acceptor_threads";
+    private static final String OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS = SSL_CLIENTS_TRUST_ALL_SERVERS;
+    private static final String OPTION_SSL_CLIENTS_SEND_CERTS = SSL_CLIENTS_SEND_CERTS;
+    private static final String OPTION_SSL_CLIENTS_KEYSTORE_PATH = SSL_CLIENTS_KEYSTORE_PATH;
+    private static final String OPTION_SSL_CLIENTS_KEYSTORE_ALIAS = SSL_CLIENTS_KEYSTORE_ALIAS;
+    private static final String OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD = SSL_CLIENTS_KEYSTORE_PASSWORD;
+    private static final String OPTION_TRANSPARENT = TRANSPARENT;
+    private static final String OPTION_THROTTLE_READ_BYTES_PER_SECOND = THROTTLE_READ_BYTES_PER_SECOND;
+    private static final String OPTION_THROTTE_WRITE_BYTES_PER_SECOND = THROTTLE_WRITE_BYTES_PER_SECOND;
+    private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = ALLOW_REQUESTS_TO_ORIGIN_SERVER;
+    private static final String OPTION_ALLOW_PROXY_PROTOCOL = ALLOW_PROXY_PROTOCOL;
+    private static final String OPTION_SEND_PROXY_PROTOCOL = SEND_PROXY_PROTOCOL;
+    private static final String OPTION_CLIENT_TO_PROXY_WORKER_THREADS = CLIENT_TO_PROXY_WORKER_THREADS;
+    private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = PROXY_TO_SERVER_WORKER_THREADS;
+    private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
 
     /**
      * Starts the proxy from the command line.
@@ -87,8 +89,8 @@ public class Launcher {
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true, "Password for the keystore for SSL clients.");
         options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
-        options.addOption(null, OPTION_THROTTLING_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
-        options.addOption(null, OPTION_THROTTLING_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
+        options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
+        options.addOption(null, OPTION_THROTTE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
         options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true, "Allow requests to origin server (true|false).");
         options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
         options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
@@ -240,11 +242,11 @@ public class Launcher {
         }
         long throttlingReadBytesPerSecond = 0;
         long throttlingWriteBytesPerSecond = 0;
-        if (cmd.hasOption(OPTION_THROTTLING_READ_BYTES_PER_SECOND)) {
-            throttlingReadBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLING_READ_BYTES_PER_SECOND));
+        if (cmd.hasOption(OPTION_THROTTLE_READ_BYTES_PER_SECOND)) {
+            throttlingReadBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLE_READ_BYTES_PER_SECOND));
         }
-        if (cmd.hasOption(OPTION_THROTTLING_WRITE_BYTES_PER_SECOND)) {
-            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLING_WRITE_BYTES_PER_SECOND));
+        if (cmd.hasOption(OPTION_THROTTE_WRITE_BYTES_PER_SECOND)) {
+            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTE_WRITE_BYTES_PER_SECOND));
         }
         if (throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
             LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);

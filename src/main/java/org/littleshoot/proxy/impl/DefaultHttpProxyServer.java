@@ -24,7 +24,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Properties;
@@ -88,9 +87,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     public static final String SSL_CLIENTS_KEYSTORE_PATH = "ssl_clients_keystore_path";
     public static final String SSL_CLIENTS_KEYSTORE_PASSWORD = "ssl_clients_keystore_password";
     public static final String SSL_CLIENTS_KEYSTORE_ALIAS = "ssl_clients_keystore_alias";
-    public static final String SEND_CERTS = "send_certs";
+    public static final String SSL_CLIENTS_SEND_CERTS = "ssl_clients_send_certs";
     public static final String AUTHENTICATE_SSL_CLIENTS = "authenticate_ssl_clients";
-    public static final String TRUST_ALL_SERVERS = "trust_all_servers";
+    public static final String SSL_CLIENTS_TRUST_ALL_SERVERS = "ssl_clients_trust_all_servers";
     public static final String ALLOW_LOCAL_ONLY = "allow_local_only";
     public static final String PROXY_ALIAS = "proxy_alias";
     public static final String NIC = "nic";
@@ -735,8 +734,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             }
             if(props.containsKey(AUTHENTICATE_SSL_CLIENTS)) {
                 authenticateSslClients = ProxyUtils.extractBooleanDefaultFalse(props, AUTHENTICATE_SSL_CLIENTS);
-                boolean trustAllServers = ProxyUtils.extractBooleanDefaultFalse(props, TRUST_ALL_SERVERS);
-                boolean sendCerts = ProxyUtils.extractBooleanDefaultFalse(props, SEND_CERTS);
+                boolean trustAllServers = ProxyUtils.extractBooleanDefaultFalse(props, SSL_CLIENTS_TRUST_ALL_SERVERS);
+                boolean sendCerts = ProxyUtils.extractBooleanDefaultFalse(props, SSL_CLIENTS_SEND_CERTS);
 
                 if(authenticateSslClients && props.containsKey(SSL_CLIENTS_KEYSTORE_PATH)) {
                     String keyStorePath = props.getProperty(SSL_CLIENTS_KEYSTORE_PATH);

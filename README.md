@@ -47,11 +47,11 @@ The config file is a properties file with the following properties :
 - `proxy_alias` : string value to set the proxy alias (default : hostname of the machine)
 - `allow_local_only` : boolean value to allow only local connections (default : `false`)
 - `authenticate_ssl_clients` : boolean value to enable/disable SSL client authentication (default : `false`)
-- `trust_all_servers` : boolean value to trust all servers (default : `false`)
-- `send_certs` : boolean value to send certificates (default : `false`)
-- `key_store_file_path` : string value to set the key store file path (default : `null`)
-- `key_store_alias` : string value to set the key store alias (default : `null`)
-- `key_store_password` : string value to set the key store password (default : `null`)
+- `ssl_clients_trust_all_servers` : boolean value to trust all servers (default : `false`)
+- `ssl_clients_send_certs` : boolean value to send certificates (default : `false`)
+- `ssl_clients_key_store_file_path` : string value to set the key store file path (default : `null`)
+- `ssl_clients_key_store_alias` : string value to set the key store alias (default : `null`)
+- `ssl_clients_key_store_password` : string value to set the key store password (default : `null`)
 - `throttle_read_bytes_per_second` : integer value to set the throttle read bytes per second (default : `0`)
 - `throttle_write_bytes_per_second` : integer value to set the throttle write bytes per second (default : `0`)
 - `allow_requests_to_origin_server` : boolean value to allow requests to origin server (default : `false`)
@@ -77,11 +77,11 @@ nic=eth0
 proxy_alias=myproxy
 allow_local_only=false
 authenticate_ssl_clients=false
-trust_all_servers=false
-send_certs=false
-key_store_file_path=/path/to/keystore.jks
-key_store_alias=myalias
-key_store_password=mypassword
+ssl_clients_trust_all_servers=false
+ssl_clients_send_certs=false
+ssl_clients_key_store_file_path=/path/to/keystore.jks
+ssl_clients_key_store_alias=myalias
+ssl_clients_key_store_password=mypassword
 throttle_read_bytes_per_second=1024
 throttle_write_bytes_per_second=1024
 allow_requests_to_origin_server=true
