@@ -46,6 +46,12 @@ The config file is a properties file with the following properties :
 - `nic` : string value to set the network interface card (default : `0.0.0.0`)
 - `proxy_alias` : string value to set the proxy alias (default : hostname of the machine)
 - `allow_local_only` : boolean value to allow only local connections (default : `false`)
+- `authenticate_ssl_clients` : boolean value to enable/disable SSL client authentication (default : `false`)
+- `trust_all_servers` : boolean value to trust all servers (default : `false`)
+- `send_certs` : boolean value to send certificates (default : `false`)
+- `key_store_file_path` : string value to set the key store file path (default : `null`)
+- `key_store_alias` : string value to set the key store alias (default : `null`)
+- `key_store_password` : string value to set the key store password (default : `null`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -65,6 +71,12 @@ port=8080
 nic=eth0
 proxy_alias=myproxy
 allow_local_only=false
+authenticate_ssl_clients=false
+trust_all_servers=false
+send_certs=false
+key_store_file_path=/path/to/keystore.jks
+key_store_alias=myalias
+key_store_password=mypassword
 ````
 #### DNSSec
 

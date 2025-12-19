@@ -4,6 +4,7 @@ import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
+import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.impl.ProxyUtils;
 import org.slf4j.Logger;
@@ -39,6 +40,13 @@ public class Launcher {
     private static final String OPTION_ADDRESS = "address";
     private static final String OPTION_PROXY_ALIAS = "proxy_alias";
     private static final String OPTION_ALLOW_LOCAL_ONLY = "allow_local_only";
+    private static final String OPTION_AUTHENTICATE_SSL_CLIENTS = "authenticate_ssl_clients";
+    private static final String OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS = "ssl_clients_trust_all_servers";
+    private static final String OPTION_SSL_CLIENTS_SEND_CERTS = "ssl_clients_send_certs";
+    private static final String OPTION_SSL_CLIENTS_KEYSTORE_PATH = "ssl_clients_keystore_path";
+    private static final String OPTION_SSL_CLIENTS_KEYSTORE_ALIAS = "ssl_clients_keystore_alias";
+    private static final String OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD = "ssl_clients_keystore_password";
+    private static final String OPTION_TRANSPARENT = "transparent";
 
     /**
      * Starts the proxy from the command line.
@@ -63,6 +71,13 @@ public class Launcher {
         options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
         options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
         options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true, "Allow only local connections to the proxy (true|false).");
+        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true, "Whether to authenticate SSL clients (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true, "Whether SSL clients should trust all servers (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true, "Whether SSL clients should send certificates (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PATH, true, "Path to keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true, "Password for the keystore for SSL clients.");
+        options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -172,6 +187,38 @@ public class Launcher {
             LOG.info("Setting allow local only to: '{}'", val);
             if (val != null) {
                 bootstrap.withAllowLocalOnly(Boolean.parseBoolean(val));
+            }
+        }
+
+        if (cmd.hasOption(OPTION_AUTHENTICATE_SSL_CLIENTS)) {
+            final String val = cmd.getOptionValue(OPTION_AUTHENTICATE_SSL_CLIENTS);
+            LOG.info("Setting authenticate SSL clients with a selfSigned cert : '{}'", val);
+            if (val != null) {
+                boolean trustAllServers = Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, "false"));
+                boolean sendCerts = Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_SEND_CERTS, "false"));
+                SelfSignedSslEngineSource sslEngineSource = null;
+                if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PATH)) {
+                    String keyStorePath = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PATH);
+                    if(cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS) && cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD)){
+                        String keyStoreAlias = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS);
+                        String keyStorePassword = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD);
+                        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
+                    }else{
+                        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
+                    }
+                } else {
+                    sslEngineSource = new SelfSignedSslEngineSource(trustAllServers, sendCerts);
+                }
+                bootstrap.withSslEngineSource(sslEngineSource);
+                bootstrap.withAuthenticateSslClients(Boolean.parseBoolean(val));
+            }
+        }
+
+        if (cmd.hasOption(OPTION_TRANSPARENT)) {
+            String optionValue = cmd.getOptionValue(OPTION_TRANSPARENT);
+            LOG.info("Transparent proxy enabled :'{}'", optionValue);
+            if(optionValue != null) {
+                bootstrap.withTransparent(Boolean.parseBoolean(optionValue));
             }
         }
 

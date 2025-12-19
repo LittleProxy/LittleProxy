@@ -14,6 +14,7 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.*;
+import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +24,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Properties;
@@ -709,6 +711,27 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             }
             if(props.containsKey("allow_local_only")) {
                 allowLocalOnly = ProxyUtils.extractBooleanDefaultFalse(props, "allow_local_only");
+            }
+            if(props.containsKey("authenticate_ssl_clients")) {
+                authenticateSslClients = ProxyUtils.extractBooleanDefaultFalse(props, "authenticate_ssl_clients");
+                boolean trustAllServers = ProxyUtils.extractBooleanDefaultFalse(props, "trust_all_servers");
+                boolean sendCerts = ProxyUtils.extractBooleanDefaultFalse(props, "send_certs");
+
+                if(authenticateSslClients && props.containsKey("ssl_clients_keystore_path")) {
+                    String keyStorePath = props.getProperty("ssl_clients_keystore_path");
+                    if(props.containsKey("ssl_clients_keystore_alias")) {
+                        String keyStoreAlias = props.getProperty("ssl_clients_keystore_alias", "");
+                        String keyStorePassword = props.getProperty("ssl_clients_keystore_password", "");
+                        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
+                    }else {
+                        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
+                    }
+                }else{
+                    sslEngineSource = new SelfSignedSslEngineSource(trustAllServers, sendCerts);
+                }
+            }
+            if(props.containsKey("transparent")) {
+                transparent = ProxyUtils.extractBooleanDefaultFalse(props, "transparent");
             }
 
         }
