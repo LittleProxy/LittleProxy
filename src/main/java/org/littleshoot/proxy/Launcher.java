@@ -7,6 +7,7 @@ import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.impl.ProxyUtils;
+import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +53,9 @@ public class Launcher {
     private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = "allow_request_to_origin_server";
     private static final String OPTION_ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
     private static final String OPTION_SEND_PROXY_PROTOCOL = "send_proxy_protocol";
+    private static final String OPTION_CLIENT_TO_PROXY_WORKER_THREADS = "client_to_proxy_worker_threads";
+    private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = "proxy_to_server_worker_threads";
+    private static final String OPTION_ACCEPTOR_THREADS = "acceptor_threads";
 
     /**
      * Starts the proxy from the command line.
@@ -88,6 +92,9 @@ public class Launcher {
         options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true, "Allow requests to origin server (true|false).");
         options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
         options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
+        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true, "Number of client-to-proxy worker threads.");
+        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true, "Number of proxy-to-server worker threads.");
+        options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -266,6 +273,36 @@ public class Launcher {
             if (optionValue != null) {
                 bootstrap.withSendProxyProtocol(Boolean.parseBoolean(optionValue));
             }
+        }
+
+        ThreadPoolConfiguration threadPoolConfiguration = new ThreadPoolConfiguration();
+        boolean threadPoolConfigSet = false; // Flag to track if thread pool configuration is set through command line options
+        if (cmd.hasOption(OPTION_CLIENT_TO_PROXY_WORKER_THREADS)) {
+            String optionValue = cmd.getOptionValue(OPTION_CLIENT_TO_PROXY_WORKER_THREADS);
+            LOG.info("Setting client to proxy worker threads to :'{}'", optionValue);
+            if (optionValue != null) {
+                threadPoolConfiguration.withClientToProxyWorkerThreads(Integer.parseInt(optionValue));
+                threadPoolConfigSet = true;
+            }
+        }
+        if (cmd.hasOption(OPTION_PROXY_TO_SERVER_WORKER_THREADS)) {
+            String optionValue = cmd.getOptionValue(OPTION_PROXY_TO_SERVER_WORKER_THREADS);
+            LOG.info("Setting proxy to server worker threads to :'{}'", optionValue);
+            if (optionValue != null) {
+                threadPoolConfiguration.withProxyToServerWorkerThreads(Integer.parseInt(optionValue));
+                threadPoolConfigSet = true;
+            }
+        }
+        if (cmd.hasOption(OPTION_ACCEPTOR_THREADS)) {
+            String optionValue = cmd.getOptionValue(OPTION_ACCEPTOR_THREADS);
+            LOG.info("Setting acceptor threads to :'{}'", optionValue);
+            if (optionValue != null) {
+                threadPoolConfiguration.withAcceptorThreads(Integer.parseInt(optionValue));
+                threadPoolConfigSet = true;
+            }
+        }
+        if(threadPoolConfigSet) {
+            bootstrap.withThreadPoolConfiguration(threadPoolConfiguration);
         }
 
 
