@@ -266,7 +266,8 @@ $ ./run.bash --send_proxy_protocol true
 This will start LittleProxy with the specified number of client to proxy worker threads.
 
 ```bash
-$ ./run.bash --client_to_proxy_worker_threads 10```
+$ ./run.bash --client_to_proxy_worker_threads 10
+```
 
 #### proxy_to_server_worker_threads
 
@@ -274,13 +275,15 @@ This will start LittleProxy with the specified number of proxy to server worker 
 
 ```bash
 $ ./run.bash --proxy_to_server_worker_threads 10
+```
 
 #### acceptor_threads
 
 This will start LittleProxy with the specified number of acceptor threads.
 
 ```bash
-$ ./run.bash --acceptor_threads 10`
+$ ./run.bash --acceptor_threads 10
+```
 
 
 #### server
