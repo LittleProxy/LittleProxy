@@ -49,6 +49,7 @@ public class Launcher {
     private static final String OPTION_TRANSPARENT = "transparent";
     private static final String OPTION_THROTTLING_READ_BYTES_PER_SECOND = "throttling_read_bytes_per_second";
     private static final String OPTION_THROTTLING_WRITE_BYTES_PER_SECOND = "throttling_write_bytes_per_second";
+    private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = "allow_request_to_origin_server";
 
     /**
      * Starts the proxy from the command line.
@@ -82,6 +83,7 @@ public class Launcher {
         options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
         options.addOption(null, OPTION_THROTTLING_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
         options.addOption(null, OPTION_THROTTLING_WRITE_BYTES_PER_SECOND, true,"Throttling write bytes per second.");
+        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,"Allow requests to origin server (true|false).");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -236,6 +238,14 @@ public class Launcher {
         if(throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
             LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
             bootstrap.withThrottling(throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
+        }
+
+        if (cmd.hasOption(OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER)) {
+            String optionValue = cmd.getOptionValue(OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER);
+            LOG.info("Allow request to origin server :'{}'", optionValue);
+            if(optionValue != null) {
+                bootstrap.withAllowRequestToOriginServer(Boolean.parseBoolean(optionValue));
+            }
         }
 
 

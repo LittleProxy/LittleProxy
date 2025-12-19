@@ -54,6 +54,7 @@ The config file is a properties file with the following properties :
 - `key_store_password` : string value to set the key store password (default : `null`)
 - `throttle_read_bytes_per_second` : integer value to set the throttle read bytes per second (default : `0`)
 - `throttle_write_bytes_per_second` : integer value to set the throttle write bytes per second (default : `0`)
+- `allow_requests_to_origin_server` : boolean value to allow requests to origin server (default : `false`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -81,6 +82,7 @@ key_store_alias=myalias
 key_store_password=mypassword
 throttle_read_bytes_per_second=1024
 throttle_write_bytes_per_second=1024
+allow_requests_to_origin_server=true
 ````
 #### DNSSec
 
@@ -229,6 +231,14 @@ This will start LittleProxy throttling the write bytes per second.
 
 ```bash
 $ ./run.bash --throttle_write_bytes_per_second 1024
+```
+
+#### allow_request_to_origin_server
+
+This will start LittleProxy allowing requests to the origin server.
+
+```bash
+$ ./run.bash --allow_request_to_origin_server true
 ```
 
 #### server
