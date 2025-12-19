@@ -76,6 +76,27 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     public static final String LOCAL_ADDRESS = "127.0.0.1";
     public static final int DEFAULT_PORT = 8080;
     public static final String DEFAULT_NIC_VALUE = "0.0.0.0";
+    public static final String CLIENT_TO_PROXY_WORKER_THREADS = "client_to_proxy_worker_threads";
+    public static final String PROXY_TO_SERVER_WORKER_THREADS = "proxy_to_server_worker_threads";
+    public static final String ACCEPTOR_THREADS = "acceptor_threads";
+    public static final String SEND_PROXY_PROTOCOL = "send_proxy_protocol";
+    public static final String ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
+    public static final String ALLOW_REQUESTS_TO_ORIGIN_SERVER = "allow_requests_to_origin_server";
+    public static final String THROTTLE_WRITE_BYTES_PER_SECOND = "throttle_write_bytes_per_second";
+    public static final String THROTTLE_READ_BYTES_PER_SECOND = "throttle_read_bytes_per_second";
+    public static final String TRANSPARENT = "transparent";
+    public static final String SSL_CLIENTS_KEYSTORE_PATH = "ssl_clients_keystore_path";
+    public static final String SSL_CLIENTS_KEYSTORE_PASSWORD = "ssl_clients_keystore_password";
+    public static final String SSL_CLIENTS_KEYSTORE_ALIAS = "ssl_clients_keystore_alias";
+    public static final String SEND_CERTS = "send_certs";
+    public static final String AUTHENTICATE_SSL_CLIENTS = "authenticate_ssl_clients";
+    public static final String TRUST_ALL_SERVERS = "trust_all_servers";
+    public static final String ALLOW_LOCAL_ONLY = "allow_local_only";
+    public static final String PROXY_ALIAS = "proxy_alias";
+    public static final String NIC = "nic";
+    public static final String PORT = "port";
+    public static final String ADDRESS = "address";
+    public static final String NAME = "name";
 
     /**
      * Our {@link ServerGroup}. Multiple proxy servers can share the same
@@ -683,7 +704,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             withUseDnsSec(ProxyUtils.extractBooleanDefaultFalse(
                     props, "dnssec"));
             transparent = ProxyUtils.extractBooleanDefaultFalse(
-                    props, "transparent");
+                    props, TRANSPARENT);
             idleConnectionTimeout = Duration.ofSeconds(ProxyUtils.extractInt(
                     props, "idle_connection_timeout"));
             connectTimeout = ProxyUtils.extractInt(props,
@@ -694,34 +715,34 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                     "max_header_size", MAX_HEADER_SIZE_DEFAULT);
             maxChunkSize = ProxyUtils.extractInt(props,
                     "max_chunk_size", MAX_CHUNK_SIZE_DEFAULT);
-            if(props.containsKey("name")) {
-                name = props.getProperty("name", DEFAULT_LITTLE_PROXY_NAME);
+            if(props.containsKey(NAME)) {
+                name = props.getProperty(NAME, DEFAULT_LITTLE_PROXY_NAME);
             }
-            if(props.containsKey("address")) {
-                requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty("address"));
+            if(props.containsKey(ADDRESS)) {
+                requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty(ADDRESS));
             }
-            if(props.containsKey("port")) {
-                port = ProxyUtils.extractInt(props, "port", Launcher.DEFAULT_PORT);
+            if(props.containsKey(PORT)) {
+                port = ProxyUtils.extractInt(props, PORT, Launcher.DEFAULT_PORT);
             }
-            if(props.containsKey("nic")) {
-                localAddress = new InetSocketAddress(props.getProperty("nic", DEFAULT_NIC_VALUE), 0);
+            if(props.containsKey(NIC)) {
+                localAddress = new InetSocketAddress(props.getProperty(NIC, DEFAULT_NIC_VALUE), 0);
             }
-            if(props.containsKey("proxy_alias")) {
-                proxyAlias = props.getProperty("proxy_alias");
+            if(props.containsKey(PROXY_ALIAS)) {
+                proxyAlias = props.getProperty(PROXY_ALIAS);
             }
-            if(props.containsKey("allow_local_only")) {
-                allowLocalOnly = ProxyUtils.extractBooleanDefaultFalse(props, "allow_local_only");
+            if(props.containsKey(ALLOW_LOCAL_ONLY)) {
+                allowLocalOnly = ProxyUtils.extractBooleanDefaultFalse(props, ALLOW_LOCAL_ONLY);
             }
-            if(props.containsKey("authenticate_ssl_clients")) {
-                authenticateSslClients = ProxyUtils.extractBooleanDefaultFalse(props, "authenticate_ssl_clients");
-                boolean trustAllServers = ProxyUtils.extractBooleanDefaultFalse(props, "trust_all_servers");
-                boolean sendCerts = ProxyUtils.extractBooleanDefaultFalse(props, "send_certs");
+            if(props.containsKey(AUTHENTICATE_SSL_CLIENTS)) {
+                authenticateSslClients = ProxyUtils.extractBooleanDefaultFalse(props, AUTHENTICATE_SSL_CLIENTS);
+                boolean trustAllServers = ProxyUtils.extractBooleanDefaultFalse(props, TRUST_ALL_SERVERS);
+                boolean sendCerts = ProxyUtils.extractBooleanDefaultFalse(props, SEND_CERTS);
 
-                if(authenticateSslClients && props.containsKey("ssl_clients_keystore_path")) {
-                    String keyStorePath = props.getProperty("ssl_clients_keystore_path");
-                    if(props.containsKey("ssl_clients_keystore_password")) {
-                        String keyStoreAlias = props.getProperty("ssl_clients_keystore_alias", "");
-                        String keyStorePassword = props.getProperty("ssl_clients_keystore_password", "");
+                if(authenticateSslClients && props.containsKey(SSL_CLIENTS_KEYSTORE_PATH)) {
+                    String keyStorePath = props.getProperty(SSL_CLIENTS_KEYSTORE_PATH);
+                    if(props.containsKey(SSL_CLIENTS_KEYSTORE_PASSWORD)) {
+                        String keyStoreAlias = props.getProperty(SSL_CLIENTS_KEYSTORE_ALIAS, "");
+                        String keyStorePassword = props.getProperty(SSL_CLIENTS_KEYSTORE_PASSWORD, "");
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
                     }else {
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
@@ -730,25 +751,34 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                     sslEngineSource = new SelfSignedSslEngineSource(trustAllServers, sendCerts);
                 }
             }
-            if(props.containsKey("transparent")) {
-                transparent = ProxyUtils.extractBooleanDefaultFalse(props, "transparent");
+            if(props.containsKey(TRANSPARENT)) {
+                transparent = ProxyUtils.extractBooleanDefaultFalse(props, TRANSPARENT);
             }
 
-            if(props.containsKey("throttle_read_bytes_per_second")) {
-                readThrottleBytesPerSecond = ProxyUtils.extractLong(props, "throttle_read_bytes_per_second", 0L);
+            if(props.containsKey(THROTTLE_READ_BYTES_PER_SECOND)) {
+                readThrottleBytesPerSecond = ProxyUtils.extractLong(props, THROTTLE_READ_BYTES_PER_SECOND, 0L);
             }
-            if(props.containsKey("throttle_write_bytes_per_second")) {
-                writeThrottleBytesPerSecond = ProxyUtils.extractLong(props, "throttle_write_bytes_per_second", 0L);
+            if(props.containsKey(THROTTLE_WRITE_BYTES_PER_SECOND)) {
+                writeThrottleBytesPerSecond = ProxyUtils.extractLong(props, THROTTLE_WRITE_BYTES_PER_SECOND, 0L);
             }
 
-            if(props.containsKey("allow_requests_to_origin_server")) {
-                allowRequestToOriginServer = ProxyUtils.extractBooleanDefaultFalse(props, "allow_requests_to_origin_server");
+            if(props.containsKey(ALLOW_REQUESTS_TO_ORIGIN_SERVER)) {
+                allowRequestToOriginServer = ProxyUtils.extractBooleanDefaultFalse(props, ALLOW_REQUESTS_TO_ORIGIN_SERVER);
             }
-            if(props.containsKey("allow_proxy_protocol")) {
-                acceptProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, "allow_proxy_protocol");
+            if(props.containsKey(ALLOW_PROXY_PROTOCOL)) {
+                acceptProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, ALLOW_PROXY_PROTOCOL);
             }
-            if(props.containsKey("send_proxy_protocol")) {
-                sendProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, "send_proxy_protocol");
+            if(props.containsKey(SEND_PROXY_PROTOCOL)) {
+                sendProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, SEND_PROXY_PROTOCOL);
+            }
+            if(props.containsKey(CLIENT_TO_PROXY_WORKER_THREADS)) {
+                clientToProxyWorkerThreads = ProxyUtils.extractInt(props, CLIENT_TO_PROXY_WORKER_THREADS, 0);
+            }
+            if(props.containsKey(PROXY_TO_SERVER_WORKER_THREADS)) {
+                proxyToServerWorkerThreads = ProxyUtils.extractInt(props, PROXY_TO_SERVER_WORKER_THREADS, 0);
+            }
+            if(props.containsKey(ACCEPTOR_THREADS)) {
+                clientToProxyAcceptorThreads = ProxyUtils.extractInt(props, ACCEPTOR_THREADS, 0);
             }
 
         }
