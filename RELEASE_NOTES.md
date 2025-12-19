@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.5.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/49)
+  - TBD
+
 - 2.5.0 (19.12.2025, https://github.com/LittleProxy/LittleProxy/milestone/48?closed=1)
   - enhance documentation with run.bash script options (#659) by Charles Lescot
   - add the --server option to Launch proxy as a server (#660) by Charles Lescot
