@@ -51,7 +51,7 @@ public class Launcher {
     private static final String OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD = SSL_CLIENTS_KEYSTORE_PASSWORD;
     private static final String OPTION_TRANSPARENT = TRANSPARENT;
     private static final String OPTION_THROTTLE_READ_BYTES_PER_SECOND = THROTTLE_READ_BYTES_PER_SECOND;
-    private static final String OPTION_THROTTE_WRITE_BYTES_PER_SECOND = THROTTLE_WRITE_BYTES_PER_SECOND;
+    private static final String OPTION_THROTTLE_WRITE_BYTES_PER_SECOND = THROTTLE_WRITE_BYTES_PER_SECOND;
     private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = ALLOW_REQUESTS_TO_ORIGIN_SERVER;
     private static final String OPTION_ALLOW_PROXY_PROTOCOL = ALLOW_PROXY_PROTOCOL;
     private static final String OPTION_SEND_PROXY_PROTOCOL = SEND_PROXY_PROTOCOL;
@@ -96,7 +96,7 @@ public class Launcher {
                 "Password for the keystore for SSL clients.");
         options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
         options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
-        options.addOption(null, OPTION_THROTTE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
+        options.addOption(null, OPTION_THROTTLE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
         options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,
                 "Allow requests to origin server (true|false).");
         options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
@@ -255,8 +255,8 @@ public class Launcher {
         if (cmd.hasOption(OPTION_THROTTLE_READ_BYTES_PER_SECOND)) {
             throttlingReadBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLE_READ_BYTES_PER_SECOND));
         }
-        if (cmd.hasOption(OPTION_THROTTE_WRITE_BYTES_PER_SECOND)) {
-            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTE_WRITE_BYTES_PER_SECOND));
+        if (cmd.hasOption(OPTION_THROTTLE_WRITE_BYTES_PER_SECOND)) {
+            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLE_WRITE_BYTES_PER_SECOND));
         }
         if (throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
             LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond,

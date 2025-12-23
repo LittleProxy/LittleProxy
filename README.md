@@ -57,7 +57,8 @@ The config file is a properties file with the following properties :
 - `allow_requests_to_origin_server` : boolean value to allow requests to origin server (default : `false`)
 - `allow_proxy_protocol` : boolean value to allow proxy protocol (default : `false`)
 - `send_proxy_protocol` : boolean value to send proxy protocol header (default : `false`)
-- 
+- `activity_log_format` : string value to set the activity log format (CLF, ELF, JSON, LTSV, CSV, SQUID, HAPROXY) (default: disabled)
+
 Options set from the command line, override the ones set in the config file.
 
 ##### littleproxy.properties Example
@@ -87,6 +88,7 @@ throttle_write_bytes_per_second=1024
 allow_requests_to_origin_server=true
 allow_proxy_protocol=true
 send_proxy_protocol=true
+activity_log_format=CLF
 ````
 #### DNSSec
 
@@ -111,6 +113,15 @@ If it is absolute, it will be resolved as is :
 
 ```bash
 $ ./run.bash --log_config /home/user/log4j.xml
+```
+
+#### Activity Log Format
+
+This will enable the activity tracker with the specified log format.
+Supported formats: `CLF`, `ELF`, `W3C`, `JSON`, `LTSV`, `CSV`, `SQUID`, `HAPROXY`.
+
+```bash
+$ ./run.bash --activity_log_format CLF
 ```
 
 #### Port
@@ -439,6 +450,44 @@ stopped, all are stopped.
 ```java
 existingServer.clone().withPort(8081).start()
 ```
+
+
+### Logging Activity Tracker
+
+LittleProxy includes a `LoggingActivityTracker` that can log detailed information about each request and response handled by the proxy. It supports multiple standard log formats, which can be useful for integration with log analysis tools.
+
+To use it, wrap your functionality or simply add it to your server bootstrap:
+
+```java
+import org.littleshoot.proxy.extras.LoggingActivityTracker;
+import org.littleshoot.proxy.extras.LogFormat;
+
+// ...
+
+DefaultHttpProxyServer.bootstrap()
+    .withPort(8080)
+    .plusActivityTracker(new LoggingActivityTracker(LogFormat.CLF)) // Use Common Log Format
+    .start();
+```
+
+#### Supported Log Formats
+
+The `LogFormat` enum provides several standard formats:
+
+*   **`CLF` (Common Log Format)**: The standard NCSA Common log format.
+    *   Example: `127.0.0.1 - - [24/Dec/2025:00:00:00 +0000] "GET /index.html HTTP/1.1" 200 1234`
+*   **`ELF` (Extended Log Format)**: Uses the NCSA Combined Log Format, which includes Referer and User-Agent.
+    *   Example: `127.0.0.1 - - [date] "GET /..." 200 123 "http://referer" "Mozilla/5.0"`
+*   **`W3C`**: A standard W3C Extended Log File Format (space-separated fields).
+    *   Example: `2025-12-24 00:00:00 127.0.0.1 GET /index.html 200 1234 "Mozilla/5.0"`
+*   **`JSON`**: Structured logging in JSON format, ideal for modern log aggregators (ELK, Splunk, etc.). Includes duration.
+    *   Example: `{"timestamp":"...","client_ip":"127.0.0.1","method":"GET","duration":15,...}`
+*   **`LTSV` (Labeled Tab-Separated Values)**: Efficient, human-readable, and machine-parsable format.
+    *   Example: `time:2025-...\thost:127.0.0.1\tmethod:GET\t...`
+*   **`CSV` (Comma-Separated Values)**: Standard CSV format for easy import into spreadsheets.
+    *   Example: `"timestamp","127.0.0.1","GET",...`
+*   **`SQUID`**: Squid native access log format. Useful for tools expecting Squid logs.
+*   **`HAPROXY`**: A format mimicking HAProxy's HTTP logging, focusing on timing and status.
 
 For examples of configuring logging, see [src/test/resources/log4j.xml](src/test/resources/log4j.xml).
 

@@ -25,7 +25,18 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
     private static final String DATE_FORMAT_CLF = "dd/MMM/yyyy:HH:mm:ss Z";
 
     private final LogFormat logFormat;
-    private final Map<FlowContext, HttpRequest> requestMap = new ConcurrentHashMap<>();
+
+    private static class TimedRequest {
+        final HttpRequest request;
+        final long startTime;
+
+        TimedRequest(HttpRequest request, long startTime) {
+            this.request = request;
+            this.startTime = startTime;
+        }
+    }
+
+    private final Map<FlowContext, TimedRequest> requestMap = new ConcurrentHashMap<>();
 
     public LoggingActivityTracker(LogFormat logFormat) {
         this.logFormat = logFormat;
@@ -33,19 +44,17 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
 
     @Override
     public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
-        requestMap.put(flowContext, httpRequest);
+        requestMap.put(flowContext, new TimedRequest(httpRequest, System.currentTimeMillis()));
     }
 
     @Override
     public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
-        HttpRequest request = requestMap.remove(flowContext);
-        if (request == null) {
-            // Should not happen usually, but possible if tracker added mid-flight or odd
-            // flow
+        TimedRequest timedRequest = requestMap.remove(flowContext);
+        if (timedRequest == null) {
             return;
         }
 
-        String logMessage = formatLogEntry(flowContext, request, httpResponse);
+        String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
         if (logMessage != null) {
             log(logMessage);
         }
@@ -59,20 +68,13 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
     @Override
     public void clientDisconnected(InetSocketAddress clientAddress, javax.net.ssl.SSLSession sslSession) {
         // We can't easily clean up by FlowContext here as we only have address/session.
-        // But the map keys are FlowContext objects.
-        // FlowContext doesn't implement equals/hashCode based on address, but checking
-        // identity.
-        // Ideally we should use a WeakHashMap or similar if leaks are concern,
-        // but FlowContext should be short lived enough or we rely on responseSent to
-        // clear.
         // For now, rely on responseSentToClient to clear.
-        // If a request is received but no response sent (disconnect), it might leak.
-        // But ActivityTracker doesn't seem to offer a "Flow Ended" clearly linking to
-        // FlowContext for disconnect.
-        // We'll leave it simple for now.
     }
 
-    private String formatLogEntry(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+    private String formatLogEntry(FlowContext flowContext, TimedRequest timedInfo, HttpResponse response) {
+        HttpRequest request = timedInfo.request;
+        long duration = System.currentTimeMillis() - timedInfo.startTime;
+
         StringBuilder sb = new StringBuilder();
         InetSocketAddress clientAddress = flowContext.getClientAddress();
         String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
@@ -83,7 +85,7 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 // host ident authuser [date] "request" status bytes
                 sb.append(clientIp).append(" ");
                 sb.append("- "); // ident
-                sb.append("- "); // authuser (could try to extract from Auth header if needed)
+                sb.append("- "); // authuser
                 sb.append("[").append(formatDate(now, DATE_FORMAT_CLF)).append("] ");
                 sb.append("\"").append(request.method()).append(" ").append(request.uri()).append(" ")
                         .append(request.protocolVersion()).append("\" ");
@@ -92,12 +94,24 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 break;
 
             case ELF:
+                // Extended Log Format (ELF) - actually NCSA Combined Log Format
+                // host ident authuser [date] "request" status bytes "referer" "user-agent"
+                sb.append(clientIp).append(" ");
+                sb.append("- "); // ident
+                sb.append("- "); // authuser
+                sb.append("[").append(formatDate(now, DATE_FORMAT_CLF)).append("] ");
+                sb.append("\"").append(request.method()).append(" ").append(request.uri()).append(" ")
+                        .append(request.protocolVersion()).append("\" ");
+                sb.append(response.status().code()).append(" ");
+                sb.append(getContentLength(response)).append(" ");
+                sb.append("\"").append(getHeader(request, "Referer")).append("\" ");
+                sb.append("\"").append(getHeader(request, "User-Agent")).append("\"");
+                break;
+
             case W3C:
                 // W3C Extended Log Format (simplified default)
                 // date time c-ip cs-method cs-uri-stem sc-status sc-bytes
                 // time-taken(optional/unavailable) cs(User-Agent)
-                // We'll approximate a standard extended format.
-                // 2023-10-25 12:00:00 127.0.0.1 GET /index.html 200 1234 "User-Agent"
                 SimpleDateFormat w3cDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
                 w3cDate.setTimeZone(TimeZone.getTimeZone("UTC"));
                 sb.append(w3cDate.format(now)).append(" ");
@@ -118,19 +132,41 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 sb.append("\"protocol\":\"").append(request.protocolVersion()).append("\",");
                 sb.append("\"status\":").append(response.status().code()).append(",");
                 sb.append("\"bytes\":").append(getContentLength(response)).append(",");
+                sb.append("\"duration\":").append(duration).append(",");
                 sb.append("\"user_agent\":\"").append(escapeJson(getHeader(request, "User-Agent"))).append("\"");
                 sb.append("}");
+                break;
+
+            case LTSV:
+                // Labeled Tab-Separated Values
+                sb.append("time:").append(formatDate(now, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")).append("\t");
+                sb.append("host:").append(clientIp).append("\t");
+                sb.append("method:").append(request.method()).append("\t");
+                sb.append("uri:").append(request.uri()).append("\t");
+                sb.append("status:").append(response.status().code()).append("\t");
+                sb.append("size:").append(getContentLength(response)).append("\t");
+                sb.append("duration:").append(duration).append("\t");
+                sb.append("ua:").append(getHeader(request, "User-Agent"));
+                break;
+
+            case CSV:
+                // Comma-Separated Values: timestamp,host,method,uri,status,bytes,duration,ua
+                sb.append("\"").append(formatDate(now, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")).append("\",");
+                sb.append("\"").append(clientIp).append("\",");
+                sb.append("\"").append(request.method()).append("\",");
+                sb.append("\"").append(escapeJson(request.uri())).append("\",");
+                sb.append(response.status().code()).append(",");
+                sb.append(getContentLength(response)).append(",");
+                sb.append(duration).append(",");
+                sb.append("\"").append(escapeJson(getHeader(request, "User-Agent"))).append("\"");
                 break;
 
             case SQUID:
                 // time elapsed remotehost code/status bytes method URL rfc931
                 // peerstatus/peerhost type
-                // time is unix timestamp with millis
-                // elapsed is missing in this context effectively (would need to track request
-                // time).
                 long timestamp = now.getTime();
                 sb.append(timestamp / 1000).append(".").append(timestamp % 1000).append(" ");
-                sb.append("0 "); // elapsed placeholder
+                sb.append(duration).append(" "); // elapsed
                 sb.append(clientIp).append(" ");
                 sb.append("TCP_MISS/").append(response.status().code()).append(" ");
                 sb.append(getContentLength(response)).append(" ");
@@ -139,6 +175,20 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 sb.append("- "); // rfc931
                 sb.append("DIRECT/").append(getServerIp(flowContext)).append(" ");
                 sb.append(getContentType(response));
+                break;
+
+            case HAPROXY:
+                // HAProxy HTTP format approximation
+                // client_ip:port [date] frontend backend/server Tq Tw Tc Tr Tr_tot status bytes
+                // ...
+                // simplified: client_ip [date] method uri status bytes duration
+                sb.append(clientIp).append(" ");
+                sb.append("[").append(formatDate(now, "dd/MMM/yyyy:HH:mm:ss.SSS")).append("] ");
+                sb.append("\"").append(request.method()).append(" ").append(request.uri()).append(" ")
+                        .append(request.protocolVersion()).append("\" ");
+                sb.append(response.status().code()).append(" ");
+                sb.append(getContentLength(response)).append(" ");
+                sb.append(duration); // duration in ms
                 break;
         }
 

@@ -74,6 +74,88 @@ class LoggingActivityTrackerTest {
     }
 
     @Test
+    void testElfFormat() {
+        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.ELF);
+        setupMocks();
+        when(requestHeaders.get("Referer")).thenReturn("http://referrer.com");
+        when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+
+        tracker.requestReceivedFromClient(flowContext, request);
+        tracker.responseSentToClient(flowContext, response);
+
+        System.out.println("ELF Log: " + tracker.lastLogMessage);
+        // host ident authuser [date] "request" status bytes "referer" "user-agent"
+        // 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100 "http://referrer.com"
+        // "Mozilla/5.0"
+        assertTrue(tracker.lastLogMessage.startsWith("127.0.0.1 - - ["));
+        assertTrue(tracker.lastLogMessage
+                .contains("] \"GET /test HTTP/1.1\" 200 100 \"http://referrer.com\" \"Mozilla/5.0\""));
+    }
+
+    @Test
+    void testW3cFormat() {
+        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.W3C);
+        setupMocks();
+        when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+
+        tracker.requestReceivedFromClient(flowContext, request);
+        tracker.responseSentToClient(flowContext, response);
+
+        System.out.println("W3C Log: " + tracker.lastLogMessage);
+        // date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
+        // YYYY-MM-DD HH:MM:SS 127.0.0.1 GET /test 200 100 "Mozilla/5.0"
+        assertTrue(tracker.lastLogMessage.contains(" 127.0.0.1 GET /test 200 100 \"Mozilla/5.0\""));
+    }
+
+    @Test
+    void testLtsvFormat() {
+        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.LTSV);
+        setupMocksWithDelay();
+
+        tracker.requestReceivedFromClient(flowContext, request);
+        // Simulate delay
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException ignored) {
+        }
+        tracker.responseSentToClient(flowContext, response);
+
+        System.out.println("LTSV Log: " + tracker.lastLogMessage);
+        // time:... host:127.0.0.1 method:GET uri:/test status:200 size:100 duration:>=0
+        // ua:Mozilla/5.0
+        assertTrue(tracker.lastLogMessage
+                .contains("host:127.0.0.1\tmethod:GET\turi:/test\tstatus:200\tsize:100\tduration:"));
+    }
+
+    @Test
+    void testCsvFormat() {
+        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.CSV);
+        setupMocksWithDelay();
+
+        tracker.requestReceivedFromClient(flowContext, request);
+        tracker.responseSentToClient(flowContext, response);
+
+        System.out.println("CSV Log: " + tracker.lastLogMessage);
+        // "timestamp","127.0.0.1","GET","/test",200,100,duration,"Mozilla/5.0"
+        assertTrue(tracker.lastLogMessage.contains("\",\"127.0.0.1\",\"GET\",\"/test\",200,100,"));
+        assertTrue(tracker.lastLogMessage.endsWith(",\"Mozilla/5.0\""));
+    }
+
+    @Test
+    void testHaproxyFormat() {
+        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.HAPROXY);
+        setupMocksWithDelay();
+
+        tracker.requestReceivedFromClient(flowContext, request);
+        tracker.responseSentToClient(flowContext, response);
+
+        System.out.println("HAProxy Log: " + tracker.lastLogMessage);
+        // 127.0.0.1 [date] "GET /test HTTP/1.1" 200 100 duration
+        assertTrue(tracker.lastLogMessage.startsWith("127.0.0.1 ["));
+        assertTrue(tracker.lastLogMessage.contains("] \"GET /test HTTP/1.1\" 200 100 "));
+    }
+
+    @Test
     void testSquidFormat() {
         TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.SQUID);
         setupMocks();
@@ -84,7 +166,13 @@ class LoggingActivityTrackerTest {
         System.out.println("Squid Log: " + tracker.lastLogMessage);
         // time elapsed remotehost code/status bytes method URL rfc931
         // peerstatus/peerhost type
-        assertTrue(tracker.lastLogMessage.contains("0 127.0.0.1 TCP_MISS/200 100 GET /test - DIRECT/- -"));
+        // Check that elapsed time is present (we can't check exact value easily but
+        // check structure)
+        // 1234567890.123 0 127.0.0.1 ...
+        // We now expect something >= 0, not necessarily hardcoded 0.
+        // Regex: timestamp space duration space ip ...
+        assertTrue(tracker.lastLogMessage
+                .matches(".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*"));
     }
 
     private static class TestableLoggingActivityTracker extends LoggingActivityTracker {
@@ -101,6 +189,15 @@ class LoggingActivityTrackerTest {
     }
 
     private void setupMocks() {
+        setupMocksCommon();
+    }
+
+    private void setupMocksWithDelay() {
+        setupMocksCommon();
+        when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+    }
+
+    private void setupMocksCommon() {
         InetSocketAddress clientAddr = mock(InetSocketAddress.class);
         InetAddress inetAddr = mock(InetAddress.class);
         when(flowContext.getClientAddress()).thenReturn(clientAddr);

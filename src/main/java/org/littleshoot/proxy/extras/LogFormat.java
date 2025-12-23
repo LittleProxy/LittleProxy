@@ -32,5 +32,23 @@ public enum LogFormat {
     /**
      * W3C Extended Log File Format.
      */
-    W3C
+    W3C,
+
+    /**
+     * Labeled Tab-Separated Values (LTSV).
+     * label:value\tlabel2:value2
+     */
+    LTSV,
+
+    /**
+     * Comma-Separated Values (CSV).
+     * "timestamp","host","method","uri",...
+     */
+    CSV,
+
+    /**
+     * HAProxy HTTP Log Format.
+     * Includes detailed timing information.
+     */
+    HAPROXY
 }
