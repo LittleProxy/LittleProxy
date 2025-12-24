@@ -19,6 +19,15 @@
             <param value="%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n" name="ConversionPattern"/>
         </layout>
     </appender>
+    <appender class="org.apache.log4j.ConsoleAppender" name="AccessLogAppender">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param value="%m%n" name="ConversionPattern"/>
+        </layout>
+    </appender>
+    <logger additivity="false" name="org.littleshoot.proxy.extras.LoggingActivityTracker">
+        <level value="info"/>
+        <appender-ref ref="AccessLogAppender"/>
+    </logger>
     <logger name="org.eclipse.jetty">
         <level value="off"/>
     </logger>
