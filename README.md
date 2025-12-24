@@ -491,6 +491,45 @@ The `LogFormat` enum provides several standard formats:
 
 For examples of configuring logging, see [src/test/resources/log4j.xml](src/test/resources/log4j.xml).
 
+#### Customizing Logging Configuration
+
+You can customize the `log4j.xml` configuration to control how logs are output. This is particularly useful for separating access logs from system logs.
+
+**1. Standard Output (Default)**
+
+To print access logs to the console without standard Log4j prefixes (timestamps, thread names, etc.), use a specific appender for the tracker:
+
+```xml
+<appender class="org.apache.log4j.ConsoleAppender" name="AccessLogAppender">
+    <layout class="org.apache.log4j.PatternLayout">
+        <param value="%m%n" name="ConversionPattern"/>
+    </layout>
+</appender>
+
+<logger additivity="false" name="org.littleshoot.proxy.extras.LoggingActivityTracker">
+    <level value="info"/>
+    <appender-ref ref="AccessLogAppender"/>
+</logger>
+```
+
+**2. Dedicated Access Log File**
+
+To write access logs to a separate file (e.g., `access.log`) and exclude them from the main log, use a `FileAppender`:
+
+```xml
+<appender class="org.apache.log4j.FileAppender" name="AccessLogFileAppender">
+    <param value="access.log" name="File"/>
+    <layout class="org.apache.log4j.PatternLayout">
+        <param value="%m%n" name="ConversionPattern"/>
+    </layout>
+</appender>
+
+<logger additivity="false" name="org.littleshoot.proxy.extras.LoggingActivityTracker">
+    <level value="info"/>
+    <appender-ref ref="AccessLogFileAppender"/>
+</logger>
+```
+
 If you have questions, please visit our Google Group here:
 
 https://groups.google.com/forum/#!forum/littleproxy2
