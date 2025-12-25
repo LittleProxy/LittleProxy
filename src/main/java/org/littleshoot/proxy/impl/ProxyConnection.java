@@ -16,6 +16,8 @@ import org.littleshoot.proxy.HttpFilters;
 import org.jspecify.annotations.NullMarked;
 import javax.net.ssl.SSLEngine;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.littleshoot.proxy.impl.ConnectionState.*;
 
 /**
@@ -86,7 +88,7 @@ abstract class ProxyConnection<I extends HttpObject> extends
     @Nullable
     protected volatile SSLEngine sslEngine;
 
-    private static final java.util.concurrent.atomic.AtomicLong CONNECTION_ID_GENERATOR = new java.util.concurrent.atomic.AtomicLong();
+    private static final AtomicLong CONNECTION_ID_GENERATOR = new AtomicLong();
     private final long connectionId;
 
     /**
