@@ -9,11 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -23,6 +23,9 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
 
     private static final Logger LOG = LoggerFactory.getLogger(LoggingActivityTracker.class);
     private static final String DATE_FORMAT_CLF = "dd/MMM/yyyy:HH:mm:ss Z";
+    public static final String UTC = "UTC";
+    public static final String USER_AGENT = "User-Agent";
+    public static final String ISO_8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
     private final LogFormat logFormat;
 
@@ -78,7 +81,7 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
         StringBuilder sb = new StringBuilder();
         InetSocketAddress clientAddress = flowContext.getClientAddress();
         String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-        Date now = new Date();
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of(UTC));
 
         switch (logFormat) {
             case CLF:
@@ -86,7 +89,7 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 sb.append(clientIp).append(" ");
                 sb.append("- "); // ident
                 sb.append("- "); // authuser
-                sb.append("[").append(formatDate(now, DATE_FORMAT_CLF)).append("] ");
+                sb.append("[").append(format(now, DATE_FORMAT_CLF)).append("] ");
                 sb.append("\"").append(request.method()).append(" ").append(request.uri()).append(" ")
                         .append(request.protocolVersion()).append("\" ");
                 sb.append(response.status().code()).append(" ");
@@ -99,33 +102,32 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 sb.append(clientIp).append(" ");
                 sb.append("- "); // ident
                 sb.append("- "); // authuser
-                sb.append("[").append(formatDate(now, DATE_FORMAT_CLF)).append("] ");
+                sb.append("[").append(format(now, DATE_FORMAT_CLF)).append("] ");
                 sb.append("\"").append(request.method()).append(" ").append(request.uri()).append(" ")
                         .append(request.protocolVersion()).append("\" ");
                 sb.append(response.status().code()).append(" ");
                 sb.append(getContentLength(response)).append(" ");
                 sb.append("\"").append(getHeader(request, "Referer")).append("\" ");
-                sb.append("\"").append(getHeader(request, "User-Agent")).append("\"");
+                sb.append("\"").append(getHeader(request, USER_AGENT)).append("\"");
                 break;
 
             case W3C:
                 // W3C Extended Log Format (simplified default)
                 // date time c-ip cs-method cs-uri-stem sc-status sc-bytes
                 // time-taken(optional/unavailable) cs(User-Agent)
-                SimpleDateFormat w3cDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
-                w3cDate.setTimeZone(TimeZone.getTimeZone("UTC"));
-                sb.append(w3cDate.format(now)).append(" ");
+                DateTimeFormatter w3cDateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US);
+                sb.append(now.format(w3cDateTimeFormatter)).append(" ");
                 sb.append(clientIp).append(" ");
                 sb.append(request.method()).append(" ");
                 sb.append(request.uri()).append(" ");
                 sb.append(response.status().code()).append(" ");
                 sb.append(getContentLength(response)).append(" ");
-                sb.append("\"").append(getHeader(request, "User-Agent")).append("\"");
+                sb.append("\"").append(getHeader(request, USER_AGENT)).append("\"");
                 break;
 
             case JSON:
                 sb.append("{");
-                sb.append("\"timestamp\":\"").append(formatDate(now, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")).append("\",");
+                sb.append("\"timestamp\":\"").append(format(now, ISO_8601_PATTERN)).append("\",");
                 sb.append("\"client_ip\":\"").append(clientIp).append("\",");
                 sb.append("\"method\":\"").append(request.method()).append("\",");
                 sb.append("\"uri\":\"").append(escapeJson(request.uri())).append("\",");
@@ -133,38 +135,38 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 sb.append("\"status\":").append(response.status().code()).append(",");
                 sb.append("\"bytes\":").append(getContentLength(response)).append(",");
                 sb.append("\"duration\":").append(duration).append(",");
-                sb.append("\"user_agent\":\"").append(escapeJson(getHeader(request, "User-Agent"))).append("\"");
+                sb.append("\"user_agent\":\"").append(escapeJson(getHeader(request, USER_AGENT))).append("\"");
                 sb.append("}");
                 break;
 
             case LTSV:
                 // Labeled Tab-Separated Values
-                sb.append("time:").append(formatDate(now, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")).append("\t");
+                sb.append("time:").append(format(now, ISO_8601_PATTERN)).append("\t");
                 sb.append("host:").append(clientIp).append("\t");
                 sb.append("method:").append(request.method()).append("\t");
                 sb.append("uri:").append(request.uri()).append("\t");
                 sb.append("status:").append(response.status().code()).append("\t");
                 sb.append("size:").append(getContentLength(response)).append("\t");
                 sb.append("duration:").append(duration).append("\t");
-                sb.append("ua:").append(getHeader(request, "User-Agent"));
+                sb.append("ua:").append(getHeader(request, USER_AGENT));
                 break;
 
             case CSV:
                 // Comma-Separated Values: timestamp,host,method,uri,status,bytes,duration,ua
-                sb.append("\"").append(formatDate(now, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")).append("\",");
+                sb.append("\"").append(format(now, ISO_8601_PATTERN)).append("\",");
                 sb.append("\"").append(clientIp).append("\",");
                 sb.append("\"").append(request.method()).append("\",");
                 sb.append("\"").append(escapeJson(request.uri())).append("\",");
                 sb.append(response.status().code()).append(",");
                 sb.append(getContentLength(response)).append(",");
                 sb.append(duration).append(",");
-                sb.append("\"").append(escapeJson(getHeader(request, "User-Agent"))).append("\"");
+                sb.append("\"").append(escapeJson(getHeader(request, USER_AGENT))).append("\"");
                 break;
 
             case SQUID:
                 // time elapsed remotehost code/status bytes method URL rfc931
                 // peerstatus/peerhost type
-                long timestamp = now.getTime();
+                long timestamp = now.toEpochSecond();
                 sb.append(timestamp / 1000).append(".").append(timestamp % 1000).append(" ");
                 sb.append(duration).append(" "); // elapsed
                 sb.append(clientIp).append(" ");
@@ -183,7 +185,7 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
                 // ...
                 // simplified: client_ip [date] method uri status bytes duration
                 sb.append(clientIp).append(" ");
-                sb.append("[").append(formatDate(now, "dd/MMM/yyyy:HH:mm:ss.SSS")).append("] ");
+                sb.append("[").append(format(now, "dd/MMM/yyyy:HH:mm:ss.SSS")).append("] ");
                 sb.append("\"").append(request.method()).append(" ").append(request.uri()).append(" ")
                         .append(request.protocolVersion()).append("\" ");
                 sb.append(response.status().code()).append(" ");
@@ -195,9 +197,9 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
         return sb.toString();
     }
 
-    private String formatDate(Date date, String pattern) {
-        SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
-        return sdf.format(date);
+    private String format(ZonedDateTime zonedDateTime, String pattern) {
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern(pattern, Locale.US);
+        return zonedDateTime.format(dtf);
     }
 
     private String getContentLength(HttpResponse response) {
