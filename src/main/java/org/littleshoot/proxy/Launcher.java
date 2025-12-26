@@ -114,13 +114,18 @@ public class Launcher {
             return;
         }
         ClassLoader classLoader = Launcher.class.getClassLoader();
-        URL log4jxml = classLoader.getResource("log4j.xml");
-        if(log4jxml == null){
-            LOG.error("Could not find default log4j.xml");
-        }
-        String logConfigPath = log4jxml.getPath();
+
+        String logConfigPath = null;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
+        }else{
+            //default log4j.xml file shipped with the jar
+            URL log4jxml = classLoader.getResource("default_log4j.xml");
+            if(log4jxml == null){
+                LOG.error("Could not find default default_log4j.xml");
+            }else{
+                logConfigPath = log4jxml.getPath();
+            }
         }
         pollLog4JConfigurationFileIfAvailable(logConfigPath);
 
