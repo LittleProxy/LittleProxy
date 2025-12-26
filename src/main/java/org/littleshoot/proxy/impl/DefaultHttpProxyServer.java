@@ -14,6 +14,7 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.*;
+import org.littleshoot.proxy.extras.ActivityLogger;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -822,7 +823,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 try {
                     org.littleshoot.proxy.extras.LogFormat logFormat = org.littleshoot.proxy.extras.LogFormat
                             .valueOf(format.toUpperCase());
-                    plusActivityTracker(new org.littleshoot.proxy.extras.LoggingActivityTracker(logFormat));
+                    plusActivityTracker(new ActivityLogger(logFormat));
                 } catch (IllegalArgumentException e) {
                     LOG.warn("Unknown activity log format requested in properties: {}", format);
                 }

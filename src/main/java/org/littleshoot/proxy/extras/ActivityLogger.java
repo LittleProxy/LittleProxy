@@ -19,9 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * An {@link org.littleshoot.proxy.ActivityTracker} that logs HTTP activity.
  */
-public class LoggingActivityTracker extends ActivityTrackerAdapter {
+public class ActivityLogger extends ActivityTrackerAdapter {
 
-    private static final Logger LOG = LoggerFactory.getLogger(LoggingActivityTracker.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ActivityLogger.class);
     private static final String DATE_FORMAT_CLF = "dd/MMM/yyyy:HH:mm:ss Z";
     public static final String UTC = "UTC";
     public static final String USER_AGENT = "User-Agent";
@@ -41,7 +41,7 @@ public class LoggingActivityTracker extends ActivityTrackerAdapter {
 
     private final Map<FlowContext, TimedRequest> requestMap = new ConcurrentHashMap<>();
 
-    public LoggingActivityTracker(LogFormat logFormat) {
+    public ActivityLogger(LogFormat logFormat) {
         this.logFormat = logFormat;
     }
 

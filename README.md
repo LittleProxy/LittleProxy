@@ -459,15 +459,22 @@ LittleProxy includes a `LoggingActivityTracker` that can log detailed informatio
 To use it, wrap your functionality or simply add it to your server bootstrap:
 
 ```java
+import org.littleshoot.proxy.extras.ActivityLogger;
 import org.littleshoot.proxy.extras.LoggingActivityTracker;
 import org.littleshoot.proxy.extras.LogFormat;
 
 // ...
 
 DefaultHttpProxyServer.bootstrap()
-    .withPort(8080)
-    .plusActivityTracker(new LoggingActivityTracker(LogFormat.CLF)) // Use Common Log Format
-    .start();
+    .
+
+withPort(8080)
+    .
+
+plusActivityTracker(new ActivityLogger(LogFormat.CLF)) // Use Common Log Format
+        .
+
+start();
 ```
 
 #### Supported Log Formats
@@ -500,15 +507,16 @@ You can customize the `log4j.xml` configuration to control how logs are output. 
 To print access logs to the console without standard Log4j prefixes (timestamps, thread names, etc.), use a specific appender for the tracker:
 
 ```xml
+
 <appender class="org.apache.log4j.ConsoleAppender" name="AccessLogAppender">
     <layout class="org.apache.log4j.PatternLayout">
         <param value="%m%n" name="ConversionPattern"/>
     </layout>
 </appender>
 
-<logger additivity="false" name="org.littleshoot.proxy.extras.LoggingActivityTracker">
-    <level value="info"/>
-    <appender-ref ref="AccessLogAppender"/>
+<logger additivity="false" name="org.littleshoot.proxy.extras.ActivityLogger">
+<level value="info"/>
+<appender-ref ref="AccessLogAppender"/>
 </logger>
 ```
 
@@ -517,6 +525,7 @@ To print access logs to the console without standard Log4j prefixes (timestamps,
 To write access logs to a separate file (e.g., `access.log`) and exclude them from the main log, use a `FileAppender`:
 
 ```xml
+
 <appender class="org.apache.log4j.FileAppender" name="AccessLogFileAppender">
     <param value="access.log" name="File"/>
     <layout class="org.apache.log4j.PatternLayout">
@@ -524,9 +533,9 @@ To write access logs to a separate file (e.g., `access.log`) and exclude them fr
     </layout>
 </appender>
 
-<logger additivity="false" name="org.littleshoot.proxy.extras.LoggingActivityTracker">
-    <level value="info"/>
-    <appender-ref ref="AccessLogFileAppender"/>
+<logger additivity="false" name="org.littleshoot.proxy.extras.ActivityLogger">
+<level value="info"/>
+<appender-ref ref="AccessLogFileAppender"/>
 </logger>
 ```
 

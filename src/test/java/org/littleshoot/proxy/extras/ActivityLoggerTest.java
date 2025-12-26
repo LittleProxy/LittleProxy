@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class LoggingActivityTrackerTest {
+class ActivityLoggerTest {
 
     @Mock
     private FlowContext flowContext;
@@ -44,7 +44,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testClfFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.CLF);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CLF);
         setupMocks();
 
         tracker.requestReceivedFromClient(flowContext, request);
@@ -58,7 +58,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testJsonFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.JSON);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
         setupMocks();
 
         tracker.requestReceivedFromClient(flowContext, request);
@@ -75,7 +75,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testElfFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.ELF);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.ELF);
         setupMocks();
         when(requestHeaders.get("Referer")).thenReturn("http://referrer.com");
         when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
@@ -94,7 +94,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testW3cFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.W3C);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.W3C);
         setupMocks();
         when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
@@ -109,7 +109,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testLtsvFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.LTSV);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV);
         setupMocksWithDelay();
 
         tracker.requestReceivedFromClient(flowContext, request);
@@ -129,7 +129,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testCsvFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.CSV);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV);
         setupMocksWithDelay();
 
         tracker.requestReceivedFromClient(flowContext, request);
@@ -143,7 +143,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testHaproxyFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.HAPROXY);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.HAPROXY);
         setupMocksWithDelay();
 
         tracker.requestReceivedFromClient(flowContext, request);
@@ -157,7 +157,7 @@ class LoggingActivityTrackerTest {
 
     @Test
     void testSquidFormat() {
-        TestableLoggingActivityTracker tracker = new TestableLoggingActivityTracker(LogFormat.SQUID);
+        TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.SQUID);
         setupMocks();
 
         tracker.requestReceivedFromClient(flowContext, request);
@@ -175,10 +175,10 @@ class LoggingActivityTrackerTest {
                 .matches(".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*"));
     }
 
-    private static class TestableLoggingActivityTracker extends LoggingActivityTracker {
+    private static class TestableActivityLogger extends ActivityLogger {
         String lastLogMessage;
 
-        public TestableLoggingActivityTracker(LogFormat logFormat) {
+        public TestableActivityLogger(LogFormat logFormat) {
             super(logFormat);
         }
 

@@ -3,6 +3,7 @@ package org.littleshoot.proxy;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
+import org.littleshoot.proxy.extras.ActivityLogger;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
@@ -324,7 +325,7 @@ public class Launcher {
             try {
                 org.littleshoot.proxy.extras.LogFormat logFormat = org.littleshoot.proxy.extras.LogFormat
                         .valueOf(format.toUpperCase());
-                bootstrap.plusActivityTracker(new org.littleshoot.proxy.extras.LoggingActivityTracker(logFormat));
+                bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
                 LOG.info("Using activity log format: {}", logFormat);
             } catch (IllegalArgumentException e) {
                 printHelp(options, "Unknown activity log format: " + format);
