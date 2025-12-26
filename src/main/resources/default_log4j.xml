@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+    <appender class="org.apache.log4j.ConsoleAppender" name="stdout">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param value="%-6r %d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n" name="ConversionPattern"/>
+        </layout>
+    </appender>
+    <logger name="org.eclipse.jetty">
+        <level value="OFF"/>
+    </logger>
+    <logger name="org.littleshoot.proxy">
+        <level value="INFO"/>
+    </logger>
+    <logger name="io.netty">
+        <level value="INFO"/>
+    </logger>
+
+    <root>
+        <level value="INFO"/>
+        <appender-ref ref="stdout"/>
+    </root>
+</log4j:configuration>

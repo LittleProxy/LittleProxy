@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.util.Arrays;
 
 import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
@@ -112,10 +113,19 @@ public class Launcher {
                     "Could not parse command line: " + Arrays.asList(args));
             return;
         }
+        ClassLoader classLoader = Launcher.class.getClassLoader();
 
-        String logConfigPath = "src/test/resources/log4j.xml";
+        String logConfigPath = null;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
+        }else{
+            //default log4j.xml file shipped with the jar
+            URL log4jxml = classLoader.getResource("default_log4j.xml");
+            if(log4jxml == null){
+                LOG.error("Could not find default default_log4j.xml");
+            }else{
+                logConfigPath = log4jxml.getPath();
+            }
         }
         pollLog4JConfigurationFileIfAvailable(logConfigPath);
 
@@ -126,7 +136,11 @@ public class Launcher {
             return;
         }
 
-        String proxyConfigurationPath = "./littleproxy.properties";
+        URL littleproxyProperties = classLoader.getResource("littleproxy.properties");
+        if(littleproxyProperties == null){
+            LOG.error("Could not find default littleproxy.properties");
+        }
+        String proxyConfigurationPath = littleproxyProperties.getPath();
         if (cmd.hasOption(OPTION_CONFIG)) {
             proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
             LOG.info("Using configuration file: {}", proxyConfigurationPath);
@@ -323,7 +337,8 @@ public class Launcher {
         }
 
     }
-
+    //load4j is not yet loaded at this point
+    @SuppressWarnings("java:S106")
     private static void printHelp(final Options options,
                                   final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {

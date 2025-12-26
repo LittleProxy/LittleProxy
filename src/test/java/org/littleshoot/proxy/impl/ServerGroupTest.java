@@ -4,15 +4,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.HttpProxyServer;
 
+import java.io.IOException;
+import java.net.ServerSocket;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.littleshoot.proxy.impl.ProxyUtils.getFreePort;
 
 class ServerGroupTest {
     private ServerGroup serverGroup;
 
     private void startAndStopProxyServer() {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withServerGroup(serverGroup).start();
+        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(getFreePort()).withServerGroup(serverGroup).start();
         proxyServer.stop();
     }
 

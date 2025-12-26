@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -645,5 +646,14 @@ public class ProxyUtils {
     public static boolean isSwitchingToWebSocketProtocol(HttpRequest request) {
         return request.headers().contains(HttpHeaderNames.CONNECTION, HttpHeaderNames.UPGRADE, true)
                 && request.headers().contains(HttpHeaderNames.UPGRADE, "websocket", true);
+    }
+
+
+    public static int getFreePort(){
+        try (ServerSocket serverSocket = new ServerSocket(0)) {
+            return serverSocket.getLocalPort();
+        } catch (IOException e) {
+            throw new RuntimeException("cannot find free port",e);
+        }
     }
 }
