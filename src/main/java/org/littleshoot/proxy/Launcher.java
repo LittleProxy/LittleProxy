@@ -337,7 +337,8 @@ public class Launcher {
         }
 
     }
-
+    //load4j is not yet loaded at this point
+    @SuppressWarnings("java:S106")
     private static void printHelp(final Options options,
                                   final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
