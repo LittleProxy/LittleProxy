@@ -24,14 +24,15 @@ public final class ServerErrorTest {
                 .withPort(0)
                 .start();
 
-        // we have to create our own socket here, since any proper http server (jetty, mockserver, etc.) won't allow us to
+        // we have to create our own socket here, since any proper http server (jetty,
+        // wiremock, etc.) won't allow us to
         // send invalid responses.
         try (ServerSocket socket = createServerWithBadResponse()) {
             org.apache.http.HttpResponse response = performLocalHttpGet(socket.getLocalPort(), "/", proxyServer);
 
             assertThat(response.getStatusLine().getStatusCode())
-              .as("Expected to receive a 502 Bad Gateway after server responded with invalid response")
-              .isEqualTo(502);
+                    .as("Expected to receive a 502 Bad Gateway after server responded with invalid response")
+                    .isEqualTo(502);
         }
     }
 
@@ -43,7 +44,8 @@ public final class ServerErrorTest {
     }
 
     /**
-     * Creates a ServerSocket that will read an HTTP request and response with an invalid response.
+     * Creates a ServerSocket that will read an HTTP request and response with an
+     * invalid response.
      * NOTE: the ServerSocket must be closed after the response is consumed.
      */
     private static ServerSocket createServerWithBadResponse() {
@@ -59,7 +61,7 @@ public final class ServerErrorTest {
                 Socket socket = serverSocket.accept();
 
                 try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                     while (!in.readLine().isEmpty()) {
                         // read the request up to the double-CRLF
                     }

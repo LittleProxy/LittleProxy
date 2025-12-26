@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -9,31 +10,31 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
-import org.mockserver.integration.ClientAndServer;
-import org.mockserver.matchers.Times;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
 
 public final class ServerGroupTest {
-    private ClientAndServer mockServer;
+    private WireMockServer mockServer;
     private int mockServerPort;
 
     private HttpProxyServer proxyServer;
 
     @BeforeEach
     void setUp() {
-        mockServer = new ClientAndServer(0);
-        mockServerPort = mockServer.getLocalPort();
+        mockServer = new WireMockServer(options().dynamicPort());
+        mockServer.start();
+        mockServerPort = mockServer.port();
     }
 
     @AfterEach
@@ -54,31 +55,28 @@ public final class ServerGroupTest {
         final String firstRequestPath = "/testSingleThreadFirstRequest";
         final String secondRequestPath = "/testSingleThreadSecondRequest";
 
-        // set up two server responses that will execute more or less simultaneously. the first request has a small
-        // delay, to reduce the chance that the first request will finish entirely before the second  request is finished
-        // (and thus be somewhat more likely to be serviced by the same thread, even if the ThreadPoolConfiguration is
+        // set up two server responses that will execute more or less simultaneously.
+        // the first request has a small
+        // delay, to reduce the chance that the first request will finish entirely
+        // before the second request is finished
+        // (and thus be somewhat more likely to be serviced by the same thread, even if
+        // the ThreadPoolConfiguration is
         // not behaving properly).
-        mockServer.when(request()
-                        .withMethod("GET")
-                        .withPath(firstRequestPath),
-                Times.exactly(1))
-                .respond(response()
-                                .withStatusCode(200)
-                                .withBody("first")
-                                .withDelay(TimeUnit.MILLISECONDS, 500)
-                );
+        mockServer.stubFor(get(urlEqualTo(firstRequestPath))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("first")
+                        .withFixedDelay(500)));
 
-        mockServer.when(request()
-                        .withMethod("GET")
-                        .withPath(secondRequestPath),
-                Times.exactly(1))
-                .respond(response()
-                                .withStatusCode(200)
-                                .withBody("second")
-                );
+        mockServer.stubFor(get(urlEqualTo(secondRequestPath))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("second")));
 
-        // save the names of the threads that execute the filter methods. filter methods are executed by the worker thread
-        // handling the request/response, so if there is only one worker thread, the filter methods should be executed
+        // save the names of the threads that execute the filter methods. filter methods
+        // are executed by the worker thread
+        // handling the request/response, so if there is only one worker thread, the
+        // filter methods should be executed
         // by the same thread.
         final AtomicReference<String> firstClientThreadName = new AtomicReference<>();
         final AtomicReference<String> secondClientThreadName = new AtomicReference<>();
@@ -94,7 +92,8 @@ public final class ServerGroupTest {
                     public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
                         return new HttpFiltersAdapter(originalRequest) {
                             @Override
-                            public io.netty.handler.codec.http.HttpResponse clientToProxyRequest(@NonNull HttpObject httpObject) {
+                            public io.netty.handler.codec.http.HttpResponse clientToProxyRequest(
+                                    @NonNull HttpObject httpObject) {
                                 if (originalRequest.uri().endsWith(firstRequestPath)) {
                                     firstClientThreadName.set(Thread.currentThread().getName());
                                 } else if (originalRequest.uri().endsWith(secondRequestPath)) {
@@ -121,7 +120,8 @@ public final class ServerGroupTest {
                         .withProxyToServerWorkerThreads(1))
                 .start();
 
-        // execute both requests in parallel, to increase the chance of blocking due to the single-threaded ThreadPoolConfiguration
+        // execute both requests in parallel, to increase the chance of blocking due to
+        // the single-threaded ThreadPoolConfiguration
 
         Runnable firstRequest = () -> {
             HttpResponse response = performLocalHttpGet(mockServerPort, firstRequestPath, proxyServer);
@@ -142,12 +142,12 @@ public final class ServerGroupTest {
 
         Thread.sleep(500);
 
-          assertThat(secondClientThreadName.get())
-            .as("Expected clientToProxy filter methods to be executed on the same thread for both requests")
-            .isEqualTo(firstClientThreadName.get());
-          assertThat(secondProxyThreadName.get())
-            .as("Expected serverToProxy filter methods to be executed on the same thread for both requests")
-            .isEqualTo(firstProxyThreadName.get());
+        assertThat(secondClientThreadName.get())
+                .as("Expected clientToProxy filter methods to be executed on the same thread for both requests")
+                .isEqualTo(firstClientThreadName.get());
+        assertThat(secondProxyThreadName.get())
+                .as("Expected serverToProxy filter methods to be executed on the same thread for both requests")
+                .isEqualTo(firstProxyThreadName.get());
     }
 
 }
