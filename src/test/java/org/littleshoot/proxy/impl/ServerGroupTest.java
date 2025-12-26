@@ -12,7 +12,8 @@ class ServerGroupTest {
     private ServerGroup serverGroup;
 
     private void startAndStopProxyServer() {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withServerGroup(serverGroup).start();
+        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).withServerGroup(serverGroup)
+                .start();
         proxyServer.stop();
     }
 
