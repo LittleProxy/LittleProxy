@@ -2,6 +2,7 @@
 
 - 2.5.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/49)
   - TBD
+  - fix LittleProxy is not starting with jdk higher than jdk 11. (#669)
 
 - 2.5.0 (19.12.2025, https://github.com/LittleProxy/LittleProxy/milestone/48?closed=1)
   - enhance documentation with run.bash script options (#659) by Charles Lescot

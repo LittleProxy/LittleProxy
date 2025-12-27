@@ -14,8 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
-import org.mockserver.integration.ClientAndServer;
-import org.mockserver.matchers.Times;
+import com.github.tomakehurst.wiremock.WireMockServer;
 import org.openqa.selenium.Proxy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -28,29 +27,33 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static java.time.Duration.ofSeconds;
 import static java.util.Locale.ROOT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
 
 /**
  * End-to-end test making sure the proxy is able to service simple HTTP requests
  * and stop at the end. Made into a unit test from isopov and nasis's
- * contributions at: <a href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
+ * contributions at:
+ * <a href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
  */
 public final class EndToEndStoppingTest {
     private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
 
-    private ClientAndServer mockServer;
+    private WireMockServer mockServer;
     private int mockServerPort;
 
     @BeforeEach
     void setUp() {
-        mockServer = new ClientAndServer(0);
-        mockServerPort = mockServer.getLocalPort();
+        mockServer = new WireMockServer(options().dynamicPort());
+        mockServer.start();
+        mockServerPort = mockServer.port();
     }
 
     @AfterEach
@@ -92,14 +95,10 @@ public final class EndToEndStoppingTest {
 
     @Test
     public void testWithHttpClient() throws Exception {
-        mockServer.when(request()
-                        .withMethod("GET")
-                        .withPath("/success"),
-                Times.exactly(1))
-                .respond(response()
-                                .withStatusCode(200)
-                                .withBody("Success!")
-                );
+        mockServer.stubFor(get(urlEqualTo("/success"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("Success!")));
 
         final String url = "http://127.0.0.1:" + mockServerPort + "/success";
         final String[] sites = { url };
@@ -117,7 +116,8 @@ public final class EndToEndStoppingTest {
                     public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
                         return new HttpFiltersAdapter(originalRequest) {
                             @Override
-                            public io.netty.handler.codec.http.HttpResponse proxyToServerRequest(@NonNull HttpObject httpObject) {
+                            public io.netty.handler.codec.http.HttpResponse proxyToServerRequest(
+                                    @NonNull HttpObject httpObject) {
                                 System.out.println("Request with through proxy");
                                 return null;
                             }
@@ -164,8 +164,7 @@ public final class EndToEndStoppingTest {
         try {
             Proxy proxy = createSeleniumProxy(proxyServer);
             tryProxyWithBrowser(proxy);
-        }
-        finally {
+        } finally {
             proxyServer.abort();
         }
     }
@@ -193,8 +192,7 @@ public final class EndToEndStoppingTest {
 
             // Just make sure it got something within reason
             assertThat(source).hasSizeGreaterThan(100);
-        }
-        finally {
+        } finally {
             driver.quit();
         }
     }
