@@ -1,9 +1,9 @@
 # Release Notes
 
 - 2.5.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/49)
-  - TBD
-  - fix LittleProxy is not starting with jdk higher than jdk 11. (#669)
-
+  - fix LittleProxy is not starting with jdk higher than jdk 11. (#669) by Charles Lescot
+  - add explicit logging support with "activity_log_format" option (CLI and config file) supporting CLF, ELF, JSON, LTSV, CSV, SQUID, HAPROXY formats (#668) by Charles Lescot
+  
 - 2.5.0 (19.12.2025, https://github.com/LittleProxy/LittleProxy/milestone/48?closed=1)
   - enhance documentation with run.bash script options (#659) by Charles Lescot
   - add the --server option to Launch proxy as a server (#660) by Charles Lescot

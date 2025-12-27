@@ -15,11 +15,13 @@ import java.net.InetSocketAddress;
 public class FlowContext {
     private final InetSocketAddress clientAddress;
     private final SSLSession clientSslSession;
+    private final long connectionId;
 
     public FlowContext(ClientToProxyConnection clientConnection) {
         clientAddress = clientConnection.getClientAddress();
         SSLEngine sslEngine = clientConnection.getSslEngine();
         clientSslSession = sslEngine != null ? sslEngine.getSession() : null;
+        this.connectionId = clientConnection.getId();
     }
 
     /**
@@ -35,6 +37,21 @@ public class FlowContext {
      */
     public SSLSession getClientSslSession() {
         return clientSslSession;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof FlowContext))
+            return false;
+        FlowContext that = (FlowContext) o;
+        return connectionId == that.connectionId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(connectionId);
     }
 
 }
