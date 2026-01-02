@@ -3,20 +3,7 @@ package org.littleshoot.proxy.impl;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMessage;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpObject;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.*;
 import io.netty.util.AsciiString;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -28,14 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -72,6 +53,9 @@ public class ProxyUtils {
     // https://tools.ietf.org/html/rfc3986#section-3.1
     private static final Pattern HTTP_PREFIX = Pattern.compile("^(http|ws)s?://.*",
             Pattern.CASE_INSENSITIVE);
+
+
+    private ProxyUtils(){}
 
     /**
      * Strips the host from a URI string. This will turn "https://host.com/path"
@@ -535,7 +519,7 @@ public class ProxyUtils {
      */
     public static List<String> splitCommaSeparatedHeaderValues(String headerValue) {
       return Stream.of(headerValue.split(","))
-        .map(s -> s.trim())
+        .map(String::trim)
         .filter(s -> !s.isEmpty())
         .collect(toList());
     }
@@ -648,12 +632,4 @@ public class ProxyUtils {
                 && request.headers().contains(HttpHeaderNames.UPGRADE, "websocket", true);
     }
 
-
-    public static int getFreePort(){
-        try (ServerSocket serverSocket = new ServerSocket(0)) {
-            return serverSocket.getLocalPort();
-        } catch (IOException e) {
-            throw new RuntimeException("cannot find free port",e);
-        }
-    }
 }
