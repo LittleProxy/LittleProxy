@@ -4,6 +4,7 @@ import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
 import org.littleshoot.proxy.extras.ActivityLogger;
+import org.littleshoot.proxy.extras.LogFormat;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
@@ -13,8 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.net.InetSocketAddress;
-import java.net.URL;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.*;
 import java.util.Arrays;
 
 import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
@@ -68,7 +70,12 @@ public class Launcher {
      * @param args Any command line arguments.
      */
     public static void main(final String... args) {
+        Launcher launcher = new Launcher();
+        launcher.start(args);
 
+    }
+
+    protected void start(String[] args) {
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
@@ -124,18 +131,42 @@ public class Launcher {
                     "Could not parse command line: " + Arrays.asList(args));
             return;
         }
+
+
+
         ClassLoader classLoader = Launcher.class.getClassLoader();
 
-        String logConfigPath = null;
+        URI logConfigPath;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
-            logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
+            String optionValue = "";
+            try {
+                optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
+                logConfigPath = new URL(optionValue).toURI();
+            } catch (URISyntaxException | MalformedURLException e) {
+                System.err.println("'"+optionValue + "' is not a valid file path or URL");
+                throw new RuntimeException(e);
+            }
         }else{
             //default log4j.xml file shipped with the jar
-            URL log4jxml = classLoader.getResource("default_log4j.xml");
-            if(log4jxml == null){
-                LOG.error("Could not find default default_log4j.xml");
+            InputStream inputStream;
+            try {
+                inputStream = classLoader.getResourceAsStream("default_log4j.xml");
+                File tempFile = File.createTempFile("default_log4j", ".xml");
+                java.nio.file.Files.copy(
+                        inputStream,
+                        tempFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                logConfigPath = tempFile.toURI();
+                System.out.println("tempfile:"+logConfigPath);
+                tempFile.deleteOnExit();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            if(inputStream == null){
+                System.err.println("Could not find default default_log4j.xml");
+                throw new IllegalStateException("Could not find default 'default_log4j.xml' into jar");
             }else{
-                logConfigPath = log4jxml.getPath();
+                System.out.println("using 'default_log4j.xml");
             }
         }
         pollLog4JConfigurationFileIfAvailable(logConfigPath);
@@ -158,8 +189,7 @@ public class Launcher {
             cmd.getOptionValue(OPTION_CONFIG);
         }
 
-        HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
-                .bootstrapFromFile(proxyConfigurationPath);
+        HttpProxyServerBootstrap bootstrap = bootstrapFromFile(proxyConfigurationPath);
 
         int port;
         if (cmd.hasOption(OPTION_PORT)) {
@@ -305,7 +335,7 @@ public class Launcher {
 
         ThreadPoolConfiguration threadPoolConfiguration = new ThreadPoolConfiguration();
         boolean threadPoolConfigSet = false; // Flag to track if thread pool configuration is set through command line
-                                             // options
+        // options
         if (cmd.hasOption(OPTION_CLIENT_TO_PROXY_WORKER_THREADS)) {
             String optionValue = cmd.getOptionValue(OPTION_CLIENT_TO_PROXY_WORKER_THREADS);
             LOG.info("Setting client to proxy worker threads to :'{}'", optionValue);
@@ -337,7 +367,7 @@ public class Launcher {
         if (cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
             String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
             try {
-                org.littleshoot.proxy.extras.LogFormat logFormat = org.littleshoot.proxy.extras.LogFormat
+                LogFormat logFormat = LogFormat
                         .valueOf(format.toUpperCase());
                 bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
                 LOG.info("Using activity log format: {}", logFormat);
@@ -360,8 +390,8 @@ public class Launcher {
                 Thread.currentThread().interrupt();
             }
         }
-
     }
+
     //load4j is not yet loaded at this point
     @SuppressWarnings("java:S106")
     private static void printHelp(final Options options,
@@ -375,8 +405,8 @@ public class Launcher {
         formatter.printHelp("littleproxy", options);
     }
 
-    private static void pollLog4JConfigurationFileIfAvailable(String pathname) {
-        File log4jConfigurationFile = new File(pathname);
+    private static void pollLog4JConfigurationFileIfAvailable(URI uri) {
+        File log4jConfigurationFile = new File(uri);
         if (log4jConfigurationFile.exists()) {
             DOMConfigurator.configureAndWatch(
                     log4jConfigurationFile.getAbsolutePath(), 15);
