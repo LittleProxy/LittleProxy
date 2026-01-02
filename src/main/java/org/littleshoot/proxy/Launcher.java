@@ -306,6 +306,7 @@ public class Launcher {
         }
     }
 
+    @SuppressWarnings("java:S106")
     private void configureLogging(CommandLine cmd) {
         URI logConfigPath;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
