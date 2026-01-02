@@ -335,7 +335,7 @@ public class Launcher {
                 System.err.println("Could not find default default_log4j.xml");
                 throw new IllegalStateException("Could not find default 'default_log4j.xml' into jar");
             }else{
-                System.out.println("using 'default_log4j.xml");
+                System.out.println("using 'default_log4j.xml'");
             }
         }
         pollLog4JConfigurationFileIfAvailable(logConfigPath);
