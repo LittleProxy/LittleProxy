@@ -354,12 +354,12 @@ public class Launcher {
         } catch (final ParseException e) {
             printHelp(options,
                     "Could not parse command line: " + Arrays.asList(args));
-            System.exit(1);
+            throw new IllegalStateException("Could not parse command line: " + Arrays.asList(args));
         }
         return cmd;
     }
 
-    private static @NonNull Options getOptions() {
+    protected @NonNull Options getOptions() {
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
