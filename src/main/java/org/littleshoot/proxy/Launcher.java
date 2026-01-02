@@ -64,7 +64,7 @@ public class Launcher {
     private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = PROXY_TO_SERVER_WORKER_THREADS;
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
-
+    private final ClassLoader classLoader = Launcher.class.getClassLoader();
     /**
      * Starts the proxy from the command line.
      *
@@ -79,59 +79,9 @@ public class Launcher {
     protected void start(String[] args) {
         final Options options = getOptions();
 
-        final CommandLineParser parser = new DefaultParser();
-        final CommandLine cmd;
-        try {
-            cmd = parser.parse(options, args);
-            if (cmd.getArgs().length > 0) {
-                throw new UnrecognizedOptionException(
-                        "Extra arguments were provided in "
-                                + Arrays.asList(args));
-            }
-        } catch (final ParseException e) {
-            printHelp(options,
-                    "Could not parse command line: " + Arrays.asList(args));
-            return;
-        }
+        CommandLine cmd = parseCommandLine(args, options);
 
-
-
-        ClassLoader classLoader = Launcher.class.getClassLoader();
-
-        URI logConfigPath;
-        if (cmd.hasOption(OPTION_LOG_CONFIG)) {
-            String optionValue = "";
-            try {
-                optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
-                logConfigPath = new URL(optionValue).toURI();
-            } catch (URISyntaxException | MalformedURLException e) {
-                System.err.println("'"+optionValue + "' is not a valid file path or URL");
-                throw new RuntimeException(e);
-            }
-        }else{
-            //default log4j.xml file shipped with the jar
-            InputStream inputStream;
-            try {
-                inputStream = classLoader.getResourceAsStream("default_log4j.xml");
-                File tempFile = File.createTempFile("default_log4j", ".xml");
-                java.nio.file.Files.copy(
-                        inputStream,
-                        tempFile.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                logConfigPath = tempFile.toURI();
-                System.out.println("tempfile:"+logConfigPath);
-                tempFile.deleteOnExit();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            if(inputStream == null){
-                System.err.println("Could not find default default_log4j.xml");
-                throw new IllegalStateException("Could not find default 'default_log4j.xml' into jar");
-            }else{
-                System.out.println("using 'default_log4j.xml");
-            }
-        }
-        pollLog4JConfigurationFileIfAvailable(logConfigPath);
+        configureLogging(cmd);
 
         LOG.info("Running LittleProxy with args: {}", Arrays.asList(args));
 
@@ -354,6 +304,61 @@ public class Launcher {
         }
     }
 
+    private void configureLogging(CommandLine cmd) {
+        URI logConfigPath;
+        if (cmd.hasOption(OPTION_LOG_CONFIG)) {
+            String optionValue = "";
+            try {
+                optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
+                logConfigPath = new URI(optionValue);
+            } catch (URISyntaxException e) {
+                System.err.println("'"+optionValue + "' is not a valid file path or URL");
+                throw new RuntimeException(e);
+            }
+        }else{
+            //default log4j.xml file shipped with the jar
+            InputStream inputStream;
+            try {
+                inputStream = classLoader.getResourceAsStream("default_log4j.xml");
+                File tempFile = File.createTempFile("default_log4j", ".xml");
+                java.nio.file.Files.copy(
+                        inputStream,
+                        tempFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                logConfigPath = tempFile.toURI();
+                System.out.println("tempfile:"+logConfigPath);
+                tempFile.deleteOnExit();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            if(inputStream == null){
+                System.err.println("Could not find default default_log4j.xml");
+                throw new IllegalStateException("Could not find default 'default_log4j.xml' into jar");
+            }else{
+                System.out.println("using 'default_log4j.xml");
+            }
+        }
+        pollLog4JConfigurationFileIfAvailable(logConfigPath);
+    }
+
+    private @NonNull CommandLine parseCommandLine(String[] args, Options options) {
+        final CommandLineParser parser = new DefaultParser();
+        CommandLine cmd=null;
+        try {
+            cmd = parser.parse(options, args);
+            if (cmd.getArgs().length > 0) {
+                throw new UnrecognizedOptionException(
+                        "Extra arguments were provided in "
+                                + Arrays.asList(args));
+            }
+        } catch (final ParseException e) {
+            printHelp(options,
+                    "Could not parse command line: " + Arrays.asList(args));
+            System.exit(1);
+        }
+        return cmd;
+    }
+
     private static @NonNull Options getOptions() {
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
@@ -400,7 +405,7 @@ public class Launcher {
 
     //load4j is not yet loaded at this point
     @SuppressWarnings("java:S106")
-    private static void printHelp(final Options options,
+    private void printHelp(final Options options,
             final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
             LOG.error(errorMessage);
@@ -411,7 +416,7 @@ public class Launcher {
         formatter.printHelp("littleproxy", options);
     }
 
-    private static void pollLog4JConfigurationFileIfAvailable(URI uri) {
+    private void pollLog4JConfigurationFileIfAvailable(URI uri) {
         File log4jConfigurationFile = new File(uri);
         if (log4jConfigurationFile.exists()) {
             DOMConfigurator.configureAndWatch(
