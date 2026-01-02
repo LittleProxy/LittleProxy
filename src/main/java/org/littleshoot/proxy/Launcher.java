@@ -17,8 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 
@@ -308,29 +306,24 @@ public class Launcher {
 
     @SuppressWarnings("java:S106")
     private void configureLogging(CommandLine cmd) {
-        URI logConfigPath;
+        File logConfigPath;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             String optionValue = "";
-            try {
-                optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
-                logConfigPath = new URI(optionValue);
-            } catch (URISyntaxException e) {
-                System.err.println("'"+optionValue + "' is not a valid file path or URL");
-                throw new RuntimeException(e);
-            }
+            optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
+            logConfigPath = new File(optionValue);
         }else{
             //default log4j.xml file shipped with the jar
             InputStream inputStream;
             try {
                 inputStream = classLoader.getResourceAsStream("default_log4j.xml");
-                File tempFile = File.createTempFile("default_log4j", ".xml");
+                logConfigPath = File.createTempFile("default_log4j", ".xml");
+                assert inputStream != null;
                 java.nio.file.Files.copy(
                         inputStream,
-                        tempFile.toPath(),
+                        logConfigPath.toPath(),
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                logConfigPath = tempFile.toURI();
                 System.out.println("tempfile:"+logConfigPath);
-                tempFile.deleteOnExit();
+                logConfigPath.deleteOnExit();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -419,8 +412,7 @@ public class Launcher {
         formatter.printHelp("littleproxy", options);
     }
 
-    private void pollLog4JConfigurationFileIfAvailable(URI uri) {
-        File log4jConfigurationFile = new File(uri);
+    private void pollLog4JConfigurationFileIfAvailable(File log4jConfigurationFile) {
         if (log4jConfigurationFile.exists()) {
             DOMConfigurator.configureAndWatch(
                     log4jConfigurationFile.getAbsolutePath(), 15);
