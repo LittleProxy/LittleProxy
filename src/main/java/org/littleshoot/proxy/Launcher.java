@@ -3,6 +3,7 @@ package org.littleshoot.proxy;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
+import org.littleshoot.proxy.extras.ActivityLogger;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
@@ -52,13 +53,14 @@ public class Launcher {
     private static final String OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD = SSL_CLIENTS_KEYSTORE_PASSWORD;
     private static final String OPTION_TRANSPARENT = TRANSPARENT;
     private static final String OPTION_THROTTLE_READ_BYTES_PER_SECOND = THROTTLE_READ_BYTES_PER_SECOND;
-    private static final String OPTION_THROTTE_WRITE_BYTES_PER_SECOND = THROTTLE_WRITE_BYTES_PER_SECOND;
+    private static final String OPTION_THROTTLE_WRITE_BYTES_PER_SECOND = THROTTLE_WRITE_BYTES_PER_SECOND;
     private static final String OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER = ALLOW_REQUESTS_TO_ORIGIN_SERVER;
     private static final String OPTION_ALLOW_PROXY_PROTOCOL = ALLOW_PROXY_PROTOCOL;
     private static final String OPTION_SEND_PROXY_PROTOCOL = SEND_PROXY_PROTOCOL;
     private static final String OPTION_CLIENT_TO_PROXY_WORKER_THREADS = CLIENT_TO_PROXY_WORKER_THREADS;
     private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = PROXY_TO_SERVER_WORKER_THREADS;
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
+    private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
 
     /**
      * Starts the proxy from the command line.
@@ -82,22 +84,31 @@ public class Launcher {
         options.addOption(null, OPTION_NAME, true, "name of the proxy.");
         options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
         options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
-        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true, "Allow only local connections to the proxy (true|false).");
-        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true, "Whether to authenticate SSL clients (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true, "Whether SSL clients should trust all servers (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true, "Whether SSL clients should send certificates (true|false).");
+        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true,
+                "Allow only local connections to the proxy (true|false).");
+        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true,
+                "Whether to authenticate SSL clients (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true,
+                "Whether SSL clients should trust all servers (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true,
+                "Whether SSL clients should send certificates (true|false).");
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PATH, true, "Path to keystore for SSL clients.");
         options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true, "Password for the keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true,
+                "Password for the keystore for SSL clients.");
         options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
         options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
-        options.addOption(null, OPTION_THROTTE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
-        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true, "Allow requests to origin server (true|false).");
+        options.addOption(null, OPTION_THROTTLE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
+        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,
+                "Allow requests to origin server (true|false).");
         options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
         options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
-        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true, "Number of client-to-proxy worker threads.");
-        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true, "Number of proxy-to-server worker threads.");
+        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true,
+                "Number of client-to-proxy worker threads.");
+        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true,
+                "Number of proxy-to-server worker threads.");
         options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
+        options.addOption(null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -146,7 +157,6 @@ public class Launcher {
             LOG.info("Using configuration file: {}", proxyConfigurationPath);
             cmd.getOptionValue(OPTION_CONFIG);
         }
-
 
         HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
                 .bootstrapFromFile(proxyConfigurationPath);
@@ -226,7 +236,8 @@ public class Launcher {
             final String val = cmd.getOptionValue(OPTION_AUTHENTICATE_SSL_CLIENTS);
             LOG.info("Setting authenticate SSL clients with a selfSigned cert : '{}'", val);
             if (val != null) {
-                boolean trustAllServers = Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, "false"));
+                boolean trustAllServers = Boolean
+                        .parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, "false"));
                 boolean sendCerts = Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_SEND_CERTS, "false"));
                 SelfSignedSslEngineSource sslEngineSource;
                 if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PATH)) {
@@ -234,7 +245,8 @@ public class Launcher {
                     if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD)) {
                         String keyStoreAlias = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, "");
                         String keyStorePassword = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD);
-                        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
+                        sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts,
+                                keyStoreAlias, keyStorePassword);
                     } else {
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
                     }
@@ -258,11 +270,12 @@ public class Launcher {
         if (cmd.hasOption(OPTION_THROTTLE_READ_BYTES_PER_SECOND)) {
             throttlingReadBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLE_READ_BYTES_PER_SECOND));
         }
-        if (cmd.hasOption(OPTION_THROTTE_WRITE_BYTES_PER_SECOND)) {
-            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTE_WRITE_BYTES_PER_SECOND));
+        if (cmd.hasOption(OPTION_THROTTLE_WRITE_BYTES_PER_SECOND)) {
+            throttlingWriteBytesPerSecond = Long.parseLong(cmd.getOptionValue(OPTION_THROTTLE_WRITE_BYTES_PER_SECOND));
         }
         if (throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
-            LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
+            LOG.info("Throttling enabled : read {} bytes/s, write {} bytes/s", throttlingReadBytesPerSecond,
+                    throttlingWriteBytesPerSecond);
             bootstrap.withThrottling(throttlingReadBytesPerSecond, throttlingWriteBytesPerSecond);
         }
 
@@ -291,7 +304,8 @@ public class Launcher {
         }
 
         ThreadPoolConfiguration threadPoolConfiguration = new ThreadPoolConfiguration();
-        boolean threadPoolConfigSet = false; // Flag to track if thread pool configuration is set through command line options
+        boolean threadPoolConfigSet = false; // Flag to track if thread pool configuration is set through command line
+                                             // options
         if (cmd.hasOption(OPTION_CLIENT_TO_PROXY_WORKER_THREADS)) {
             String optionValue = cmd.getOptionValue(OPTION_CLIENT_TO_PROXY_WORKER_THREADS);
             LOG.info("Setting client to proxy worker threads to :'{}'", optionValue);
@@ -316,10 +330,22 @@ public class Launcher {
                 threadPoolConfigSet = true;
             }
         }
-        if(threadPoolConfigSet) {
+        if (threadPoolConfigSet) {
             bootstrap.withThreadPoolConfiguration(threadPoolConfiguration);
         }
 
+        if (cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
+            String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
+            try {
+                org.littleshoot.proxy.extras.LogFormat logFormat = org.littleshoot.proxy.extras.LogFormat
+                        .valueOf(format.toUpperCase());
+                bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
+                LOG.info("Using activity log format: {}", logFormat);
+            } catch (IllegalArgumentException e) {
+                printHelp(options, "Unknown activity log format: " + format);
+                return;
+            }
+        }
 
         LOG.info("About to start...");
         HttpProxyServer httpProxyServer = bootstrap.start();
@@ -339,7 +365,7 @@ public class Launcher {
     //load4j is not yet loaded at this point
     @SuppressWarnings("java:S106")
     private static void printHelp(final Options options,
-                                  final String errorMessage) {
+            final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
             LOG.error(errorMessage);
             System.err.println(errorMessage);
