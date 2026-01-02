@@ -28,20 +28,10 @@ public class SocketUtil {
 
 
     public static boolean available(String host, int port) {
-        Socket s = null;
-        try {
-            s = new Socket(host, port);
+        try (Socket s = new Socket(host, port)) {
             return true;
         } catch (IOException e) {
             return false;
-        } finally {
-            if (s != null) {
-                try {
-                    s.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e.getMessage());
-                }
-            }
         }
     }
 

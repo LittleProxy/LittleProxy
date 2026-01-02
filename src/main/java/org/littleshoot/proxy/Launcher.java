@@ -343,7 +343,7 @@ public class Launcher {
 
     private @NonNull CommandLine parseCommandLine(String[] args, Options options) {
         final CommandLineParser parser = new DefaultParser();
-        CommandLine cmd=null;
+        CommandLine cmd;
         try {
             cmd = parser.parse(options, args);
             if (cmd.getArgs().length > 0) {
