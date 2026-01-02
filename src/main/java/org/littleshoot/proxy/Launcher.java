@@ -3,6 +3,7 @@ package org.littleshoot.proxy;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
+import org.jspecify.annotations.NonNull;
 import org.littleshoot.proxy.extras.ActivityLogger;
 import org.littleshoot.proxy.extras.LogFormat;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
@@ -76,46 +77,7 @@ public class Launcher {
     }
 
     protected void start(String[] args) {
-        final Options options = new Options();
-        options.addOption(null, OPTION_DNSSEC, true,
-                "Request and verify DNSSEC signatures.");
-        options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
-        options.addOption(null, OPTION_LOG_CONFIG, true,
-                "Path to log4j configuration file (relative to current directory or absolute).");
-        options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
-        options.addOption(null, OPTION_NIC, true, "Run on a specified Nic");
-        options.addOption(null, OPTION_HELP, false,
-                "Display command line help.");
-        options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
-        options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
-        options.addOption(null, OPTION_NAME, true, "name of the proxy.");
-        options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
-        options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
-        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true,
-                "Allow only local connections to the proxy (true|false).");
-        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true,
-                "Whether to authenticate SSL clients (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true,
-                "Whether SSL clients should trust all servers (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true,
-                "Whether SSL clients should send certificates (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PATH, true, "Path to keystore for SSL clients.");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true,
-                "Password for the keystore for SSL clients.");
-        options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
-        options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
-        options.addOption(null, OPTION_THROTTLE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
-        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,
-                "Allow requests to origin server (true|false).");
-        options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
-        options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
-        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true,
-                "Number of client-to-proxy worker threads.");
-        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true,
-                "Number of proxy-to-server worker threads.");
-        options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
-        options.addOption(null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
+        final Options options = getOptions();
 
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
@@ -390,6 +352,50 @@ public class Launcher {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private static @NonNull Options getOptions() {
+        final Options options = new Options();
+        options.addOption(null, OPTION_DNSSEC, true,
+                "Request and verify DNSSEC signatures.");
+        options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
+        options.addOption(null, OPTION_LOG_CONFIG, true,
+                "Path to log4j configuration file (relative to current directory or absolute).");
+        options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
+        options.addOption(null, OPTION_NIC, true, "Run on a specified Nic");
+        options.addOption(null, OPTION_HELP, false,
+                "Display command line help.");
+        options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
+        options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
+        options.addOption(null, OPTION_NAME, true, "name of the proxy.");
+        options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
+        options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
+        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true,
+                "Allow only local connections to the proxy (true|false).");
+        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true,
+                "Whether to authenticate SSL clients (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true,
+                "Whether SSL clients should trust all servers (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true,
+                "Whether SSL clients should send certificates (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PATH, true, "Path to keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true,
+                "Password for the keystore for SSL clients.");
+        options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
+        options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
+        options.addOption(null, OPTION_THROTTLE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
+        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,
+                "Allow requests to origin server (true|false).");
+        options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
+        options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
+        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true,
+                "Number of client-to-proxy worker threads.");
+        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true,
+                "Number of proxy-to-server worker threads.");
+        options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
+        options.addOption(null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
+        return options;
     }
 
     //load4j is not yet loaded at this point
