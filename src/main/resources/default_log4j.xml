@@ -1,23 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
 <log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
-    <appender class="org.apache.log4j.ConsoleAppender" name="stdout">
+    <!-- log file which rolls over after reaching a certain size. max 5 backups kept -->
+    <appender class="org.apache.log4j.RollingFileAppender" name="RollingTextFile">
+        <param value="log.txt" name="File"/>
+        <param value="5" name="MaxBackupIndex"/>
+        <param value="50MB" name="MaxFileSize"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param value="%-6r %d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n" name="ConversionPattern"/>
+            <param value="%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n" name="ConversionPattern"/>
         </layout>
     </appender>
+    <appender class="org.apache.log4j.ConsoleAppender" name="stdout">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param value="%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n" name="ConversionPattern"/>
+        </layout>
+    </appender>
+    <appender class="org.apache.log4j.ConsoleAppender" name="AccessLogAppender">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param value="%m%n" name="ConversionPattern"/>
+        </layout>
+    </appender>
+    <logger additivity="false" name="org.littleshoot.proxy.extras.ActivityLogger">
+        <level value="info"/>
+        <appender-ref ref="AccessLogAppender"/>
+    </logger>
     <logger name="org.eclipse.jetty">
-        <level value="OFF"/>
+        <level value="off"/>
     </logger>
     <logger name="org.littleshoot.proxy">
-        <level value="INFO"/>
+        <level value="info"/>
     </logger>
-    <logger name="io.netty">
-        <level value="INFO"/>
-    </logger>
-
     <root>
-        <level value="INFO"/>
+        <level value="info"/>
+        <!-- uncomment if you want to produce a rolling log file
+        <appender-ref ref="RollingTextFile"/>
+        -->
         <appender-ref ref="stdout"/>
     </root>
 </log4j:configuration>
