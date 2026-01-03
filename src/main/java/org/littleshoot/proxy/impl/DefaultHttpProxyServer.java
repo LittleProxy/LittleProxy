@@ -181,7 +181,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         final File propsFile = new File(path);
         Properties props = new Properties();
 
-        if (propsFile.exists() && propsFile.isFile()) {
+        if (propsFile.isFile()) {
             try (InputStream is = new FileInputStream(propsFile)) {
                 props.load(is);
             } catch (final IOException e) {
