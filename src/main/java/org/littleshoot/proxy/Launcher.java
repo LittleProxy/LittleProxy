@@ -65,7 +65,6 @@ public class Launcher {
     private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = PROXY_TO_SERVER_WORKER_THREADS;
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
-    private final ClassLoader classLoader = Launcher.class.getClassLoader();
 
     /**
      * Starts the proxy from the command line.
@@ -79,7 +78,7 @@ public class Launcher {
     }
 
     protected void start(String[] args) {
-        final Options options = getOptions();
+        final Options options = buildOptions();
 
         CommandLine cmd = parseCommandLine(args, options);
 
@@ -315,6 +314,7 @@ public class Launcher {
             //default log4j.xml file shipped with the jar
             InputStream inputStream;
             try {
+                ClassLoader classLoader = Launcher.class.getClassLoader();
                 inputStream = classLoader.getResourceAsStream("default_log4j.xml");
                 logConfigPath = File.createTempFile("default_log4j", ".xml");
                 assert inputStream != null;
@@ -350,7 +350,7 @@ public class Launcher {
         return cmd;
     }
 
-    protected @NonNull Options getOptions() {
+    protected @NonNull Options buildOptions() {
         final Options options = new Options();
         options.addOption(null, OPTION_DNSSEC, true,
                 "Request and verify DNSSEC signatures.");
