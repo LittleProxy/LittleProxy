@@ -102,6 +102,24 @@ class LauncherTest {
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
     }
+    @Test
+    void testStartWithConfigOptionWithAnAbsentPropertiesFile() {
+        // Given
+        String[] args = {"--port", "9097", "--config", "src/test/resources/notfound.properties"};
+        Launcher launcher = new Launcher();
+
+        // When/Then - should not throw exception
+        assertThrows(IllegalArgumentException.class,() -> launcher.start(args));
+    }
+    @Test
+    void testStartWithConfigOptionWithADirectoryFile() {
+        // Given
+        String[] args = {"--port", "9097", "--config", "src/test/resources"};
+        Launcher launcher = new Launcher();
+
+        // When/Then - should not throw exception
+        assertThrows(IllegalArgumentException.class,() -> launcher.start(args));
+    }
 
     /**
      * Test that the start method handles throttling options.
