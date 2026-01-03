@@ -395,12 +395,13 @@ public class Launcher {
         return options;
     }
 
-    //load4j is not yet loaded at this point
+
     @SuppressWarnings("java:S106")
     private void printHelp(final Options options,
                            final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
             LOG.error(errorMessage);
+            //log4j is not yet loaded at this point in some cases
             System.err.println(errorMessage);
         }
 
