@@ -181,12 +181,17 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         final File propsFile = new File(path);
         Properties props = new Properties();
 
-        if (propsFile.isFile()) {
+        if (propsFile.exists() && propsFile.isFile()) {
             try (InputStream is = new FileInputStream(propsFile)) {
                 props.load(is);
             } catch (final IOException e) {
-                LOG.warn("Could not load props file?", e);
+                LOG.error("Could not load props file", e);
+                throw new IllegalArgumentException("Could not load props file."+e.getMessage());
             }
+        }else{
+            String cause = !propsFile.exists() ? "absent" : "a directory";
+            LOG.error("Could not load props file. file is {}", cause);
+            throw new IllegalArgumentException("Could not load props file. file is "+ (cause));
         }
 
         return new DefaultHttpProxyServerBootstrap(props);
