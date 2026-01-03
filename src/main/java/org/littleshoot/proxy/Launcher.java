@@ -17,7 +17,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 
 import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
@@ -65,6 +66,7 @@ public class Launcher {
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
     private final ClassLoader classLoader = Launcher.class.getClassLoader();
+
     /**
      * Starts the proxy from the command line.
      *
@@ -90,18 +92,17 @@ public class Launcher {
             return;
         }
 
-        URL littleproxyProperties = classLoader.getResource("littleproxy.properties");
-        if(littleproxyProperties == null){
-            LOG.error("Could not find default littleproxy.properties");
-        }
-        String proxyConfigurationPath = littleproxyProperties.getPath();
+
+        HttpProxyServerBootstrap bootstrap;
         if (cmd.hasOption(OPTION_CONFIG)) {
-            proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
+            String proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
             LOG.info("Using configuration file: {}", proxyConfigurationPath);
             cmd.getOptionValue(OPTION_CONFIG);
+            bootstrap = bootstrapFromFile(proxyConfigurationPath);
+        } else {
+            bootstrap = bootstrap();
         }
 
-        HttpProxyServerBootstrap bootstrap = bootstrapFromFile(proxyConfigurationPath);
 
         int port;
         if (cmd.hasOption(OPTION_PORT)) {
@@ -311,28 +312,23 @@ public class Launcher {
             String optionValue = "";
             optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
             logConfigPath = new File(optionValue);
-        }else{
+        } else {
             //default log4j.xml file shipped with the jar
             InputStream inputStream;
             try {
                 inputStream = classLoader.getResourceAsStream("default_log4j.xml");
                 logConfigPath = File.createTempFile("default_log4j", ".xml");
                 assert inputStream != null;
-                java.nio.file.Files.copy(
+                Files.copy(
                         inputStream,
                         logConfigPath.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                System.out.println("tempfile:"+logConfigPath);
+                        StandardCopyOption.REPLACE_EXISTING);
+                System.out.println("tempfile:" + logConfigPath);
                 logConfigPath.deleteOnExit();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            if(inputStream == null){
-                System.err.println("Could not find default default_log4j.xml");
-                throw new IllegalStateException("Could not find default 'default_log4j.xml' into jar");
-            }else{
-                System.out.println("using 'default_log4j.xml'");
-            }
+            System.out.println("using 'default_log4j.xml'");
         }
         pollLog4JConfigurationFileIfAvailable(logConfigPath);
     }
@@ -402,7 +398,7 @@ public class Launcher {
     //load4j is not yet loaded at this point
     @SuppressWarnings("java:S106")
     private void printHelp(final Options options,
-            final String errorMessage) {
+                           final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
             LOG.error(errorMessage);
             System.err.println(errorMessage);
