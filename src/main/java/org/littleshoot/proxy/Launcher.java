@@ -309,8 +309,7 @@ public class Launcher {
     private void configureLogging(CommandLine cmd) {
         File logConfigPath;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
-            String optionValue = "";
-            optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
+            String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
             logConfigPath = new File(optionValue);
         } else {
             //default log4j.xml file shipped with the jar
