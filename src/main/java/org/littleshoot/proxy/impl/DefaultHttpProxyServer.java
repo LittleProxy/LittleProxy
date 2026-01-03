@@ -186,12 +186,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 props.load(is);
             } catch (final IOException e) {
                 LOG.error("Could not load props file", e);
-                throw new IllegalArgumentException("Could not load props file."+e.getMessage());
+                throw new IllegalArgumentException("Could not load props file." + e.getMessage());
             }
-        }else{
+        } else {
             String cause = !propsFile.exists() ? "absent" : "a directory";
             LOG.error("Could not load props file. file is {}", cause);
-            throw new IllegalArgumentException("Could not load props file. file is "+ (cause));
+            throw new IllegalArgumentException("Could not load props file. file is " + (cause));
         }
 
         return new DefaultHttpProxyServerBootstrap(props);
@@ -200,65 +200,48 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     /**
      * Creates a new proxy server.
      *
-     * @param serverGroup
-     *                                    our ServerGroup for shared thread pools
+     * @param serverGroup                 our ServerGroup for shared thread pools
      *                                    and such
-     * @param transportProtocol
-     *                                    The protocol to use for data transport
-     * @param requestedAddress
-     *                                    The address on which this server will
+     * @param transportProtocol           The protocol to use for data transport
+     * @param requestedAddress            The address on which this server will
      *                                    listen
-     * @param sslEngineSource
-     *                                    (optional) if specified, this Proxy will
+     * @param sslEngineSource             (optional) if specified, this Proxy will
      *                                    encrypt inbound
      *                                    connections from clients using an
      *                                    {@link SSLEngine} obtained
      *                                    from this {@link SslEngineSource}.
-     * @param authenticateSslClients
-     *                                    Indicate whether to authenticate clients
+     * @param authenticateSslClients      Indicate whether to authenticate clients
      *                                    when using SSL
-     * @param proxyAuthenticator
-     *                                    (optional) If specified, requests to the
+     * @param proxyAuthenticator          (optional) If specified, requests to the
      *                                    proxy will be
      *                                    authenticated using HTTP BASIC
      *                                    authentication per the provided
      *                                    {@link ProxyAuthenticator}
-     * @param chainProxyManager
-     *                                    The proxy to send requests to if chaining
+     * @param chainProxyManager           The proxy to send requests to if chaining
      *                                    proxies. Typically
      *                                    <code>null</code>.
-     * @param mitmManager
-     *                                    The {@link MitmManager} to use for man in
+     * @param mitmManager                 The {@link MitmManager} to use for man in
      *                                    the middling
      *                                    CONNECT requests
-     * @param filtersSource
-     *                                    Source for {@link HttpFilters}
-     * @param transparent
-     *                                    If true, this proxy will run as a
+     * @param filtersSource               Source for {@link HttpFilters}
+     * @param transparent                 If true, this proxy will run as a
      *                                    transparent proxy. This will
      *                                    not modify the response, and will only
      *                                    modify the request to
      *                                    amend the URI if the target is the origin
      *                                    server (to comply
      *                                    with RFC 7230 section 5.3.1).
-     * @param idleConnectionTimeout
-     *                                    The timeout (in seconds) for auto-closing
+     * @param idleConnectionTimeout       The timeout (in seconds) for auto-closing
      *                                    idle connections.
-     * @param activityTrackers
-     *                                    for tracking activity on this proxy
-     * @param connectTimeout
-     *                                    number of milliseconds to wait to connect
+     * @param activityTrackers            for tracking activity on this proxy
+     * @param connectTimeout              number of milliseconds to wait to connect
      *                                    to the upstream
      *                                    server
-     * @param serverResolver
-     *                                    the {@link HostResolver} to use for
+     * @param serverResolver              the {@link HostResolver} to use for
      *                                    resolving server addresses
-     * @param readThrottleBytesPerSecond
-     *                                    read throttle bandwidth
-     * @param writeThrottleBytesPerSecond
-     *                                    write throttle bandwidth
-     * @param allowRequestsToOriginServer
-     *                                    when true, allow the proxy to handle
+     * @param readThrottleBytesPerSecond  read throttle bandwidth
+     * @param writeThrottleBytesPerSecond write throttle bandwidth
+     * @param allowRequestsToOriginServer when true, allow the proxy to handle
      *                                    requests that contain an origin-form URI,
      *                                    as defined in RFC 7230 5.3.1
      * @param acceptProxyProtocol         when true, the proxy will accept a proxy
@@ -267,29 +250,29 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
      *                                    protocol header to the server
      */
     private DefaultHttpProxyServer(ServerGroup serverGroup,
-            TransportProtocol transportProtocol,
-            InetSocketAddress requestedAddress,
-            SslEngineSource sslEngineSource,
-            boolean authenticateSslClients,
-            ProxyAuthenticator proxyAuthenticator,
-            ChainedProxyManager chainProxyManager,
-            MitmManager mitmManager,
-            HttpFiltersSource filtersSource,
-            boolean transparent,
-            Duration idleConnectionTimeout,
-            Collection<ActivityTracker> activityTrackers,
-            int connectTimeout,
-            HostResolver serverResolver,
-            long readThrottleBytesPerSecond,
-            long writeThrottleBytesPerSecond,
-            InetSocketAddress localAddress,
-            String proxyAlias,
-            int maxInitialLineLength,
-            int maxHeaderSize,
-            int maxChunkSize,
-            boolean allowRequestsToOriginServer,
-            boolean acceptProxyProtocol,
-            boolean sendProxyProtocol) {
+                                   TransportProtocol transportProtocol,
+                                   InetSocketAddress requestedAddress,
+                                   SslEngineSource sslEngineSource,
+                                   boolean authenticateSslClients,
+                                   ProxyAuthenticator proxyAuthenticator,
+                                   ChainedProxyManager chainProxyManager,
+                                   MitmManager mitmManager,
+                                   HttpFiltersSource filtersSource,
+                                   boolean transparent,
+                                   Duration idleConnectionTimeout,
+                                   Collection<ActivityTracker> activityTrackers,
+                                   int connectTimeout,
+                                   HostResolver serverResolver,
+                                   long readThrottleBytesPerSecond,
+                                   long writeThrottleBytesPerSecond,
+                                   InetSocketAddress localAddress,
+                                   String proxyAlias,
+                                   int maxInitialLineLength,
+                                   int maxHeaderSize,
+                                   int maxChunkSize,
+                                   boolean allowRequestsToOriginServer,
+                                   boolean acceptProxyProtocol,
+                                   boolean sendProxyProtocol) {
         this.serverGroup = serverGroup;
         this.transportProtocol = transportProtocol;
         this.requestedAddress = requestedAddress;
@@ -339,7 +322,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
      * this proxy's proxyToServerEventLoop.
      */
     private GlobalTrafficShapingHandler createGlobalTrafficShapingHandler(TransportProtocol transportProtocol,
-            long readThrottleBytesPerSecond, long writeThrottleBytesPerSecond) {
+                                                                          long readThrottleBytesPerSecond, long writeThrottleBytesPerSecond) {
         EventLoopGroup proxyToServerEventLoop = getProxyToServerWorkerFor(transportProtocol);
         return new GlobalTrafficShapingHandler(proxyToServerEventLoop,
                 writeThrottleBytesPerSecond,
@@ -843,8 +826,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         }
 
         /**
-         * @deprecated Use, because only TCP is supported (and available) by default.
          * @param transportProtocol
+         * @deprecated Use, because only TCP is supported (and available) by default.
          */
         @Override
         @Deprecated(forRemoval = true)
@@ -998,7 +981,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
         @Override
         public HttpProxyServerBootstrap withThrottling(long readThrottleBytesPerSecond,
-                long writeThrottleBytesPerSecond) {
+                                                       long writeThrottleBytesPerSecond) {
             this.readThrottleBytesPerSecond = readThrottleBytesPerSecond;
             this.writeThrottleBytesPerSecond = writeThrottleBytesPerSecond;
             return this;
