@@ -17,6 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
@@ -65,6 +66,7 @@ public class Launcher {
     private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = PROXY_TO_SERVER_WORKER_THREADS;
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
+    public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
 
     /**
      * Starts the proxy from the command line.
@@ -310,26 +312,17 @@ public class Launcher {
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
             logConfigPath = new File(optionValue);
+            if (logConfigPath.exists()) {
+                DOMConfigurator.configureAndWatch(logConfigPath.getAbsolutePath(), DELAY_IN_SECONDS_BETWEEN_RELOAD);
+            }
         } else {
             //default log4j.xml file shipped with the jar
-            InputStream inputStream;
-            try {
-                ClassLoader classLoader = Launcher.class.getClassLoader();
-                inputStream = classLoader.getResourceAsStream("default_log4j.xml");
-                logConfigPath = File.createTempFile("default_log4j", ".xml");
-                assert inputStream != null;
-                Files.copy(
-                        inputStream,
-                        logConfigPath.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING);
-                System.out.println("tempfile:" + logConfigPath);
-                logConfigPath.deleteOnExit();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            ClassLoader classLoader = Launcher.class.getClassLoader();
+            URL defaultLogCOnfigUrl = classLoader.getResource("default_log4j.xml");
+            DOMConfigurator.configure(defaultLogCOnfigUrl);
             System.out.println("using 'default_log4j.xml'");
         }
-        pollLog4JConfigurationFileIfAvailable(logConfigPath);
+
     }
 
     private @NonNull CommandLine parseCommandLine(String[] args, Options options) {
@@ -408,10 +401,4 @@ public class Launcher {
         formatter.printHelp("littleproxy", options);
     }
 
-    private void pollLog4JConfigurationFileIfAvailable(File log4jConfigurationFile) {
-        if (log4jConfigurationFile.exists()) {
-            DOMConfigurator.configureAndWatch(
-                    log4jConfigurationFile.getAbsolutePath(), 15);
-        }
-    }
 }
