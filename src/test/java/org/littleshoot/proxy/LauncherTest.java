@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -10,6 +11,15 @@ import static org.littleshoot.proxy.test.SocketUtil.getRandomAvailablePort;
  */
 class LauncherTest {
 
+    private Launcher launcher;
+    private int port;
+
+    @BeforeEach
+    void setUp() {
+        launcher = new Launcher();
+        port = getRandomAvailablePort();
+    }
+
     /**
      * Test that the start method handles the help option correctly.
      * Should print help and exit gracefully without starting the server.
@@ -18,7 +28,6 @@ class LauncherTest {
     void testStartWithHelpOption() {
         // Given
         String[] args = {"--help"};
-        Launcher launcher = new Launcher();
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -29,10 +38,9 @@ class LauncherTest {
      */
     @Test
     void testStartWithValidPortOption() {
-        int avaialablePort = getRandomAvailablePort();
+
         // Given
-        String[] args = {"--port", ""+avaialablePort};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -45,7 +53,6 @@ class LauncherTest {
     void testStartWithInvalidPortOption() {
         // Given
         String[] args = {"--port", "invalid"};
-        Launcher launcher = new Launcher();
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -57,9 +64,8 @@ class LauncherTest {
     @Test
     void testStartWithMitmOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--mitm"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--mitm"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -71,9 +77,8 @@ class LauncherTest {
     @Test
     void testStartWithDnssecOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--dnssec", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--dnssec", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -86,7 +91,7 @@ class LauncherTest {
     void testStartWithInvalidDnssecOption() {
         // Given
         String[] args = {"--dnssec", "invalid"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -98,32 +103,32 @@ class LauncherTest {
     @Test
     void testStartWithConfigOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--config", "src/test/resources/littleproxy.properties"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--config", "src/test/resources/littleproxy.properties"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
     }
+
     @Test
     void testStartWithConfigOptionWithAnAbsentPropertiesFile() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--config", "src/test/resources/notfound.properties"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--config", "src/test/resources/notfound.properties"};
+
 
         // When/Then - should not throw exception
-        assertThrows(IllegalArgumentException.class,() -> launcher.start(args));
+        assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
     }
+
     @Test
     void testStartWithConfigOptionWithADirectoryFile() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--config", "src/test/resources"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--config", "src/test/resources"};
+
 
         // When/Then - should not throw exception
-        assertThrows(IllegalArgumentException.class,() -> launcher.start(args));
+        assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
     }
 
     /**
@@ -132,9 +137,8 @@ class LauncherTest {
     @Test
     void testStartWithThrottlingOptions() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--throttle_read_bytes_per_second", "1000", "--throttle_write_bytes_per_second", "2000"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--throttle_read_bytes_per_second", "1000", "--throttle_write_bytes_per_second", "2000"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -146,9 +150,8 @@ class LauncherTest {
     @Test
     void testStartWithActivityLogFormat() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--activity_log_format", "CLF"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--activity_log_format", "CLF"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -161,7 +164,7 @@ class LauncherTest {
     void testStartWithInvalidActivityLogFormat() {
         // Given
         String[] args = {"--activity_log_format", "INVALID"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -173,9 +176,8 @@ class LauncherTest {
     @Test
     void testStartWithNoArgs() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -188,7 +190,7 @@ class LauncherTest {
     void testStartWithExtraArguments() {
         // Given
         String[] args = {"extra", "arguments"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for unrecognized arguments
         assertThrows(IllegalStateException.class, () -> launcher.start(args));
@@ -201,7 +203,7 @@ class LauncherTest {
     void testStartWithServerOption() throws InterruptedException {
         // Given
         String[] args = {"--server"};
-        Launcher launcher = new Launcher();
+
 
         // When - run in separate thread to avoid hanging
         Thread testThread = new Thread(() -> {
@@ -226,9 +228,8 @@ class LauncherTest {
     @Test
     void testStartWithNicOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--nic", "localhost"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--nic", "localhost"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -240,9 +241,8 @@ class LauncherTest {
     @Test
     void testStartWithNameOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--name", "TestProxy"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--name", "TestProxy"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -254,10 +254,9 @@ class LauncherTest {
     @Test
     void testStartWithAddressOption() {
         // Given
-        int port = getRandomAvailablePort();
         int addressPort = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--address", "127.0.0.1:"+addressPort};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--address", "127.0.0.1:" + addressPort};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -269,9 +268,8 @@ class LauncherTest {
     @Test
     void testStartWithProxyAliasOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--proxy_alias", "test-alias"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--proxy_alias", "test-alias"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -283,9 +281,8 @@ class LauncherTest {
     @Test
     void testStartWithAllowLocalOnlyOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--allow_local_only", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--allow_local_only", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -297,9 +294,8 @@ class LauncherTest {
     @Test
     void testStartWithInvalidAllowLocalOnlyOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--allow_local_only", "invalid"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--allow_local_only", "invalid"};
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -311,9 +307,8 @@ class LauncherTest {
     @Test
     void testStartWithAuthenticateSslClientsOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--authenticate_ssl_clients", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -325,10 +320,9 @@ class LauncherTest {
     @Test
     void testStartWithSslClientsTrustAllServersOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--authenticate_ssl_clients", "true", 
-                        "--ssl_clients_trust_all_servers", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true",
+                "--ssl_clients_trust_all_servers", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -340,10 +334,9 @@ class LauncherTest {
     @Test
     void testStartWithSslClientsSendCertsOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--authenticate_ssl_clients", "true", 
-                        "--ssl_clients_send_certs", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true",
+                "--ssl_clients_send_certs", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -355,9 +348,8 @@ class LauncherTest {
     @Test
     void testStartWithTransparentOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--transparent", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--transparent", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -369,9 +361,8 @@ class LauncherTest {
     @Test
     void testStartWithInvalidTransparentOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--transparent", "invalid"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--transparent", "invalid"};
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -383,9 +374,8 @@ class LauncherTest {
     @Test
     void testStartWithAllowRequestsToOriginServerOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--allow_requests_to_origin_server", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--allow_requests_to_origin_server", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -397,9 +387,8 @@ class LauncherTest {
     @Test
     void testStartWithInvalidAllowRequestsToOriginServerOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--allow_requests_to_origin_server", "invalid"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--allow_requests_to_origin_server", "invalid"};
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -411,9 +400,8 @@ class LauncherTest {
     @Test
     void testStartWithAllowProxyProtocolOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--allow_proxy_protocol", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--allow_proxy_protocol", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -425,9 +413,7 @@ class LauncherTest {
     @Test
     void testStartWithInvalidAllowProxyProtocolOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--allow_proxy_protocol", "invalid"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--allow_proxy_protocol", "invalid"};
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -439,9 +425,9 @@ class LauncherTest {
     @Test
     void testStartWithSendProxyProtocolOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--send_proxy_protocol", "true"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--send_proxy_protocol", "true"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -453,9 +439,9 @@ class LauncherTest {
     @Test
     void testStartWithInvalidSendProxyProtocolOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--send_proxy_protocol", "invalid"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--send_proxy_protocol", "invalid"};
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -467,9 +453,9 @@ class LauncherTest {
     @Test
     void testStartWithClientToProxyWorkerThreadsOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--client_to_proxy_worker_threads", "4"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--client_to_proxy_worker_threads", "4"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -482,7 +468,7 @@ class LauncherTest {
     void testStartWithInvalidClientToProxyWorkerThreadsOption() {
         // Given
         String[] args = {"--client_to_proxy_worker_threads", "invalid"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for invalid numeric value
         assertThrows(NumberFormatException.class, () -> launcher.start(args));
@@ -494,9 +480,9 @@ class LauncherTest {
     @Test
     void testStartWithProxyToServerWorkerThreadsOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--proxy_to_server_worker_threads", "4"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--proxy_to_server_worker_threads", "4"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -509,7 +495,7 @@ class LauncherTest {
     void testStartWithInvalidProxyToServerWorkerThreadsOption() {
         // Given
         String[] args = {"--proxy_to_server_worker_threads", "invalid"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for invalid numeric value
         assertThrows(NumberFormatException.class, () -> launcher.start(args));
@@ -521,9 +507,9 @@ class LauncherTest {
     @Test
     void testStartWithAcceptorThreadsOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--acceptor_threads", "2"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--acceptor_threads", "2"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -536,7 +522,7 @@ class LauncherTest {
     void testStartWithInvalidAcceptorThreadsOption() {
         // Given
         String[] args = {"--acceptor_threads", "invalid"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for invalid numeric value
         assertThrows(NumberFormatException.class, () -> launcher.start(args));
@@ -548,9 +534,9 @@ class LauncherTest {
     @Test
     void testStartWithLogConfigOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--log_config", "src/test/resources/log4j.xml"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--log_config", "src/test/resources/log4j.xml"};
+
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -562,9 +548,9 @@ class LauncherTest {
     @Test
     void testStartWithInvalidLogConfigOption() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--log_config", "nonexistent.xml"};
-        Launcher launcher = new Launcher();
+
+        String[] args = {"--port", "" + port, "--log_config", "nonexistent.xml"};
+
 
         // When/Then - should not throw exception and handle gracefully
         assertDoesNotThrow(() -> launcher.start(args));
@@ -576,10 +562,8 @@ class LauncherTest {
     @Test
     void testStartWithMultipleOptions() {
         // Given
-        int port = getRandomAvailablePort();
-        String[] args = {"--port", ""+port, "--mitm", "--dnssec", "true", 
-                        "--name", "TestProxy", "--allow_local_only", "true"};
-        Launcher launcher = new Launcher();
+        String[] args = {"--port", "" + port, "--mitm", "--dnssec", "true",
+                "--name", "TestProxy", "--allow_local_only", "true"};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -592,7 +576,7 @@ class LauncherTest {
     void testStartWithMissingRequiredValues() {
         // Given - port option without value
         String[] args = {"--port"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for missing required value
         assertThrows(IllegalStateException.class, () -> launcher.start(args));
@@ -605,7 +589,7 @@ class LauncherTest {
     void testStartWithInvalidPortValues() {
         // Given - port with negative value
         String[] args = {"--port", "-1"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for invalid port value
         assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
@@ -618,7 +602,7 @@ class LauncherTest {
     void testStartWithPortValueTooLarge() {
         // Given - port with very large value
         String[] args = {"--port", "999999"};
-        Launcher launcher = new Launcher();
+
 
         // When/Then - should throw exception for port out of range
         assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
