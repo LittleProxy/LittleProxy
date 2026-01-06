@@ -304,10 +304,9 @@ public class Launcher {
 
     @SuppressWarnings("java:S106")
     private void configureLogging(CommandLine cmd) {
-        File logConfigPath;
         if (cmd.hasOption(OPTION_LOG_CONFIG)) {
             String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
-            logConfigPath = new File(optionValue);
+            File logConfigPath = new File(optionValue);
             if (logConfigPath.exists()) {
                 DOMConfigurator.configureAndWatch(logConfigPath.getAbsolutePath(), DELAY_IN_SECONDS_BETWEEN_RELOAD);
             }
