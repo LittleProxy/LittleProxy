@@ -181,7 +181,7 @@ class LauncherTest {
         String[] args = {"extra", "arguments"};
 
         // When/Then - should throw exception for unrecognized arguments
-        assertThrows(IllegalStateException.class, () -> launcher.start(args));
+        assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
     }
 
     /**
