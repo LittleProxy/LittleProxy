@@ -535,7 +535,7 @@ class LauncherTest {
         String[] args = {"--port"};
 
         // When/Then - should throw exception for missing required value
-        assertThrows(IllegalStateException.class, () -> launcher.start(args));
+        assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
     }
 
     /**
