@@ -338,7 +338,7 @@ public class Launcher {
         } catch (final ParseException e) {
             printHelp(options,
                     "Could not parse command line: " + Arrays.asList(args));
-            throw new IllegalStateException("Could not parse command line: " + Arrays.asList(args));
+            throw new IllegalArgumentException("Could not parse command line: " + Arrays.asList(args),e);
         }
         return cmd;
     }
