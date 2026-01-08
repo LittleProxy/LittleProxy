@@ -30,6 +30,14 @@ specified in the given file.
 ```bash
 $ ./run.bash --config path/to/config/littleproxy.properties
 ```
+
+You can, for example, run the shell script at the root project directory as a server, pointing 
+to the provided _littleproxy.properties_ file :
+
+```bash
+$ ./run.bash --server --config ./config/littleproxy.properties
+```
+
 ##### config file description
 
 The config file is a properties file with the following properties :
