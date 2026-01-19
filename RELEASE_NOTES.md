@@ -1,6 +1,9 @@
 # Release Notes
 
-- 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49)
+- 2.6.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
+  - TBD
+
+- 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49?closed=1)
   - Feature/activity tracker logging (#668) by Charles Lescot
   - add explicit logging support with "activity_log_format" option (CLI and config file) supporting CLF, ELF, JSON, LTSV, CSV, SQUID, HAPROXY formats (#668) by Charles Lescot
   - move littleproxy.properties and log4j.xml in standard maven location (#667) by Charles Lescot
