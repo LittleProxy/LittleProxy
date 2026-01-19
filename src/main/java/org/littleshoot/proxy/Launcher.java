@@ -3,10 +3,11 @@ package org.littleshoot.proxy;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.xml.DOMConfigurator;
+import org.jspecify.annotations.NonNull;
 import org.littleshoot.proxy.extras.ActivityLogger;
+import org.littleshoot.proxy.extras.LogFormat;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
-import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.impl.ProxyUtils;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.util.Arrays;
 
 import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
@@ -60,6 +62,7 @@ public class Launcher {
     private static final String OPTION_PROXY_TO_SERVER_WORKER_THREADS = PROXY_TO_SERVER_WORKER_THREADS;
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
+    public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
 
     /**
      * Starts the proxy from the command line.
@@ -67,68 +70,17 @@ public class Launcher {
      * @param args Any command line arguments.
      */
     public static void main(final String... args) {
+        Launcher launcher = new Launcher();
+        launcher.start(args);
 
-        final Options options = new Options();
-        options.addOption(null, OPTION_DNSSEC, true,
-                "Request and verify DNSSEC signatures.");
-        options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
-        options.addOption(null, OPTION_LOG_CONFIG, true,
-                "Path to log4j configuration file (relative to current directory or absolute).");
-        options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
-        options.addOption(null, OPTION_NIC, true, "Run on a specified Nic");
-        options.addOption(null, OPTION_HELP, false,
-                "Display command line help.");
-        options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
-        options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
-        options.addOption(null, OPTION_NAME, true, "name of the proxy.");
-        options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
-        options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
-        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true,
-                "Allow only local connections to the proxy (true|false).");
-        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true,
-                "Whether to authenticate SSL clients (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true,
-                "Whether SSL clients should trust all servers (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true,
-                "Whether SSL clients should send certificates (true|false).");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PATH, true, "Path to keystore for SSL clients.");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
-        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true,
-                "Password for the keystore for SSL clients.");
-        options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
-        options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
-        options.addOption(null, OPTION_THROTTLE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
-        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,
-                "Allow requests to origin server (true|false).");
-        options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
-        options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
-        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true,
-                "Number of client-to-proxy worker threads.");
-        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true,
-                "Number of proxy-to-server worker threads.");
-        options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
-        options.addOption(null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
+    }
 
-        final CommandLineParser parser = new DefaultParser();
-        final CommandLine cmd;
-        try {
-            cmd = parser.parse(options, args);
-            if (cmd.getArgs().length > 0) {
-                throw new UnrecognizedOptionException(
-                        "Extra arguments were provided in "
-                                + Arrays.asList(args));
-            }
-        } catch (final ParseException e) {
-            printHelp(options,
-                    "Could not parse command line: " + Arrays.asList(args));
-            return;
-        }
+    protected void start(String[] args) {
+        final Options options = buildOptions();
 
-        String logConfigPath = "src/test/resources/log4j.xml";
-        if (cmd.hasOption(OPTION_LOG_CONFIG)) {
-            logConfigPath = cmd.getOptionValue(OPTION_LOG_CONFIG);
-        }
-        pollLog4JConfigurationFileIfAvailable(logConfigPath);
+        CommandLine cmd = parseCommandLine(args, options);
+
+        configureLogging(cmd);
 
         LOG.info("Running LittleProxy with args: {}", Arrays.asList(args));
 
@@ -137,15 +89,17 @@ public class Launcher {
             return;
         }
 
-        String proxyConfigurationPath = "./littleproxy.properties";
+
+        HttpProxyServerBootstrap bootstrap;
         if (cmd.hasOption(OPTION_CONFIG)) {
-            proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
+            String proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
             LOG.info("Using configuration file: {}", proxyConfigurationPath);
             cmd.getOptionValue(OPTION_CONFIG);
+            bootstrap = bootstrapFromFile(proxyConfigurationPath);
+        } else {
+            bootstrap = bootstrap();
         }
 
-        HttpProxyServerBootstrap bootstrap = DefaultHttpProxyServer
-                .bootstrapFromFile(proxyConfigurationPath);
 
         int port;
         if (cmd.hasOption(OPTION_PORT)) {
@@ -291,7 +245,7 @@ public class Launcher {
 
         ThreadPoolConfiguration threadPoolConfiguration = new ThreadPoolConfiguration();
         boolean threadPoolConfigSet = false; // Flag to track if thread pool configuration is set through command line
-                                             // options
+        // options
         if (cmd.hasOption(OPTION_CLIENT_TO_PROXY_WORKER_THREADS)) {
             String optionValue = cmd.getOptionValue(OPTION_CLIENT_TO_PROXY_WORKER_THREADS);
             LOG.info("Setting client to proxy worker threads to :'{}'", optionValue);
@@ -323,7 +277,7 @@ public class Launcher {
         if (cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
             String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
             try {
-                org.littleshoot.proxy.extras.LogFormat logFormat = org.littleshoot.proxy.extras.LogFormat
+                LogFormat logFormat = LogFormat
                         .valueOf(format.toUpperCase());
                 bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
                 LOG.info("Using activity log format: {}", logFormat);
@@ -346,13 +300,95 @@ public class Launcher {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    @SuppressWarnings("java:S106")
+    private void configureLogging(CommandLine cmd) {
+        if (cmd.hasOption(OPTION_LOG_CONFIG)) {
+            String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
+            File logConfigPath = new File(optionValue);
+            if (logConfigPath.exists()) {
+                DOMConfigurator.configureAndWatch(logConfigPath.getAbsolutePath(), DELAY_IN_SECONDS_BETWEEN_RELOAD);
+            }
+        } else {
+            //default log4j.xml file shipped with the jar
+            ClassLoader classLoader = Launcher.class.getClassLoader();
+            URL defaultLogCOnfigUrl = classLoader.getResource("littleproxy_default_log4j.xml");
+            DOMConfigurator.configure(defaultLogCOnfigUrl);
+            System.out.println("using 'littleproxy_default_log4j.xml'");
+        }
 
     }
 
-    private static void printHelp(final Options options,
-            final String errorMessage) {
+    private @NonNull CommandLine parseCommandLine(String[] args, Options options) {
+        final CommandLineParser parser = new DefaultParser();
+        CommandLine cmd;
+        try {
+            cmd = parser.parse(options, args);
+            if (cmd.getArgs().length > 0) {
+                throw new UnrecognizedOptionException(
+                        "Extra arguments were provided in "
+                                + Arrays.asList(args));
+            }
+        } catch (final ParseException e) {
+            printHelp(options,
+                    "Could not parse command line: " + Arrays.asList(args));
+            throw new IllegalArgumentException("Could not parse command line: " + Arrays.asList(args),e);
+        }
+        return cmd;
+    }
+
+    protected @NonNull Options buildOptions() {
+        final Options options = new Options();
+        options.addOption(null, OPTION_DNSSEC, true,
+                "Request and verify DNSSEC signatures.");
+        options.addOption(null, OPTION_CONFIG, true, "Path to proxy configuration file (relative or absolute).");
+        options.addOption(null, OPTION_LOG_CONFIG, true,
+                "Path to log4j configuration file (relative to current directory or absolute).");
+        options.addOption(null, OPTION_PORT, true, "Run on the specified port.");
+        options.addOption(null, OPTION_NIC, true, "Run on a specified Nic");
+        options.addOption(null, OPTION_HELP, false,
+                "Display command line help.");
+        options.addOption(null, OPTION_MITM, false, "Run as man in the middle.");
+        options.addOption(null, OPTION_SERVER, false, "Run proxy as a server.");
+        options.addOption(null, OPTION_NAME, true, "name of the proxy.");
+        options.addOption(null, OPTION_ADDRESS, true, "address to bind the proxy.");
+        options.addOption(null, OPTION_PROXY_ALIAS, true, "alias for the proxy.");
+        options.addOption(null, OPTION_ALLOW_LOCAL_ONLY, true,
+                "Allow only local connections to the proxy (true|false).");
+        options.addOption(null, OPTION_AUTHENTICATE_SSL_CLIENTS, true,
+                "Whether to authenticate SSL clients (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, true,
+                "Whether SSL clients should trust all servers (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_SEND_CERTS, true,
+                "Whether SSL clients should send certificates (true|false).");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PATH, true, "Path to keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_ALIAS, true, "Alias for the keystore for SSL clients.");
+        options.addOption(null, OPTION_SSL_CLIENTS_KEYSTORE_PASSWORD, true,
+                "Password for the keystore for SSL clients.");
+        options.addOption(null, OPTION_TRANSPARENT, true, "Whether to run in transparent mode (true|false).");
+        options.addOption(null, OPTION_THROTTLE_READ_BYTES_PER_SECOND, true, "Throttling read bytes per second.");
+        options.addOption(null, OPTION_THROTTLE_WRITE_BYTES_PER_SECOND, true, "Throttling write bytes per second.");
+        options.addOption(null, OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER, true,
+                "Allow requests to origin server (true|false).");
+        options.addOption(null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
+        options.addOption(null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
+        options.addOption(null, OPTION_CLIENT_TO_PROXY_WORKER_THREADS, true,
+                "Number of client-to-proxy worker threads.");
+        options.addOption(null, OPTION_PROXY_TO_SERVER_WORKER_THREADS, true,
+                "Number of proxy-to-server worker threads.");
+        options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
+        options.addOption(null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
+        return options;
+    }
+
+
+    @SuppressWarnings("java:S106")
+    private void printHelp(final Options options,
+                           final String errorMessage) {
         if (!StringUtils.isBlank(errorMessage)) {
             LOG.error(errorMessage);
+            //log4j is not yet loaded at this point in some cases
             System.err.println(errorMessage);
         }
 
@@ -360,11 +396,4 @@ public class Launcher {
         formatter.printHelp("littleproxy", options);
     }
 
-    private static void pollLog4JConfigurationFileIfAvailable(String pathname) {
-        File log4jConfigurationFile = new File(pathname);
-        if (log4jConfigurationFile.exists()) {
-            DOMConfigurator.configureAndWatch(
-                    log4jConfigurationFile.getAbsolutePath(), 15);
-        }
-    }
 }
