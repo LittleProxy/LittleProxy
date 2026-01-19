@@ -21,3 +21,12 @@ Contribution guide for LittleProxy
 * Update the version in the pom.xml file to the next SNAPSHOT version (e.g. "2.4.5" -> "2.4.6-SNAPSHOT").
 * Commit the pom.xml change (e.g. with commit message "working on LittleProxy 2.4.6")
 * Announce the release in https://groups.google.com/forum/#!forum/littleproxy2
+
+## How-to
+
+### Check the built JAR target version
+> mvn clean package -DskipTests
+> javap -verbose -classpath target/littleproxy-*SNAPSHOT.jar org.littleshoot.proxy.ProxyAuthenticator | grep "major"
+
+* major version: 55 -> Java 11
+* major version: 61 -> Java 17

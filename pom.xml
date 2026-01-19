@@ -18,6 +18,7 @@
         <slf4j.version>2.0.17</slf4j.version>
         <error_prone.version>2.42.0</error_prone.version>
         <java.version>11</java.version>
+        <java.version.tests>17</java.version.tests>
     </properties>
 
     <licenses>
@@ -456,8 +457,7 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.14.1</version>
                     <configuration>
-                        <source>${java.version}</source>
-                        <target>${java.version}</target>
+                        <release>${java.version}</release>
                         <encoding>UTF-8</encoding>
                         <compilerArgs>
                             <!-- for ErrorProne: -->
@@ -479,6 +479,18 @@
                             </path>
                         </annotationProcessorPaths>
                     </configuration>
+                    <executions>
+                        <execution>
+                            <id>compile-tests-with-java17</id>
+                            <phase>test-compile</phase>
+                            <goals>
+                                <goal>testCompile</goal>
+                            </goals>
+                            <configuration>
+                                <release>${java.version.tests}</release>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
 
                 <plugin>
