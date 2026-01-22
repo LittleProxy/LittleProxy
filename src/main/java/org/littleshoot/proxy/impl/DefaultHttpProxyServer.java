@@ -773,7 +773,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
                     }
                 } else {
-                    sslEngineSource = new SelfSignedSslEngineSource(trustAllServers, sendCerts);
+                    sslEngineSource = new SelfSignedSslEngineSource("target/littleproxy_keystore.jks", trustAllServers, sendCerts);
                 }
             }
             if (props.containsKey(TRANSPARENT)) {
@@ -825,17 +825,6 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             return this;
         }
 
-        /**
-         * @param transportProtocol
-         * @deprecated Use, because only TCP is supported (and available) by default.
-         */
-        @Override
-        @Deprecated(forRemoval = true)
-        public HttpProxyServerBootstrap withTransportProtocol(
-                TransportProtocol transportProtocol) {
-            this.transportProtocol = transportProtocol;
-            return this;
-        }
 
         @Override
         public HttpProxyServerBootstrap withAddress(InetSocketAddress address) {
