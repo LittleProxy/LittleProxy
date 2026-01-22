@@ -4,7 +4,6 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
 import javax.net.ssl.SSLEngine;
 
-import static org.littleshoot.proxy.TransportProtocol.TCP;
 
 /**
  * Tests that when client authentication is not required, it doesn't matter what

@@ -6,7 +6,6 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
 import javax.net.ssl.SSLEngine;
 
-import static org.littleshoot.proxy.TransportProtocol.TCP;
 
 @Execution(ExecutionMode.SAME_THREAD)
 public final class EncryptedTCPChainedProxyTest extends BaseChainedProxyTest {
