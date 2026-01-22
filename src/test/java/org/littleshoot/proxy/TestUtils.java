@@ -14,13 +14,7 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.ssl.SSLContextBuilder;
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.HttpConfiguration;
-import org.eclipse.jetty.server.HttpConnectionFactory;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.SecureRequestCustomizer;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
@@ -57,7 +51,7 @@ public class TestUtils {
      * @return Instance of Server
      */
     public static Server startWebServer() {
-        return startWebServer(false);
+        return startWebServer(false, "target/littleproxy_keystore.jks");
     }
 
     /**
@@ -77,14 +71,15 @@ public class TestUtils {
      * "Received x bytes\n".
      *
      * @param enableHttps if true, an HTTPS connector will be added to the web server
+     * @param keyStorePath path to the keystore file for HTTPS
      * @return Instance of Server
      */
-    public static Server startWebServer(boolean enableHttps) {
+    public static Server startWebServer(boolean enableHttps, String keyStorePath) {
         final Server httpServer = createWebServer();
 
         if (enableHttps) {
             // Add SSL connector
-            SelfSignedSslEngineSource contextSource = new SelfSignedSslEngineSource("target/littleproxy_keystore.jks");
+            SelfSignedSslEngineSource contextSource = new SelfSignedSslEngineSource(keyStorePath);
             ServerConnector connector = createServerConnector(contextSource, httpServer);
             connector.setPort(0);
             connector.setIdleTimeout(0);
@@ -197,7 +192,7 @@ public class TestUtils {
             // Add SSL connector
             SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
 
-            SelfSignedSslEngineSource contextSource = new SelfSignedSslEngineSource();
+            SelfSignedSslEngineSource contextSource = new SelfSignedSslEngineSource("target/littleproxy_keystore.jks");
             SSLContext sslContext = contextSource.getSslContext();
 
             sslContextFactory.setSslContext(sslContext);
