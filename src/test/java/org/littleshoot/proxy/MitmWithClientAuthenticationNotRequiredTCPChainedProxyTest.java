@@ -17,7 +17,6 @@ public final class MitmWithClientAuthenticationNotRequiredTCPChainedProxyTest ex
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {
         return super.upstreamProxy()
-                .withTransportProtocol(TCP)
                 .withSslEngineSource(serverSslEngineSource)
                 .withAuthenticateSslClients(false);
     }

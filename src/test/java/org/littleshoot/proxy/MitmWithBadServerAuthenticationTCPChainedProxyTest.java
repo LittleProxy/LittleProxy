@@ -4,8 +4,6 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
 import javax.net.ssl.SSLEngine;
 
-import static org.littleshoot.proxy.TransportProtocol.TCP;
-
 /**
  * Tests that servers are authenticated and that if they're missing certs, we
  * get an error.
@@ -22,7 +20,6 @@ public final class MitmWithBadServerAuthenticationTCPChainedProxyTest extends Mi
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {
         return super.upstreamProxy()
-                .withTransportProtocol(TCP)
                 .withSslEngineSource(serverSslEngineSource);
     }
 

@@ -6,8 +6,6 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
 import javax.net.ssl.SSLEngine;
 
-import static org.littleshoot.proxy.TransportProtocol.TCP;
-
 @Execution(ExecutionMode.SAME_THREAD)
 public final class MitmWithEncryptedTCPChainedProxyTest extends MitmWithChainedProxyTest {
     private final SslEngineSource sslEngineSource = new SelfSignedSslEngineSource("target/chain_proxy_keystore_1.jks");
@@ -15,7 +13,6 @@ public final class MitmWithEncryptedTCPChainedProxyTest extends MitmWithChainedP
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {
         return super.upstreamProxy()
-                .withTransportProtocol(TCP)
                 .withSslEngineSource(sslEngineSource);
     }
 

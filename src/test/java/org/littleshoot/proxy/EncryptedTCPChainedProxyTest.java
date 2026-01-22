@@ -15,7 +15,6 @@ public final class EncryptedTCPChainedProxyTest extends BaseChainedProxyTest {
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {
         return super.upstreamProxy()
-                .withTransportProtocol(TCP)
                 .withSslEngineSource(sslEngineSource);
     }
 
