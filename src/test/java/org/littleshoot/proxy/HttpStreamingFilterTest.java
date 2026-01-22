@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 public final class HttpStreamingFilterTest {
+    public static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
     private Server webServer;
     private int webServerPort = -1;
     private HttpProxyServer proxyServer;
@@ -35,7 +36,7 @@ public final class HttpStreamingFilterTest {
         numberOfInitialRequestsFiltered.set(0);
         numberOfSubsequentChunksFiltered.set(0);
 
-        webServer = TestUtils.startWebServer(true);
+        webServer = TestUtils.startWebServer(true, DEFAULT_JKS_KEYSTORE_PATH);
         webServerPort = TestUtils.findLocalHttpPort(webServer);
 
         proxyServer = DefaultHttpProxyServer.bootstrap()

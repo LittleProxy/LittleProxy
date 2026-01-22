@@ -31,6 +31,7 @@ import static org.littleshoot.proxy.TestUtils.buildHttpClient;
  */
 public abstract class AbstractProxyTest {
     protected static final String DEFAULT_RESOURCE = "/";
+    public static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
 
     protected int webServerPort = -1;
     protected int httpsWebServerPort = -1;
@@ -71,7 +72,7 @@ public abstract class AbstractProxyTest {
 
     @BeforeEach
     final void runSetUp() throws Exception {
-        webServer = TestUtils.startWebServer(true);
+        webServer = TestUtils.startWebServer(true, DEFAULT_JKS_KEYSTORE_PATH);
 
         // find out what ports the HTTP and HTTPS connectors were bound to
         httpsWebServerPort = TestUtils.findLocalHttpsPort(webServer);
