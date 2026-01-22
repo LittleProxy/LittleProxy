@@ -63,6 +63,7 @@ public class Launcher {
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
     public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
+    public static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
 
     /**
      * Starts the proxy from the command line.
@@ -123,7 +124,7 @@ public class Launcher {
 
         if (cmd.hasOption(OPTION_MITM)) {
             LOG.info("Running as Man in the Middle");
-            bootstrap.withManInTheMiddle(new SelfSignedMitmManager());
+            bootstrap.withManInTheMiddle(new SelfSignedMitmManager(DEFAULT_JKS_KEYSTORE_PATH,true,true));
         }
 
         if (cmd.hasOption(OPTION_DNSSEC)) {
@@ -191,7 +192,7 @@ public class Launcher {
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
                     }
                 } else {
-                    sslEngineSource = new SelfSignedSslEngineSource(trustAllServers, sendCerts);
+                    sslEngineSource = new SelfSignedSslEngineSource(DEFAULT_JKS_KEYSTORE_PATH, trustAllServers, sendCerts);
                 }
                 bootstrap.withSslEngineSource(sslEngineSource);
                 bootstrap.withAuthenticateSslClients(Boolean.parseBoolean(val));

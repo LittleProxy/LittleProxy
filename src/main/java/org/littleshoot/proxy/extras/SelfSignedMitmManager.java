@@ -12,11 +12,11 @@ import javax.net.ssl.SSLSession;
 public class SelfSignedMitmManager implements MitmManager {
     private final SelfSignedSslEngineSource selfSignedSslEngineSource;
 
-    public SelfSignedMitmManager() {
-        selfSignedSslEngineSource = new SelfSignedSslEngineSource(true);
+    public SelfSignedMitmManager(String keyStorePath) {
+        selfSignedSslEngineSource = new SelfSignedSslEngineSource(keyStorePath, true, true);
     }
 
-    SelfSignedMitmManager(String keyStorePath, boolean trustAllServers, boolean sendCerts) {
+    public SelfSignedMitmManager(String keyStorePath, boolean trustAllServers, boolean sendCerts) {
         selfSignedSslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
     }
 
