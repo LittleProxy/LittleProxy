@@ -4,21 +4,17 @@ import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 public final class StopProxyTest {
-    @Test
-    public void testStop() {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()
-                .withPort(0)
-                .start();
+  @Test
+  public void testStop() {
+    HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
 
-        proxyServer.stop();
-    }
+    proxyServer.stop();
+  }
 
-    @Test
-    public void testAbort() {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()
-                .withPort(0)
-                .start();
+  @Test
+  public void testAbort() {
+    HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
 
-        proxyServer.abort();
-    }
+    proxyServer.abort();
+  }
 }

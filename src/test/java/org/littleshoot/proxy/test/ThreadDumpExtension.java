@@ -1,10 +1,9 @@
 package org.littleshoot.proxy.test;
 
-import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.extension.*;
-import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
-import org.opentest4j.TestAbortedException;
-import org.slf4j.Logger;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.Executors.newScheduledThreadPool;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,13 +12,14 @@ import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Method;
 import java.util.concurrent.ScheduledExecutorService;
+import org.apache.commons.io.FileUtils;
+import org.junit.jupiter.api.extension.*;
+import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
+import org.opentest4j.TestAbortedException;
+import org.slf4j.Logger;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.concurrent.Executors.newScheduledThreadPool;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.slf4j.LoggerFactory.getLogger;
-
-public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
+public class ThreadDumpExtension
+    implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
   private static final Namespace NAMESPACE = Namespace.create("ThreadDumpExtension");
   private static final int INITIAL_DELAY_MS = 8000;
   private static final int DELAY_MS = 1000;
@@ -31,7 +31,8 @@ public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback,
 
   @Override
   public void afterAll(ExtensionContext context) {
-    getLogger(context.getDisplayName()).info("Finished tests - {} ({})", verdict(context), memory());
+    getLogger(context.getDisplayName())
+        .info("Finished tests - {} ({})", verdict(context), memory());
   }
 
   @Override
@@ -39,25 +40,32 @@ public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback,
     Logger log = logger(context);
     log.info("starting {} ({})...", context.getDisplayName(), memory());
     ScheduledExecutorService executor = newScheduledThreadPool(1);
-    executor.scheduleWithFixedDelay(() -> takeThreadDump(log), INITIAL_DELAY_MS, DELAY_MS, MILLISECONDS);
+    executor.scheduleWithFixedDelay(
+        () -> takeThreadDump(log), INITIAL_DELAY_MS, DELAY_MS, MILLISECONDS);
     context.getStore(NAMESPACE).put("executor", executor);
   }
 
   @Override
   public void afterEach(ExtensionContext context) throws Exception {
-    logger(context).info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
-    ScheduledExecutorService executor = (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
+    logger(context)
+        .info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
+    ScheduledExecutorService executor =
+        (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
     executor.shutdown();
   }
 
   private static Logger logger(ExtensionContext context) {
-    return getLogger(context.getRequiredTestClass().getSimpleName() + '.'
-        + context.getTestMethod().map(Method::getName).orElse("?"));
+    return getLogger(
+        context.getRequiredTestClass().getSimpleName()
+            + '.'
+            + context.getTestMethod().map(Method::getName).orElse("?"));
   }
 
   private String verdict(ExtensionContext context) {
     return context.getExecutionException().isPresent()
-        ? (context.getExecutionException().get() instanceof TestAbortedException ? "skipped" : "NOK")
+        ? (context.getExecutionException().get() instanceof TestAbortedException
+            ? "skipped"
+            : "NOK")
         : "OK";
   }
 
@@ -66,7 +74,13 @@ public class ThreadDumpExtension implements BeforeAllCallback, AfterAllCallback,
     long maxMemory = Runtime.getRuntime().maxMemory();
     long totalMemory = Runtime.getRuntime().totalMemory();
     long usedMemory = totalMemory - freeMemory;
-    return "memory used:" + mb(usedMemory) + ", free:" + mb(freeMemory) + ", total:" + mb(totalMemory) + ", max:"
+    return "memory used:"
+        + mb(usedMemory)
+        + ", free:"
+        + mb(freeMemory)
+        + ", total:"
+        + mb(totalMemory)
+        + ", max:"
         + mb(maxMemory);
   }
 

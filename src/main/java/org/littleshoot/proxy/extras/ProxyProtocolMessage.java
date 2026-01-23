@@ -7,60 +7,66 @@ import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 
 public class ProxyProtocolMessage {
 
-    private final HAProxyProtocolVersion protocolVersion;
-    private final HAProxyCommand command;
-    private final HAProxyProxiedProtocol proxiedProtocol;
-    private final String sourceAddress;
-    private final String destinationAddress;
-    private final int sourcePort;
-    private final int destinationPort;
+  private final HAProxyProtocolVersion protocolVersion;
+  private final HAProxyCommand command;
+  private final HAProxyProxiedProtocol proxiedProtocol;
+  private final String sourceAddress;
+  private final String destinationAddress;
+  private final int sourcePort;
+  private final int destinationPort;
 
-    public ProxyProtocolMessage(HAProxyProtocolVersion protocolVersion, HAProxyCommand command, HAProxyProxiedProtocol proxiedProtocol, String sourceAddress, String destinationAddress
-        , int sourcePort, int destinationPort) {
-        this.protocolVersion = protocolVersion;
-        this.command = command;
-        this.proxiedProtocol = proxiedProtocol;
-        this.sourceAddress = sourceAddress;
-        this.destinationAddress = destinationAddress;
-        this.sourcePort = sourcePort;
-        this.destinationPort = destinationPort;
-    }
+  public ProxyProtocolMessage(
+      HAProxyProtocolVersion protocolVersion,
+      HAProxyCommand command,
+      HAProxyProxiedProtocol proxiedProtocol,
+      String sourceAddress,
+      String destinationAddress,
+      int sourcePort,
+      int destinationPort) {
+    this.protocolVersion = protocolVersion;
+    this.command = command;
+    this.proxiedProtocol = proxiedProtocol;
+    this.sourceAddress = sourceAddress;
+    this.destinationAddress = destinationAddress;
+    this.sourcePort = sourcePort;
+    this.destinationPort = destinationPort;
+  }
 
-    public ProxyProtocolMessage(HAProxyMessage haProxyMessage) {
-        protocolVersion = haProxyMessage.protocolVersion();
-        command = haProxyMessage.command();
-        proxiedProtocol = haProxyMessage.proxiedProtocol();
-        sourceAddress = haProxyMessage.sourceAddress();
-        destinationAddress = haProxyMessage.destinationAddress();
-        sourcePort = haProxyMessage.sourcePort();
-        destinationPort = haProxyMessage.destinationPort();
-    }
+  public ProxyProtocolMessage(HAProxyMessage haProxyMessage) {
+    protocolVersion = haProxyMessage.protocolVersion();
+    command = haProxyMessage.command();
+    proxiedProtocol = haProxyMessage.proxiedProtocol();
+    sourceAddress = haProxyMessage.sourceAddress();
+    destinationAddress = haProxyMessage.destinationAddress();
+    sourcePort = haProxyMessage.sourcePort();
+    destinationPort = haProxyMessage.destinationPort();
+  }
 
-    public HAProxyProtocolVersion getProtocolVersion() {
-        return protocolVersion;
-    }
+  public HAProxyProtocolVersion getProtocolVersion() {
+    return protocolVersion;
+  }
 
-    public HAProxyCommand getCommand() {
-        return command;
-    }
+  public HAProxyCommand getCommand() {
+    return command;
+  }
 
-    public HAProxyProxiedProtocol getProxiedProtocol() {
-        return proxiedProtocol;
-    }
+  public HAProxyProxiedProtocol getProxiedProtocol() {
+    return proxiedProtocol;
+  }
 
-    public String getSourceAddress() {
-        return sourceAddress;
-    }
+  public String getSourceAddress() {
+    return sourceAddress;
+  }
 
-    public String getDestinationAddress() {
-        return destinationAddress;
-    }
+  public String getDestinationAddress() {
+    return destinationAddress;
+  }
 
-    public int getSourcePort() {
-        return sourcePort;
-    }
+  public int getSourcePort() {
+    return sourcePort;
+  }
 
-    public int getDestinationPort() {
-        return destinationPort;
-    }
+  public int getDestinationPort() {
+    return destinationPort;
+  }
 }

@@ -3,50 +3,50 @@ package org.littleshoot.proxy;
 import org.apache.http.HttpHost;
 import org.junit.jupiter.api.Test;
 
-
 /**
- * Base for tests that test the proxy. This base class encapsulates all the
- * tests and test conditions. Subclasses should provide different
- * {@link #setUp()} and {@link #tearDown()} methods for testing different
- * configurations of the proxy (e.g. single versus chained, tunneling, etc.).
+ * Base for tests that test the proxy. This base class encapsulates all the tests and test
+ * conditions. Subclasses should provide different {@link #setUp()} and {@link #tearDown()} methods
+ * for testing different configurations of the proxy (e.g. single versus chained, tunneling, etc.).
  */
 abstract class BaseProxyTest extends AbstractProxyTest {
-    @Test
-    public void testSimpleGetRequest() {
-        lastResponse = compareProxiedAndUnproxiedGET(webHost, DEFAULT_RESOURCE);
-    }
+  @Test
+  public void testSimpleGetRequest() {
+    lastResponse = compareProxiedAndUnproxiedGET(webHost, DEFAULT_RESOURCE);
+  }
 
-    @Test
-    public void testSimpleGetRequestOverHTTPS() {
-        lastResponse = compareProxiedAndUnproxiedGET(httpsWebHost, DEFAULT_RESOURCE);
-    }
+  @Test
+  public void testSimpleGetRequestOverHTTPS() {
+    lastResponse = compareProxiedAndUnproxiedGET(httpsWebHost, DEFAULT_RESOURCE);
+  }
 
-    @Test
-    public void testSimplePostRequest() {
-        lastResponse = compareProxiedAndUnproxiedPOST(webHost, DEFAULT_RESOURCE);
-    }
+  @Test
+  public void testSimplePostRequest() {
+    lastResponse = compareProxiedAndUnproxiedPOST(webHost, DEFAULT_RESOURCE);
+  }
 
-    @Test
-    public void testSimplePostRequestOverHTTPS() {
-        lastResponse = compareProxiedAndUnproxiedPOST(httpsWebHost, DEFAULT_RESOURCE);
-    }
+  @Test
+  public void testSimplePostRequestOverHTTPS() {
+    lastResponse = compareProxiedAndUnproxiedPOST(httpsWebHost, DEFAULT_RESOURCE);
+  }
 
-    /**
-     * This test tests a HEAD followed by a GET for the same resource, making
-     * sure that the requests complete and that the Content-Length matches.
-     */
-    @Test
-    public void testHeadRequestFollowedByGet() {
-        httpGetWithApacheClient(webHost, DEFAULT_RESOURCE, true, true);
-    }
+  /**
+   * This test tests a HEAD followed by a GET for the same resource, making sure that the requests
+   * complete and that the Content-Length matches.
+   */
+  @Test
+  public void testHeadRequestFollowedByGet() {
+    httpGetWithApacheClient(webHost, DEFAULT_RESOURCE, true, true);
+  }
 
-    @Test
-    public void testProxyWithBadAddress() {
-        // This test used to try connecting to "test.localhost" and that worked for local builds, but resulted in
-        // the wrong error (405 instead of 502) on the build server due to nginx.  So, switched it to localhost:17,
-        // which should work as long as there's not a web server running on the QOTD port.
-        ResponseInfo response = httpPostWithApacheClient(new HttpHost("localhost", 17), DEFAULT_RESOURCE, true);
-        assertReceivedBadGateway(response);
-    }
-
+  @Test
+  public void testProxyWithBadAddress() {
+    // This test used to try connecting to "test.localhost" and that worked for local builds, but
+    // resulted in
+    // the wrong error (405 instead of 502) on the build server due to nginx.  So, switched it to
+    // localhost:17,
+    // which should work as long as there's not a web server running on the QOTD port.
+    ResponseInfo response =
+        httpPostWithApacheClient(new HttpHost("localhost", 17), DEFAULT_RESOURCE, true);
+    assertReceivedBadGateway(response);
+  }
 }

@@ -6,16 +6,16 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 
 public class ProxyProtocolServerHandler extends ChannelInboundHandlerAdapter {
 
-    private HAProxyMessage haProxyMessage;
+  private HAProxyMessage haProxyMessage;
 
-    @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        if ( msg instanceof HAProxyMessage){
-            haProxyMessage = (HAProxyMessage) msg;
-        }
+  @Override
+  public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    if (msg instanceof HAProxyMessage) {
+      haProxyMessage = (HAProxyMessage) msg;
     }
+  }
 
-    HAProxyMessage getHaProxyMessage() {
-        return haProxyMessage;
-    }
+  HAProxyMessage getHaProxyMessage() {
+    return haProxyMessage;
+  }
 }

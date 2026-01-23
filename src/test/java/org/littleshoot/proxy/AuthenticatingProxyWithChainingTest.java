@@ -1,64 +1,63 @@
 package org.littleshoot.proxy;
 
-import io.netty.handler.codec.http.HttpRequest;
-import org.littleshoot.proxy.impl.ClientDetails;
-
-import java.util.Queue;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Tests a single proxy that requires username/password authentication.
- */
+import io.netty.handler.codec.http.HttpRequest;
+import java.util.Queue;
+import org.littleshoot.proxy.impl.ClientDetails;
+
+/** Tests a single proxy that requires username/password authentication. */
 public class AuthenticatingProxyWithChainingTest extends BaseProxyTest
-        implements ProxyAuthenticator, ChainedProxyManager {
+    implements ProxyAuthenticator, ChainedProxyManager {
 
-    private ClientDetails savedClientDetails;
+  private ClientDetails savedClientDetails;
 
-    @Override
-    protected void setUp() {
-        proxyServer = bootstrapProxy()
-                .withPort(0)
-                .withProxyAuthenticator(this)
-                .withChainProxyManager(this)
-                .start();
-    }
+  @Override
+  protected void setUp() {
+    proxyServer =
+        bootstrapProxy()
+            .withPort(0)
+            .withProxyAuthenticator(this)
+            .withChainProxyManager(this)
+            .start();
+  }
 
-    @Override
-    protected String getUsername() {
-        return "user1";
-    }
+  @Override
+  protected String getUsername() {
+    return "user1";
+  }
 
-    @Override
-    protected String getPassword() {
-        return "user2";
-    }
+  @Override
+  protected String getPassword() {
+    return "user2";
+  }
 
-    @Override
-    public boolean authenticate(String userName, String password) {
-        return getUsername().equals(userName) && getPassword().equals(password);
-    }
+  @Override
+  public boolean authenticate(String userName, String password) {
+    return getUsername().equals(userName) && getPassword().equals(password);
+  }
 
-    @Override
-    protected boolean isAuthenticating() {
-        return true;
-    }
+  @Override
+  protected boolean isAuthenticating() {
+    return true;
+  }
 
-    @Override
-    public String getRealm() {
-        return null;
-    }
+  @Override
+  public String getRealm() {
+    return null;
+  }
 
-    @Override
-    public void lookupChainedProxies(HttpRequest httpRequest, Queue<ChainedProxy> chainedProxies, ClientDetails clientDetails) {
-        savedClientDetails = clientDetails;
-        chainedProxies.add(ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION);
-    }
+  @Override
+  public void lookupChainedProxies(
+      HttpRequest httpRequest, Queue<ChainedProxy> chainedProxies, ClientDetails clientDetails) {
+    savedClientDetails = clientDetails;
+    chainedProxies.add(ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION);
+  }
 
-    @Override
-    protected void tearDown() throws Exception {
-        super.tearDown();
-        assertThat(savedClientDetails.getUserName()).isEqualTo(getUsername());
-        assertThat(savedClientDetails.getClientAddress().getAddress().isLoopbackAddress()).isTrue();
-    }
+  @Override
+  protected void tearDown() throws Exception {
+    super.tearDown();
+    assertThat(savedClientDetails.getUserName()).isEqualTo(getUsername());
+    assertThat(savedClientDetails.getClientAddress().getAddress().isLoopbackAddress()).isTrue();
+  }
 }
