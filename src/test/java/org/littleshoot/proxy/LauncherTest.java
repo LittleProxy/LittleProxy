@@ -1,8 +1,5 @@
 package org.littleshoot.proxy;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,13 +10,13 @@ import org.junit.jupiter.api.Test;
 /** Unit tests for the Launcher class, specifically testing the start method. */
 class LauncherTest {
 
-    private Launcher launcher;
-    private int port = 0;
+  private Launcher launcher;
+  private int port = 0;
 
-    @BeforeEach
-    void setUp() {
-        launcher = new Launcher();
-    }
+  @BeforeEach
+  void setUp() {
+    launcher = new Launcher();
+  }
 
   /**
    * Test that the start method handles the help option correctly. Should print help and exit
@@ -224,13 +221,11 @@ class LauncherTest {
     assertDoesNotThrow(() -> launcher.start(args));
   }
 
-    /**
-     * Test that the start method handles address option.
-     */
-    @Test
-    void testStartWithAddressOption() {
-        // Given
-        String[] args = {"--port", "" + port, "--address", "127.0.0.1:" + port};
+  /** Test that the start method handles address option. */
+  @Test
+  void testStartWithAddressOption() {
+    // Given
+    String[] args = {"--port", "" + port, "--address", "127.0.0.1:" + port};
 
     // When/Then - should not throw exception
     assertDoesNotThrow(() -> launcher.start(args));
