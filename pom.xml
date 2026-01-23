@@ -542,6 +542,40 @@
                     <artifactId>maven-gpg-plugin</artifactId>
                     <version>3.2.8</version>
                 </plugin>
+                <plugin>
+                    <groupId>com.rudikershaw.gitbuildhook</groupId>
+                    <artifactId>git-build-hook-maven-plugin</artifactId>
+                    <version>3.1.0</version>
+                    <configuration>
+                        <installHooks>
+                            <pre-commit>hooks/pre-commit</pre-commit>
+                        </installHooks>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>install</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>com.diffplug.spotless</groupId>
+                    <artifactId>spotless-maven-plugin</artifactId>
+                    <!-- latest version supporting java 11 -->
+                    <version>2.46.1</version>
+                    <configuration>
+                        <java>
+                            <includes>
+                                <include>src/main/java/**/*.java</include> <!-- Check application code -->
+                                <include>src/test/java/**/*.java</include> <!-- Check application tests code -->
+                            </includes>
+                            <googleJavaFormat/>
+                            <importOrder />
+                            <removeUnusedImports />
+                        </java>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
 

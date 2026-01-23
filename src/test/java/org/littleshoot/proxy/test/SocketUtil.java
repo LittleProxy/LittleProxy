@@ -8,45 +8,42 @@ import java.util.Random;
 
 public class SocketUtil {
 
-    private static final Random random = new Random();
+  private static final Random random = new Random();
 
-    private SocketUtil(){}
+  private SocketUtil() {}
 
-    public static int getRandomPort() {
-        int low = 49152;
-        int high = 65535;
-        return random.nextInt(high - low) + low;
+  public static int getRandomPort() {
+    int low = 49152;
+    int high = 65535;
+    return random.nextInt(high - low) + low;
+  }
+
+  public static int getRandomAvailablePort() {
+    int randomPort = getRandomPort();
+    while (available(randomPort)) {
+      randomPort = getRandomPort();
     }
+    return randomPort;
+  }
 
-    public static int getRandomAvailablePort() {
-        int randomPort = getRandomPort();
-        while (available(randomPort)) {
-            randomPort = getRandomPort();
-        }
-        return randomPort;
+  public static boolean available(String host, int port) {
+    try (Socket s = new Socket(host, port)) {
+      return true;
+    } catch (IOException e) {
+      return false;
     }
+  }
 
+  public static boolean available(int port) {
+    return available(getIP(), port);
+  }
 
-    public static boolean available(String host, int port) {
-        try (Socket s = new Socket(host, port)) {
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
+  public static String getIP() {
+    try (DatagramSocket datagramSocket = new DatagramSocket()) {
+      datagramSocket.connect(InetAddress.getByName("8.8.8.8"), 12345);
+      return datagramSocket.getLocalAddress().getHostAddress();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-
-    public static boolean available(int port) {
-        return available(getIP(), port);
-    }
-
-    public static String getIP() {
-        try (DatagramSocket datagramSocket = new DatagramSocket()) {
-            datagramSocket.connect(InetAddress.getByName("8.8.8.8"), 12345);
-            return datagramSocket.getLocalAddress().getHostAddress();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
+  }
 }
-

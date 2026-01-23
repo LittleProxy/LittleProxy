@@ -21,14 +21,12 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * The ThrottleInputStream provides bandwidth throttling on a specified
- * InputStream. It is implemented as a wrapper on top of another InputStream
- * instance.
- * The throttling works by examining the number of bytes read from the underlying
- * InputStream from the beginning, and sleep()ing for a time interval if
- * the byte-transfer is found exceed the specified tolerable maximum.
- * (Thus, while the read-rate might exceed the maximum for a given short interval,
- * the average tends towards the specified maximum, overall.)
+ * The ThrottleInputStream provides bandwidth throttling on a specified InputStream. It is
+ * implemented as a wrapper on top of another InputStream instance. The throttling works by
+ * examining the number of bytes read from the underlying InputStream from the beginning, and
+ * sleep()ing for a time interval if the byte-transfer is found exceed the specified tolerable
+ * maximum. (Thus, while the read-rate might exceed the maximum for a given short interval, the
+ * average tends towards the specified maximum, overall.)
  */
 public class ThrottledInputStream extends InputStream {
 
@@ -46,7 +44,7 @@ public class ThrottledInputStream extends InputStream {
   }
 
   public ThrottledInputStream(InputStream rawStream, long maxBytesPerSec) {
-    assert maxBytesPerSec > 0 : "Bandwidth " + maxBytesPerSec + " is invalid"; 
+    assert maxBytesPerSec > 0 : "Bandwidth " + maxBytesPerSec + " is invalid";
     this.rawStream = rawStream;
     this.maxBytesPerSec = maxBytesPerSec;
   }
@@ -97,6 +95,7 @@ public class ThrottledInputStream extends InputStream {
 
   /**
    * Getter for the number of bytes read from this stream, since creation.
+   *
    * @return The number of bytes.
    */
   public long getTotalBytesRead() {
@@ -104,8 +103,9 @@ public class ThrottledInputStream extends InputStream {
   }
 
   /**
-   * Getter for the read-rate from this stream, since creation.
-   * Calculated as bytesRead/elapsedTimeSinceStart.
+   * Getter for the read-rate from this stream, since creation. Calculated as
+   * bytesRead/elapsedTimeSinceStart.
+   *
    * @return Read rate, in bytes/sec.
    */
   public long getBytesPerSec() {
@@ -119,6 +119,7 @@ public class ThrottledInputStream extends InputStream {
 
   /**
    * Getter the total time spent in sleep.
+   *
    * @return Number of milliseconds spent in sleep.
    */
   public long getTotalSleepTime() {
@@ -128,11 +129,15 @@ public class ThrottledInputStream extends InputStream {
   /** {@inheritDoc} */
   @Override
   public String toString() {
-    return "ThrottledInputStream{" +
-        "bytesRead=" + bytesRead +
-        ", maxBytesPerSec=" + maxBytesPerSec +
-        ", bytesPerSec=" + getBytesPerSec() +
-        ", totalSleepTime=" + totalSleepTime +
-        '}';
+    return "ThrottledInputStream{"
+        + "bytesRead="
+        + bytesRead
+        + ", maxBytesPerSec="
+        + maxBytesPerSec
+        + ", bytesPerSec="
+        + getBytesPerSec()
+        + ", totalSleepTime="
+        + totalSleepTime
+        + '}';
   }
 }
