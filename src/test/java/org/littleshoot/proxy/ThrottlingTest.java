@@ -7,15 +7,10 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.server.Server;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
-import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
-
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 import java.util.Arrays;
 
@@ -37,6 +32,7 @@ public final class ThrottlingTest {
     // with this large variation, if throttling
     // is broken it should take much less time than expected.
     private static final double ALLOWABLE_VARIATION = 0.30;
+    private static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
 
     private HttpProxyServer proxyServer;
     private Server writeWebServer;
@@ -62,7 +58,7 @@ public final class ThrottlingTest {
         msToWriteThrottled = largeData.length * 1000 / (int) THROTTLED_WRITE_BYTES_PER_SECOND;
         msToReadThrottled = largeData.length * 1000 / (int) THROTTLED_READ_BYTES_PER_SECOND;
 
-        writeWebServer = TestUtils.startWebServer(false);
+        writeWebServer = TestUtils.startWebServer(false, DEFAULT_JKS_KEYSTORE_PATH);
         writeWebServerPort = TestUtils.findLocalHttpPort(writeWebServer);
 
         readWebServer = TestUtils.startWebServerWithResponse(false, largeData);

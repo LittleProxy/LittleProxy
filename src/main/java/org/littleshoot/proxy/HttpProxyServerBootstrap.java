@@ -28,19 +28,6 @@ public interface HttpProxyServerBootstrap {
      */
     HttpProxyServerBootstrap withName(String name);
 
-    /**
-     * <p>
-     * Specify the {@link TransportProtocol} to use for incoming connections.
-     * </p>
-     *
-     * <p>
-     * Default = TCP
-     * </p>
-     * @deprecated default TCP (only option) is always used.
-     */
-    @Deprecated(forRemoval = true)
-    HttpProxyServerBootstrap withTransportProtocol(
-            TransportProtocol transportProtocol);
 
     /**
      * <p>

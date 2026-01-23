@@ -99,6 +99,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     public static final String PORT = "port";
     public static final String ADDRESS = "address";
     public static final String NAME = "name";
+    private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
     /**
      * Our {@link ServerGroup}. Multiple proxy servers can share the same
@@ -773,7 +774,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                         sslEngineSource = new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
                     }
                 } else {
-                    sslEngineSource = new SelfSignedSslEngineSource(trustAllServers, sendCerts);
+                    sslEngineSource = new SelfSignedSslEngineSource(DEFAULT_JKS_KEYSTORE_PATH, trustAllServers, sendCerts);
                 }
             }
             if (props.containsKey(TRANSPARENT)) {
@@ -825,17 +826,6 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             return this;
         }
 
-        /**
-         * @param transportProtocol
-         * @deprecated Use, because only TCP is supported (and available) by default.
-         */
-        @Override
-        @Deprecated(forRemoval = true)
-        public HttpProxyServerBootstrap withTransportProtocol(
-                TransportProtocol transportProtocol) {
-            this.transportProtocol = transportProtocol;
-            return this;
-        }
 
         @Override
         public HttpProxyServerBootstrap withAddress(InetSocketAddress address) {

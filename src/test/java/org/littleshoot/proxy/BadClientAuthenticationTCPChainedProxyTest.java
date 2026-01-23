@@ -22,7 +22,6 @@ public final class BadClientAuthenticationTCPChainedProxyTest extends BaseChaine
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {
         return super.upstreamProxy()
-                .withTransportProtocol(TCP)
                 .withSslEngineSource(serverSslEngineSource);
     }
 

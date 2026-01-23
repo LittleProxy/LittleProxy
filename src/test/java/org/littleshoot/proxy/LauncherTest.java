@@ -64,7 +64,7 @@ class LauncherTest {
     @Test
     void testStartWithMitmOption() {
         // Given
-        String[] args = {"--port", "" + port, "--mitm"};
+        String[] args = {"--port", "" + port, "--mitm","--ssl_clients_keystore_path","target/testStartWithMitmOption_keystore.jks"};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -288,7 +288,7 @@ class LauncherTest {
     @Test
     void testStartWithAuthenticateSslClientsOption() {
         // Given
-        String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true"};
+        String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true","--ssl_clients_keystore_path","target/testStartWithAuthenticateSslClientsOption_keystore.jks"};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -301,7 +301,7 @@ class LauncherTest {
     void testStartWithSslClientsTrustAllServersOption() {
         // Given
         String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true",
-                "--ssl_clients_trust_all_servers", "true"};
+                "--ssl_clients_trust_all_servers", "true","--ssl_clients_keystore_path","target/testStartWithSslClientsTrustAllServersOption_keystore.jks"};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -314,7 +314,7 @@ class LauncherTest {
     void testStartWithSslClientsSendCertsOption() {
         // Given
         String[] args = {"--port", "" + port, "--authenticate_ssl_clients", "true",
-                "--ssl_clients_send_certs", "true"};
+                "--ssl_clients_send_certs", "true","--ssl_clients_keystore_path","target/testStartWithSslClientsSendCertsOption_keystore.jks"};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));
@@ -520,7 +520,7 @@ class LauncherTest {
     void testStartWithMultipleOptions() {
         // Given
         String[] args = {"--port", "" + port, "--mitm", "--dnssec", "true",
-                "--name", "TestProxy", "--allow_local_only", "true"};
+                "--name", "TestProxy", "--allow_local_only", "true","--ssl_clients_keystore_path","target/testStartWithMultipleOptions_keystore.jks"};
 
         // When/Then - should not throw exception
         assertDoesNotThrow(() -> launcher.start(args));

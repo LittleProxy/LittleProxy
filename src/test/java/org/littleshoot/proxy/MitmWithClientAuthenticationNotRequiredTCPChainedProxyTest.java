@@ -4,7 +4,6 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
 import javax.net.ssl.SSLEngine;
 
-import static org.littleshoot.proxy.TransportProtocol.TCP;
 
 /**
  * Tests that when client authentication is not required, it doesn't matter what
@@ -17,7 +16,6 @@ public final class MitmWithClientAuthenticationNotRequiredTCPChainedProxyTest ex
     @Override
     protected HttpProxyServerBootstrap upstreamProxy() {
         return super.upstreamProxy()
-                .withTransportProtocol(TCP)
                 .withSslEngineSource(serverSslEngineSource)
                 .withAuthenticateSslClients(false);
     }
