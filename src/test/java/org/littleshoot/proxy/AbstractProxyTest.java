@@ -31,7 +31,7 @@ import static org.littleshoot.proxy.TestUtils.buildHttpClient;
  */
 public abstract class AbstractProxyTest {
     protected static final String DEFAULT_RESOURCE = "/";
-    public static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
+    private static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
 
     protected int webServerPort = -1;
     protected int httpsWebServerPort = -1;

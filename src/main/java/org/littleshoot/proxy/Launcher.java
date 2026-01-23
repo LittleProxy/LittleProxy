@@ -63,7 +63,7 @@ public class Launcher {
     private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
     private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
     public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
-    public static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
+    private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
     /**
      * Starts the proxy from the command line.

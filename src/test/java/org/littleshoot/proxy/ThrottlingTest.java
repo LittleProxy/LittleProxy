@@ -32,7 +32,7 @@ public final class ThrottlingTest {
     // with this large variation, if throttling
     // is broken it should take much less time than expected.
     private static final double ALLOWABLE_VARIATION = 0.30;
-    public static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
+    private static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
 
     private HttpProxyServer proxyServer;
     private Server writeWebServer;
