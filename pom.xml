@@ -543,23 +543,6 @@
                     <version>3.2.8</version>
                 </plugin>
                 <plugin>
-                    <groupId>com.rudikershaw.gitbuildhook</groupId>
-                    <artifactId>git-build-hook-maven-plugin</artifactId>
-                    <version>3.6.0</version>
-                    <configuration>
-                        <installHooks>
-                            <pre-commit>hooks/pre-commit</pre-commit>
-                        </installHooks>
-                    </configuration>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>install</goal>
-                            </goals>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
                     <groupId>com.diffplug.spotless</groupId>
                     <artifactId>spotless-maven-plugin</artifactId>
                     <!-- latest version supporting java 11 -->
