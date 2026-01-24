@@ -8,7 +8,7 @@ import java.net.URL;
 import java.util.Arrays;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.log4j.xml.DOMConfigurator;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.jspecify.annotations.NonNull;
 import org.littleshoot.proxy.extras.ActivityLogger;
 import org.littleshoot.proxy.extras.LogFormat;
@@ -322,15 +322,14 @@ public class Launcher {
       String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
       File logConfigPath = new File(optionValue);
       if (logConfigPath.exists()) {
-        DOMConfigurator.configureAndWatch(
-            logConfigPath.getAbsolutePath(), DELAY_IN_SECONDS_BETWEEN_RELOAD);
+        Configurator.initialize(null, logConfigPath.getAbsolutePath());
       }
     } else {
       // default log4j.xml file shipped with the jar
       ClassLoader classLoader = Launcher.class.getClassLoader();
-      URL defaultLogCOnfigUrl = classLoader.getResource("littleproxy_default_log4j.xml");
-      DOMConfigurator.configure(defaultLogCOnfigUrl);
-      System.out.println("using 'littleproxy_default_log4j.xml'");
+      URL defaultLogCOnfigUrl = classLoader.getResource("littleproxy_default_log4j2.xml");
+      Configurator.initialize(null, defaultLogCOnfigUrl.toString());
+      System.out.println("using 'littleproxy_default_log4j2.xml'");
     }
   }
 

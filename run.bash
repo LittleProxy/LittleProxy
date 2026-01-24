@@ -9,7 +9,8 @@ mvn package -Dmaven.test.skip=true || die "Could not package"
 fullPath=`dirname $0`
 jar=`find $fullPath/target/littleproxy*-littleproxy-shade.jar`
 cp=`echo $jar | sed 's,./,'$fullPath'/,'`
-javaArgs="-server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m -jar "$cp" $*"
+javaArgs="-server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m  -jar "$cp" $*"
+#javaArgs="-server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m -DLog4jContextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector -jar "$cp" $*"
 
 echo "Running using Java on path at `which java` with args $javaArgs"
 java $javaArgs || die "Java process exited abnormally"
