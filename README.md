@@ -69,6 +69,8 @@ The config file is a properties file with the following properties :
 
 Options set from the command line, override the ones set in the config file.
 
+> **Note**: For advanced logging configuration and performance optimization, see our [Performance and Logging Guide](PERFORMANCE_AND_LOGGING.md).
+
 ##### littleproxy.properties Example
 
 ````properties
@@ -556,6 +558,18 @@ accepting posts from new users.  But it's still a great resource if you're
 searching for older answers.)
 
 To subscribe, send an e-mail to [LittleProxy2+subscribe@googlegroups.com](mailto:LittleProxy2+subscribe@googlegroups.com).
+
+## Performance and Logging Guide
+
+For comprehensive information on logging performance optimization, including:
+
+- **Synchronous vs Asynchronous Logging**: Performance comparison and use cases
+- **Activity Log Formats**: All supported formats (CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY)
+- **Log Filtering**: BurstFilter and custom filter implementations
+- **Groovy Script Filters**: Dynamic filtering with sampling and conditional logic
+- **Best Practices**: Production-ready recommendations and troubleshooting
+
+Please see our **[Performance and Logging Guide](PERFORMANCE_AND_LOGGING.md)**.
 
 Acknowledgments
 ---------------
