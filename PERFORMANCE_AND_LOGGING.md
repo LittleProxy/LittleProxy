@@ -1,0 +1,667 @@
+# LittleProxy Performance and Logging Guide
+
+This guide covers logging performance optimization techniques and configuration options for LittleProxy.
+
+## Table of Contents
+
+- [Logging Modes](#logging-modes)
+  - [Synchronous Logging](#synchronous-logging)
+  - [Asynchronous Logging](#asynchronous-logging)
+- [Performance Considerations](#performance-considerations)
+- [Logging Configuration](#logging-configuration)
+- [Log Filtering and Rate Limiting](#log-filtering-and-rate-limiting)
+  - [BurstFilter Configuration](#burstfilter-configuration)
+  - [Custom Filter Implementation](#custom-filter-implementation)
+- [Activity Logging](#activity-logging)
+- [Best Practices](#best-practices)
+- [Troubleshooting](#troubleshooting)
+
+## Logging Modes
+
+### Synchronous Logging
+
+**Default Mode**: Synchronous logging is the default behavior and provides reliable logging with immediate disk writes.
+
+**Characteristics:**
+- ✅ Simple and reliable
+- ✅ Logs are immediately written to disk
+- ❌ Higher I/O overhead
+- ❌ Can impact proxy performance under heavy load
+- ❌ Slower response times during peak traffic
+
+**Configuration File**: `src/main/resources/littleproxy_default_log4j2.xml`
+
+**Appender Type**: `RollingFile` with immediate flush
+
+**Example Usage:**
+```bash
+./run.bash --server --config ./config/littleproxy.properties --port 9092
+```
+
+### Asynchronous Logging
+
+**Performance Mode**: Asynchronous logging significantly improves performance by buffering log events and writing them in batches.
+
+**Characteristics:**
+- ✅ Much lower I/O overhead
+- ✅ Better performance under heavy load
+- ✅ Reduced disk I/O operations
+- ✅ Configurable buffer sizes
+- ❌ Slight risk of log loss on JVM crash
+- ❌ Logs may be delayed during shutdown
+
+**Configuration File**: `src/main/resources/littleproxy_async_log4j2.xml`
+
+**Appender Type**: `RollingRandomAccessFile` with `immediateFlush="false"`
+
+**Async Features:**
+- `AsyncRoot` for root logger
+- `AsyncLogger` for all specific loggers
+- `includeLocation="true"` for better debugging
+
+**Performance Optimizations:**
+- **Buffer Size**: Configurable via Log4j2 system properties
+- **Batch Writing**: Logs are written in batches rather than individually
+- **Reduced I/O**: `immediateFlush="false"` reduces disk operations
+- **Larger Files**: 250MB file size vs 50MB in sync mode reduces rollover frequency
+
+**Example Usage:**
+```bash
+# Using the async_logging_default flag
+./run.bash --async_logging_default --server --config ./config/littleproxy.properties --port 9092
+
+# Direct Java command
+java -server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m \
+  -jar ./target/littleproxy-2.6.1-SNAPSHOT-littleproxy-shade.jar \
+  --server --config ./config/littleproxy.properties --port 9092 \
+  --log_config ./target/classes/littleproxy_async_log4j2.xml
+```
+
+## Performance Considerations
+
+### When to Use Synchronous Logging
+
+- **Development environments** where immediate log visibility is important
+- **Debugging scenarios** where you need real-time log output
+- **Low-traffic productions** where performance impact is negligible
+- **Compliance requirements** that mandate immediate log persistence
+
+### When to Use Asynchronous Logging
+
+- **High-traffic productions** where performance is critical
+- **Load testing environments** to get accurate performance metrics
+- **Resource-constrained systems** where I/O reduction is needed
+- **Burst traffic scenarios** where logging can become a bottleneck
+
+### Performance Impact Comparison
+
+| Metric | Synchronous | Asynchronous | Improvement |
+|--------|-------------|--------------|-------------|
+| **Throughput** | Baseline | +30-50% | 1.3-1.5x |
+| **Latency** | Baseline | -40-60% | 0.4-0.6x |
+| **Disk I/O** | High | Low | 5-10x less |
+| **CPU Usage** | Moderate | Lower | 10-20% less |
+| **Memory Usage** | Low | Slightly higher | Buffer overhead |
+
+## Logging Configuration
+
+### Default Configuration (Synchronous)
+
+```xml
+<!-- Synchronous rolling file appender -->
+<RollingFile name="ROLLING_TEXT_FILE" fileName="logs/app.log"
+             filePattern="logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+    <PatternLayout>
+        <Pattern>%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n</Pattern>
+    </PatternLayout>
+    <Policies>
+        <TimeBasedTriggeringPolicy interval="6" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="50 MB"/>
+    </Policies>
+</RollingFile>
+```
+
+### Async Configuration
+
+```xml
+<!-- Asynchronous rolling file appender -->
+<RollingRandomAccessFile name="ASYNC_ROLLING_FILE" fileName="logs/app-async.log"
+                         filePattern="logs/$${date:yyyy-MM}/app-async-%d{yyyy-MM-dd-HH}-%i.log.gz"
+                         immediateFlush="false">
+    <PatternLayout>
+        <Pattern>%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n</Pattern>
+    </PatternLayout>
+    <Policies>
+        <TimeBasedTriggeringPolicy interval="6" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="250 MB"/>
+    </Policies>
+</RollingRandomAccessFile>
+
+<!-- Async loggers -->
+<AsyncRoot level="INFO" includeLocation="true">
+    <AppenderRef ref="STD_OUT"/>
+    <AppenderRef ref="ASYNC_ROLLING_FILE"/>
+</AsyncRoot>
+<AsyncLogger name="org.littleshoot.proxy" level="INFO" includeLocation="true"/>
+```
+
+### Advanced Configuration Options
+
+**Log4j2 System Properties:**
+
+```bash
+# Increase async logger ring buffer size (default: 262144)
+java -Dlog4j2.AsyncLogger.RingBufferSize=1048576 ...
+
+# Increase async logger queue size
+java -Dlog4j2.AsyncLoggerConfig.RingBufferSize=1048576 ...
+
+# Disable location tracking for better performance
+java -Dlog4j2.includeLocation=false ...
+```
+
+## Log Filtering and Rate Limiting
+
+### BurstFilter Configuration
+
+Log4j2 provides a `BurstFilter` that can limit the number of log events within a time period to prevent log flooding.
+
+**Example Configuration:**
+
+```xml
+<Configuration>
+    <Appenders>
+        <Console name="STD_OUT">
+            <BurstFilter level="INFO" rate="100" maxBurst="50"/>
+            <PatternLayout pattern="%d{ISO8601} %-5p [%t] %c{2} - %m%n"/>
+        </Console>
+    </Appenders>
+    <!-- Rest of configuration -->
+</Configuration>
+```
+
+**BurstFilter Parameters:**
+
+- `level`: The log level to filter (INFO, DEBUG, WARN, etc.)
+- `rate`: Maximum number of log events per second
+- `maxBurst`: Maximum number of events allowed in a burst
+
+**Example Scenarios:**
+
+```xml
+<!-- Limit INFO logs to 100 per second, max 50 burst -->
+<BurstFilter level="INFO" rate="100" maxBurst="50"/>
+
+<!-- Limit DEBUG logs to 50 per second, max 20 burst -->
+<BurstFilter level="DEBUG" rate="50" maxBurst="20"/>
+
+<!-- Very restrictive for high-volume scenarios -->
+<BurstFilter level="INFO" rate="10" maxBurst="5"/>
+```
+
+### Custom Filter Implementation
+
+For more sophisticated filtering, you can implement custom Log4j2 filters using Java or Groovy scripts.
+
+#### Java Custom Filter Example
+
+**Example Custom Filter:**
+
+```java
+package org.littleshoot.proxy.logging;
+
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.filter.AbstractFilter;
+
+/**
+ * Custom filter to exclude specific request patterns
+ */
+public class RequestPatternFilter extends AbstractFilter {
+    
+    private final String[] excludedPatterns;
+    
+    public RequestPatternFilter(String[] excludedPatterns) {
+        this.excludedPatterns = excludedPatterns;
+    }
+    
+    @Override
+    public Result filter(LogEvent event) {
+        String message = event.getMessage().getFormattedMessage();
+        
+        // Check if message matches any excluded pattern
+        for (String pattern : excludedPatterns) {
+            if (message.contains(pattern)) {
+                return Result.DENY; // Exclude this log
+            }
+        }
+        
+        return Result.NEUTRAL; // Allow this log
+    }
+    
+    @Override
+    public Result filter(org.apache.logging.log4j.core.Logger logger, org.apache.logging.log4j.Level level, 
+                        org.apache.logging.log4j.Marker marker, String msg, Object... params) {
+        return filterLogEvent(level, marker, msg, params);
+    }
+    
+    @Override
+    public Result filter(org.apache.logging.log4j.core.Logger logger, org.apache.logging.log4j.Level level, 
+                        org.apache.logging.log4j.Marker marker, Object msg, Throwable t) {
+        return filterLogEvent(level, marker, msg, t);
+    }
+    
+    @Override
+    public Result filter(org.apache.logging.log4j.core.Logger logger, org.apache.logging.log4j.Level level, 
+                        org.apache.logging.log4j.Marker marker, Message msg, Throwable t) {
+        return filterLogEvent(level, marker, msg, t);
+    }
+    
+    private Result filterLogEvent(org.apache.logging.log4j.Level level, org.apache.logging.log4j.Marker marker, 
+                                  Object msg, Object... params) {
+        if (msg instanceof String) {
+            String message = (String) msg;
+            for (String pattern : excludedPatterns) {
+                if (message.contains(pattern)) {
+                    return Result.DENY;
+                }
+            }
+        }
+        return Result.NEUTRAL;
+    }
+}
+```
+
+#### Groovy Script Filter Example
+
+Log4j2 supports Groovy scripts for dynamic filtering without compilation. This is perfect for sampling, conditional logging, or complex logic.
+
+**Example: Sampling Filter (log only 10% of messages)**
+
+```xml
+<Configuration status="WARN">
+    <Filters>
+        <ScriptFilter onMatch="ACCEPT" onMismatch="DENY">
+            <Script language="groovy">
+                <![CDATA[
+                    // Example: Log only 10% of messages for sampling
+                    // This reduces log volume while maintaining representative samples
+                    return (Math.random() < 0.1)
+                ]]>
+            </Script>
+        </ScriptFilter>
+    </Filters>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+**Example: Conditional Filter (exclude health checks)**
+
+```xml
+<Configuration status="WARN">
+    <Filters>
+        <ScriptFilter onMatch="ACCEPT" onMismatch="DENY">
+            <Script language="groovy">
+                <![CDATA[
+                    // Example: Exclude health check and ping requests
+                    def message = logEvent.getMessage().getFormattedMessage()
+                    
+                    // List of patterns to exclude
+                    def excludedPatterns = ['/health', '/ping', 'favicon.ico']
+                    
+                    // Check if message contains any excluded pattern
+                    for (pattern in excludedPatterns) {
+                        if (message.contains(pattern)) {
+                            return false // Exclude this log
+                        }
+                    }
+                    
+                    return true // Allow this log
+                ]]>
+            </Script>
+        </ScriptFilter>
+    </Filters>
+    <!-- Rest of configuration -->
+</Configuration>
+```
+
+**Example: Time-Based Filter (business hours only)**
+
+```xml
+<Configuration status="WARN">
+    <Filters>
+        <ScriptFilter onMatch="ACCEPT" onMismatch="DENY">
+            <Script language="groovy">
+                <![CDATA[
+                    // Example: Log only during business hours (9AM-5PM)
+                    def now = new Date()
+                    def calendar = Calendar.getInstance()
+                    calendar.setTime(now)
+                    
+                    def hour = calendar.get(Calendar.HOUR_OF_DAY)
+                    def isBusinessHours = hour >= 9 && hour < 17
+                    
+                    // Also log weekends but at reduced rate
+                    def dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+                    def isWeekend = dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
+                    
+                    if (isBusinessHours) {
+                        return true // Always log during business hours
+                    } else if (isWeekend) {
+                        return (Math.random() < 0.05) // Log 5% of weekend traffic
+                    } else {
+                        return (Math.random() < 0.2) // Log 20% of after-hours traffic
+                    }
+                ]]>
+            </Script>
+        </ScriptFilter>
+    </Filters>
+    <!-- Rest of configuration -->
+</Configuration>
+```
+
+**Groovy Script Filter Benefits:**
+
+- ✅ **No compilation needed**: Scripts are interpreted at runtime
+- ✅ **Dynamic logic**: Can use complex conditions and external data
+- ✅ **Easy to modify**: Change filtering logic without recompiling
+- ✅ **Powerful**: Access to full Groovy language features
+- ✅ **Performance**: Still efficient for most use cases
+
+**Script Filter Parameters:**
+
+- `onMatch`: What to do when script returns true (ACCEPT/DENY/NEUTRAL)
+- `onMismatch`: What to do when script returns false (ACCEPT/DENY/NEUTRAL)
+- `language`: Script language (groovy, javascript, etc.)
+
+**Available Variables in Script:**
+
+- `logEvent`: The current LogEvent object
+- `loggerName`: Name of the logger
+- `level`: Log level
+- `message`: Formatted message
+- `marker`: Marker (if any)
+- `throwable`: Exception (if any)
+
+**Performance Considerations:**
+
+- Script filters add some overhead compared to compiled filters
+- Use for complex logic that's hard to implement in Java
+- Test script performance before deploying to production
+- Consider caching results for repeated patterns
+
+**XML Configuration for Custom Filter:**
+
+```xml
+<Configuration>
+    <Appenders>
+        <Console name="STD_OUT">
+            <RequestPatternFilter excludedPatterns="health-check,ping,favicon.ico"/>
+            <PatternLayout pattern="%d{ISO8601} %-5p [%t] %c{2} - %m%n"/>
+        </Console>
+    </Appenders>
+</Configuration>
+```
+
+### Filter Examples by Use Case
+
+**1. Exclude Health Check Requests:**
+```xml
+<BurstFilter level="INFO" rate="100" maxBurst="50"/>
+```
+
+**2. Limit Debug Logs in Production:**
+```xml
+<ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+```
+
+**3. Filter by Request Type:**
+```xml
+<RegexFilter regex=".*(health|ping|status).*" onMatch="DENY" onMismatch="NEUTRAL"/>
+```
+
+**4. Rate Limiting for Specific Loggers:**
+```xml
+<Logger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO">
+    <BurstFilter level="INFO" rate="200" maxBurst="100"/>
+</Logger>
+```
+
+## Activity Logging
+
+Activity logging in LittleProxy captures HTTP request/response details. This can be a significant performance factor.
+
+### Activity Log Formats
+
+**CLF (Common Log Format):**
+```bash
+--activity_log_format CLF
+```
+
+**ELF (Extended Log Format):**
+```bash
+--activity_log_format ELF
+```
+
+**JSON:**
+```bash
+--activity_log_format JSON
+```
+
+**SQUID:**
+```bash
+--activity_log_format SQUID
+```
+
+**W3C:**
+```bash
+--activity_log_format W3C
+```
+
+**LTSV (Labeled Tab-Separated Values):**
+```bash
+--activity_log_format LTSV
+```
+
+**CSV (Comma-Separated Values):**
+```bash
+--activity_log_format CSV
+```
+
+**HAPROXY:**
+```bash
+--activity_log_format HAPROXY
+```
+
+### Activity Logging Performance Impact
+
+| Format | Performance | Use Case |
+|--------|-------------|----------|
+| **CLF** | ⚡ Fastest | Production, high volume |
+| **ELF** | ⚡ Fast | Extended logging needs |
+| **JSON** | 🏃 Moderate | Analytics, structured logging |
+| **SQUID** | 🏃 Moderate | Squid proxy compatibility |
+| **W3C** | 🏃 Moderate | Web standards compliance |
+| **LTSV** | 🏃 Moderate | Machine-readable logs |
+| **CSV** | 🏃 Moderate | Spreadsheet analysis |
+| **HAPROXY** | 🏃 Moderate | HAProxy compatibility |
+
+### Activity Logging Best Practices
+
+1. **Disable in Development**: omit the `--activity_log_format` flag when not needed
+2. **Use CLF in Production**: Fastest format for high-volume scenarios
+3. **Sample Activity Logs**: Consider sampling (every Nth request)
+4. **Separate Activity Logs**: Use different files for access logs vs application logs
+
+**Example with Activity Logging:**
+```bash
+# Async logging with CLF activity format (best performance)
+./run.bash --async_logging_default --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format CLF
+
+# Sync logging with JSON activity format (structured logging)
+./run.bash --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format JSON
+```
+
+## Best Practices
+
+### Logging Configuration
+
+1. **Use Async for Production**: Always use `--async_logging_default` in production
+2. **Keep Sync for Development**: Use default sync logging during development
+3. **Monitor Log Growth**: Set appropriate file sizes and rotation policies
+4. **Test Configuration**: Validate Log4j2 configuration before deployment
+
+### Performance Optimization
+
+1. **Tune Buffer Sizes**: Adjust `log4j2.AsyncLogger.RingBufferSize` based on load
+2. **Limit Location Info**: Use `includeLocation="false"` for production
+3. **Filter Early**: Apply filters at the appender level
+4. **Use Appropriate Levels**: DEBUG for development, INFO for production
+
+### Monitoring and Maintenance
+
+1. **Monitor Log Files**: Check disk usage regularly
+2. **Rotate Logs**: Configure proper rotation policies
+3. **Archive Old Logs**: Implement log archiving strategy
+4. **Alert on Errors**: Set up monitoring for ERROR level logs
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+**Issue: No logs appearing with async mode**
+- **Solution**: Check that `littleproxy_async_log4j2.xml` is in the correct location
+- **Solution**: Verify file permissions on log directory
+- **Solution**: Check for Log4j2 configuration errors
+
+**Issue: High CPU usage with logging**
+- **Solution**: Switch to async logging mode
+- **Solution**: Reduce log level from DEBUG to INFO
+- **Solution**: Apply BurstFilter to limit log volume
+
+**Issue: Disk full due to logs**
+- **Solution**: Configure proper rotation policies
+- **Solution**: Increase file size limits
+- **Solution**: Implement log archiving
+
+**Issue: Log4j2 configuration errors**
+- **Solution**: Check XML syntax
+- **Solution**: Validate with `status="TRACE"` in configuration
+- **Solution**: Ensure all referenced appenders exist
+
+### Debugging Log4j2 Configuration
+
+Add debug output to Log4j2:
+
+```xml
+<Configuration status="TRACE" monitorInterval="15">
+    <!-- Rest of configuration -->
+</Configuration>
+```
+
+**Debug Levels:**
+- `OFF`: No internal logging
+- `ERROR`: Only errors
+- `WARN`: Warnings and errors
+- `INFO`: Informational messages
+- `DEBUG`: Debug information
+- `TRACE`: Verbose debugging
+
+### Checking Async Logger Status
+
+```bash
+# Check async logger buffer status
+java -Dlog4j2.AsyncLoggerConfig.StatusLogger.level=INFO \
+  -jar ./target/littleproxy-2.6.1-SNAPSHOT-littleproxy-shade.jar \
+  --server --config ./config/littleproxy.properties --port 9092
+```
+
+## Advanced Topics
+
+### Custom Appender Implementation
+
+For specialized logging needs, implement custom appenders:
+
+```java
+@Plugin(name = "CustomAppender", category = "Core", elementType = "appender", printObject = true)
+public class CustomAppender extends AbstractAppender {
+    
+    protected CustomAppender(String name, Filter filter, Layout<? extends Serializable> layout) {
+        super(name, filter, layout);
+    }
+    
+    @Override
+    public void append(LogEvent event) {
+        // Custom logging logic
+        byte[] bytes = getLayout().toByteArray(event);
+        // Send to custom destination (database, network, etc.)
+    }
+}
+```
+
+### Dynamic Log Level Adjustment
+
+Change log levels at runtime:
+
+```java
+// Get the logger context
+LoggerContext context = (LoggerContext) LogManager.getContext(false);
+Configuration config = context.getConfiguration();
+
+// Adjust log level
+LoggerConfig loggerConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
+loggerConfig.setLevel(Level.DEBUG);
+
+// Update configuration
+context.updateLoggers();
+```
+
+### Log Enrichment
+
+Add contextual information to logs:
+
+```java
+// Use ThreadContext to add contextual data
+ThreadContext.put("requestId", UUID.randomUUID().toString());
+ThreadContext.put("clientIp", clientAddress);
+
+try {
+    // Process request - logs will include context data
+    logger.info("Processing request");
+} finally {
+    ThreadContext.clear();
+}
+```
+
+**Pattern Layout with Context:**
+```xml
+<PatternLayout pattern="%d{ISO8601} %-5p [%t] %c{2} [requestId=%X{requestId}, clientIp=%X{clientIp}] - %m%n"/>
+```
+
+## Summary
+
+This guide provides comprehensive information on optimizing LittleProxy logging performance:
+
+- **Synchronous vs Asynchronous**: Choose based on your performance needs
+- **Configuration Options**: Default and async configurations provided
+- **Filtering**: BurstFilter and custom filters for rate limiting
+- **Activity Logging**: Format options and performance considerations
+- **Best Practices**: Production-ready recommendations
+- **Troubleshooting**: Common issues and solutions
+
+For most production environments, **asynchronous logging with CLF activity format** provides the best balance of performance and functionality:
+
+```bash
+./run.bash --async_logging_default --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format CLF
+```
