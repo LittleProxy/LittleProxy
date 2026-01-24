@@ -14,30 +14,30 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <github.global.server>github</github.global.server>
-        <netty.version>4.2.9.Final</netty.version>
-        <slf4j.version>2.0.17</slf4j.version>
-        <error_prone.version>2.42.0</error_prone.version>
         <java.version>11</java.version>
         <java.version.tests>17</java.version.tests>
 
-        <!-- Centralized dependency versions for easier maintenance -->
-        <guava.version>33.5.0-jre</guava.version>
-        <junit.version>6.0.2</junit.version>
+        <!-- Centralized dependency versions for easier maintenance (alphabetically sorted) -->
         <assertj.version>3.27.6</assertj.version>
-        <jetty.version>11.0.24</jetty.version>
-        <mockito.version>5.21.0</mockito.version>
-        <wiremock.version>3.13.2</wiremock.version>
-        <commons.io.version>2.21.0</commons.io.version>
-        <selenium.version>4.40.0</selenium.version>
-        <log4j.version>2.25.3</log4j.version>
-        <httpclient.version>4.5.14</httpclient.version>
-        <dnssec4j.version>0.1.6</dnssec4j.version>
-        <dnsjava.version>3.6.4</dnsjava.version>
-        <disruptor.version>4.0.0</disruptor.version>
         <commons.cli.version>1.11.0</commons.cli.version>
-        <commons.lang3.version>3.20.0</commons.lang3.version>
         <commons.exec.version>1.6.0</commons.exec.version>
+        <commons.io.version>2.21.0</commons.io.version>
+        <commons.lang3.version>3.20.0</commons.lang3.version>
+        <disruptor.version>4.0.0</disruptor.version>
+        <dnsjava.version>3.6.4</dnsjava.version>
+        <dnssec4j.version>0.1.6</dnssec4j.version>
+        <error_prone.version>2.42.0</error_prone.version>
+        <guava.version>33.5.0-jre</guava.version>
+        <httpclient.version>4.5.14</httpclient.version>
         <jackson.bom.version>2.21.0</jackson.bom.version>
+        <jetty.version>11.0.24</jetty.version>
+        <junit.version>6.0.2</junit.version>
+        <log4j.version>2.25.3</log4j.version>
+        <mockito.version>5.21.0</mockito.version>
+        <netty.version>4.2.9.Final</netty.version>
+        <selenium.version>4.40.0</selenium.version>
+        <slf4j.version>2.0.17</slf4j.version>
+        <wiremock.version>3.13.2</wiremock.version>
     </properties>
 
     <licenses>
