@@ -256,6 +256,7 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j2-impl</artifactId>
             <version>${log4j.version}</version>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -634,7 +635,11 @@
                                     <exclude>org.bouncycastle:*</exclude>
                                 </excludes>
                             </artifactSet>
-
+                            <extraArtifacts>
+                                <extraArtifact>org.apache.logging.log4j:log4j-core:${log4j.version}</extraArtifact>
+                                <extraArtifact>org.apache.logging.log4j:log4j-slf4j2-impl:${log4j.version}</extraArtifact>
+                                <extraArtifact>com.lmax:disruptor:${disruptor.version}</extraArtifact>
+                            </extraArtifacts>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
