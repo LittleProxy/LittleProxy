@@ -327,8 +327,8 @@ public class Launcher {
     } else {
       // default log4j.xml file shipped with the jar
       ClassLoader classLoader = Launcher.class.getClassLoader();
-      URL defaultLogCOnfigUrl = classLoader.getResource("littleproxy_default_log4j2.xml");
-      Configurator.initialize(null, defaultLogCOnfigUrl.toString());
+      URL defaultLogConfigUrl = classLoader.getResource("littleproxy_default_log4j2.xml");
+      Configurator.initialize(null, defaultLogConfigUrl.toString());
       System.out.println("using 'littleproxy_default_log4j2.xml'");
     }
   }
