@@ -312,7 +312,7 @@
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
             <version>${disruptor.version}</version>
-            <scope>runtime</scope>
+            <scope>optional</scope>
         </dependency>
 
         <!-- Test dependencies -->
@@ -436,14 +436,6 @@
                 <version>${jackson.bom.version}</version>
                 <scope>import</scope>
                 <type>pom</type>
-            </dependency>
-
-            <!-- Disruptor runtime dependency -->
-            <dependency>
-                <groupId>com.lmax</groupId>
-                <artifactId>disruptor</artifactId>
-                <version>${disruptor.version}</version>
-                <scope>runtime</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
