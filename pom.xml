@@ -264,6 +264,13 @@
             <version>${log4j.version}</version>
             <optional>true</optional>
         </dependency>
+        <!-- disruptor is required by async logging with log4j2 -->
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>${disruptor.version}</version>
+            <scope>optional</scope>
+        </dependency>
 
         <!-- Optional DNS dependencies -->
         <dependency>
@@ -306,13 +313,6 @@
                     <artifactId>slf4j-api</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>com.lmax</groupId>
-            <artifactId>disruptor</artifactId>
-            <version>${disruptor.version}</version>
-            <scope>optional</scope>
         </dependency>
 
         <!-- Test dependencies -->
