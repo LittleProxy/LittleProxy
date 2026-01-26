@@ -1124,7 +1124,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    *
    * @return true if we're forwarding to an upstream proxy that requires authentication
    */
-  private boolean shouldPreserveProxyAuthorizationForUpstream() {
+  boolean shouldPreserveProxyAuthorizationForUpstream() {
     if (!currentServerConnection.hasUpstreamChainedProxy()) {
       return false;
     }
@@ -1151,7 +1151,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * @param httpResponse the response from the upstream proxy
    * @return true if this is an upstream proxy 407 that should be handled, false otherwise
    */
-  private boolean handleUpstreamProxyAuthenticationRequired(HttpResponse httpResponse) {
+  boolean handleUpstreamProxyAuthenticationRequired(HttpResponse httpResponse) {
     // Check if this is a 407 response
     if (httpResponse.status() != HttpResponseStatus.PROXY_AUTHENTICATION_REQUIRED) {
       return false;
@@ -1194,7 +1194,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    *
    * @param headers the headers to modify
    */
-  private void addUpstreamProxyAuthorization(HttpHeaders headers) {
+  void addUpstreamProxyAuthorization(HttpHeaders headers) {
     ChainedProxy chainedProxy = currentServerConnection.getChainedProxy();
     if (chainedProxy != null) {
       String username = chainedProxy.getUsername();
@@ -1312,7 +1312,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * @param headers The headers to modify
    * @param preserveProxyAuthorization true if Proxy-Authorization headers should be preserved
    */
-  private void stripHopByHopHeaders(HttpHeaders headers, boolean preserveProxyAuthorization) {
+  void stripHopByHopHeaders(HttpHeaders headers, boolean preserveProxyAuthorization) {
     ProxyUtils.stripHopByHopHeaders(headers, preserveProxyAuthorization);
   }
 
@@ -1322,7 +1322,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    *
    * @param headers The headers to modify
    */
-  private void stripHopByHopHeaders(HttpHeaders headers) {
+  void stripHopByHopHeaders(HttpHeaders headers) {
     stripHopByHopHeaders(headers, false);
   }
 
@@ -1601,5 +1601,23 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   public ClientDetails getClientDetails() {
     return clientDetails;
+  }
+
+  /**
+   * Gets the authenticated status of this connection.
+   * 
+   * @return the authenticated status
+   */
+  public AtomicBoolean getAuthenticated() {
+    return authenticated;
+  }
+
+  /**
+   * Gets the current server connection.
+   * 
+   * @return the current server connection, or null if none
+   */
+  public ProxyToServerConnection getCurrentServerConnection() {
+    return currentServerConnection;
   }
 }
