@@ -519,18 +519,19 @@ public class ProxyUtils {
   }
 
   /**
-   * Removes all headers that should not be forwarded, with an option to preserve Proxy-Authorization
-   * headers when forwarding to an upstream proxy that requires authentication.
+   * Removes all headers that should not be forwarded, with an option to preserve
+   * Proxy-Authorization headers when forwarding to an upstream proxy that requires authentication.
    *
    * @param headers The headers to modify
    * @param preserveProxyAuthorization true if Proxy-Authorization headers should be preserved for
-   *                                  upstream proxy authentication
+   *     upstream proxy authentication
    */
   public static void stripHopByHopHeaders(HttpHeaders headers, boolean preserveProxyAuthorization) {
     // Not explicitly documented, but remove is case-insensitive as HTTP header handling function
     // should be
     for (String headerName : SHOULD_NOT_PROXY_HOP_BY_HOP_HEADERS) {
-      if (preserveProxyAuthorization && HttpHeaderNames.PROXY_AUTHORIZATION.toString().equals(headerName)) {
+      if (preserveProxyAuthorization
+          && HttpHeaderNames.PROXY_AUTHORIZATION.toString().equals(headerName)) {
         // Skip removing Proxy-Authorization header if we need to preserve it for upstream proxy
         continue;
       }
