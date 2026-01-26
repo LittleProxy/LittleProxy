@@ -111,32 +111,40 @@ class RealChainedProxyAuthenticationTest {
     /**
      * Scenario 2: Both LittleProxy and next proxy handle auth
      * 
-     * Client → [Proxy-Authorization: clientCreds] → LittleProxy (authenticates)
-     * → [Proxy-Authorization: upstreamCreds] → Upstream Proxy → ✅ Success
+     * Client → [Proxy-Authorization: clientUser:clientPass] → LittleProxy (authenticates)
+     * → [Proxy-Authorization: upstreamUser:upstreamPass] → Upstream Proxy → ✅ Success
      */
     @Test
     void testScenario2_RealCodePath_BothHandleAuth() {
         System.out.println("=== Real Test Scenario 2: Both proxies handle auth ===");
         
-        // Create a real request with client credentials
+        // Define different credentials for each proxy
+        String clientCredentials = "clientUser:clientPass";
+        String upstreamCredentials = "upstreamUser:upstreamPass";
+        
+        // Create a real request with CLIENT credentials for LittleProxy
         HttpRequest request = new io.netty.handler.codec.http.DefaultHttpRequest(
             HttpVersion.HTTP_1_1, HttpMethod.GET, "/test");
-        request.headers().set("Proxy-Authorization", "Basic " + Base64.getEncoder().encodeToString("clientUser:clientPass".getBytes()));
+        request.headers().set("Proxy-Authorization", "Basic " + Base64.getEncoder().encodeToString(clientCredentials.getBytes()));
         
-        System.out.println("1. Client request: " + request.headers());
+        System.out.println("1. Client request with CLIENT credentials: " + request.headers());
+        System.out.println("   Client credentials: " + clientCredentials);
         
         // Simulate client authentication (header would be removed by real auth logic)
         request.headers().remove("Proxy-Authorization");
+        System.out.println("2. After LittleProxy authentication: header removed");
         
-        // Mock: upstream proxy requires authentication
+        // Mock: upstream proxy requires authentication with DIFFERENT credentials
         when(proxyToServerConnection.hasUpstreamChainedProxy()).thenReturn(true);
-        ChainedProxy authRequiredProxy = createAuthRequiredProxy();
+        ChainedProxy authRequiredProxy = createUpstreamAuthProxy(upstreamCredentials);
         when(proxyToServerConnection.getChainedProxy()).thenReturn(authRequiredProxy);
+        
+        System.out.println("   Upstream credentials: " + upstreamCredentials);
         
         // Test the real shouldPreserveProxyAuthorizationForUpstream method
         boolean shouldPreserve = clientToProxyConnection.shouldPreserveProxyAuthorizationForUpstream();
         
-        System.out.println("2. Should preserve Proxy-Authorization: " + shouldPreserve);
+        System.out.println("3. Should preserve Proxy-Authorization: " + shouldPreserve);
         
         // Verify: SHOULD preserve (upstream proxy requires auth)
         assertThat(shouldPreserve)
@@ -147,7 +155,7 @@ class RealChainedProxyAuthenticationTest {
         HttpHeaders headersCopy = request.headers().copy();
         clientToProxyConnection.stripHopByHopHeaders(headersCopy, shouldPreserve);
         
-        System.out.println("3. After header preservation: " + headersCopy);
+        System.out.println("4. After header preservation: " + headersCopy);
         
         // Verify: Proxy-Authorization header should be preserved (empty, but not removed)
         assertThat(headersCopy.contains("Proxy-Authorization"))
@@ -157,7 +165,7 @@ class RealChainedProxyAuthenticationTest {
         // Test the real addUpstreamProxyAuthorization method
         clientToProxyConnection.addUpstreamProxyAuthorization(headersCopy);
         
-        System.out.println("4. After adding upstream credentials: " + headersCopy);
+        System.out.println("5. After adding UPSTREAM credentials: " + headersCopy);
         
         // Verify: upstream credentials were added
         assertThat(headersCopy.contains("Proxy-Authorization"))
@@ -166,19 +174,26 @@ class RealChainedProxyAuthenticationTest {
         
         // Verify: credentials are for upstream proxy, not client
         String authHeader = headersCopy.get("Proxy-Authorization");
+        String expectedUpstreamAuth = "Basic " + Base64.getEncoder().encodeToString(upstreamCredentials.getBytes());
+        
         assertThat(authHeader)
             .as("Should contain upstream credentials, not client credentials")
-            .startsWith("Basic ")
-            .doesNotContain("clientUser:clientPass");
+            .isEqualTo(expectedUpstreamAuth)
+            .doesNotContain(clientCredentials);
         
-        System.out.println("✅ Scenario 2 real code path test passed");
+        // Explicit verification that credentials are different
+        assertThat(authHeader)
+            .as("Upstream credentials should be different from client credentials")
+            .isNotEqualTo("Basic " + Base64.getEncoder().encodeToString(clientCredentials.getBytes()));
+        
+        System.out.println("✅ Scenario 2 real code path test passed - different credentials verified");
     }
 
     /**
      * Scenario 3: LittleProxy does not handle auth, next proxy does
      * 
-     * Client → [Proxy-Authorization: upstreamCreds] → LittleProxy (no auth, preserves header)
-     * → [Proxy-Authorization: upstreamCreds] → Upstream Proxy (authenticates) → ✅ Success
+     * Client → [Proxy-Authorization: upstreamUser:upstreamPass] → LittleProxy (no auth, preserves header)
+     * → [Proxy-Authorization: upstreamUser:upstreamPass] → Upstream Proxy (authenticates) → ✅ Success
      */
     @Test
     void testScenario3_RealCodePath_NoLittleProxyAuth() {
@@ -324,6 +339,20 @@ class RealChainedProxyAuthenticationTest {
     }
 
     // Helper methods to create test proxies
+    
+    private ChainedProxy createUpstreamAuthProxy(String credentials) {
+        ChainedProxy proxy = Mockito.mock(ChainedProxy.class);
+        when(proxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+        
+        // Parse credentials for username and password
+        String[] parts = credentials.split(":", 2);
+        String username = parts[0];
+        String password = parts.length > 1 ? parts[1] : "";
+        
+        when(proxy.getUsername()).thenReturn(username);
+        when(proxy.getPassword()).thenReturn(password);
+        return proxy;
+    }
     
     private ChainedProxy createAuthRequiredProxy() {
         ChainedProxy proxy = Mockito.mock(ChainedProxy.class);
