@@ -19,7 +19,7 @@ import org.mockito.Mockito;
  * auth (two roundtrips) 3. LittleProxy does not handle auth, next proxy does 4. Neither proxy
  * handles auth
  */
-public class ChainedProxyAuthenticationScenariosTest {
+class ChainedProxyAuthenticationScenariosTest {
 
   /**
    * Scenario 1: LittleProxy handles auth, next proxy does not
@@ -28,7 +28,7 @@ public class ChainedProxyAuthenticationScenariosTest {
    * [No auth header] → Upstream Proxy (no auth needed) → ✅ Success
    */
   @Test
-  public void testScenario1_LittleProxyHandlesAuth_NextProxyDoesNot() {
+  void testScenario1_LittleProxyHandlesAuth_NextProxyDoesNot() {
     System.out.println("=== Testing Scenario 1: LittleProxy handles auth, next proxy does not ===");
 
     // Simulate client request with authentication
@@ -70,7 +70,7 @@ public class ChainedProxyAuthenticationScenariosTest {
    * handle it appropriately
    */
   @Test
-  public void testScenario2_BothProxiesHandleAuth() {
+  void testScenario2_BothProxiesHandleAuth() {
     System.out.println("=== Testing Scenario 2: Both proxies handle auth ===");
 
     // Simulate client request with client authentication
@@ -127,7 +127,7 @@ public class ChainedProxyAuthenticationScenariosTest {
    * [Proxy-Authorization: upstreamCreds] → Upstream Proxy (authenticates) → ✅ Success
    */
   @Test
-  public void testScenario3_LittleProxyNoAuth_NextProxyDoes() {
+  void testScenario3_LittleProxyNoAuth_NextProxyDoes() {
     System.out.println(
         "=== Testing Scenario 3: LittleProxy does not handle auth, next proxy does ===");
 
@@ -167,7 +167,7 @@ public class ChainedProxyAuthenticationScenariosTest {
    * auth) → ✅ Success
    */
   @Test
-  public void testScenario4_NeitherProxyHandlesAuth() {
+  void testScenario4_NeitherProxyHandlesAuth() {
     System.out.println("=== Testing Scenario 4: Neither proxy handles auth ===");
 
     // Simulate client request without authentication
@@ -196,7 +196,7 @@ public class ChainedProxyAuthenticationScenariosTest {
 
   /** Test the complete authentication flow logic */
   @Test
-  public void testCompleteAuthenticationFlow() {
+  void testCompleteAuthenticationFlow() {
     System.out.println("=== Testing Complete Authentication Flow ===");
 
     // Test the shouldPreserveProxyAuthorizationForUpstream logic
