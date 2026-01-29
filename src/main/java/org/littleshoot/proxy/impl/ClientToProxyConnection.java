@@ -1605,19 +1605,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   /**
    * Gets the authenticated status of this connection.
-   * 
+   *
    * @return the authenticated status
    */
   public AtomicBoolean getAuthenticated() {
     return authenticated;
   }
 
-  /**
-   * Gets the current server connection.
-   * 
-   * @return the current server connection, or null if none
-   */
-  public ProxyToServerConnection getCurrentServerConnection() {
-    return currentServerConnection;
-  }
 }
