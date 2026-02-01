@@ -24,7 +24,8 @@ public enum StandardField implements LogField {
     BYTES("bytes", "Response content length in bytes"),
     DURATION("duration", "Request processing duration in milliseconds"),
     REFERER("referer", "Referer header from the request"),
-    USER_AGENT("user_agent", "User-Agent header from the request");
+    USER_AGENT("user_agent", "User-Agent header from the request"),
+    PROTOCOL("protocol", "HTTP protocol version");
 
     private final String name;
     private final String description;
