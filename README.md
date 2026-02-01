@@ -66,6 +66,11 @@ The config file is a properties file with the following properties :
 - `allow_proxy_protocol` : boolean value to allow proxy protocol (default : `false`)
 - `send_proxy_protocol` : boolean value to send proxy protocol header (default : `false`)
 - `activity_log_format` : string value to set the activity log format (CLF, ELF, JSON, LTSV, CSV, SQUID, HAPROXY) (default: disabled)
+- `activity_log_field_config` : string value to set the path to JSON configuration file for custom logging fields (default: disabled)
+- `activity_log_prefix_headers` : comma-separated list of header prefixes to log (e.g., "X-Custom-,X-Trace-")
+- `activity_log_regex_headers` : comma-separated list of regex patterns for headers to log
+- `activity_log_exclude_headers` : comma-separated list of regex patterns for headers to exclude from logging
+- `activity_log_mask_sensitive` : boolean value to mask sensitive header values (default: `false`)
 
 Options set from the command line, override the ones set in the config file.
 
@@ -133,6 +138,81 @@ Supported formats: `CLF`, `ELF`, `W3C`, `JSON`, `LTSV`, `CSV`, `SQUID`, `HAPROXY
 ```bash
 $ ./run.bash --activity_log_format CLF
 ```
+
+#### Advanced Logging Configuration
+
+LittleProxy supports advanced logging configuration through JSON configuration files and CLI options. You can customize which headers to log, apply pattern matching, exclude sensitive headers, and mask values.
+
+**JSON Configuration File:**
+
+Create a JSON file to define custom logging fields:
+
+```json
+{
+  "standardFields": ["TIMESTAMP", "CLIENT_IP", "METHOD", "URI", "STATUS"],
+  "prefixHeaders": [
+    {"prefix": "X-Custom-", "fieldNameTransformer": "lower_underscore"},
+    {"prefix": "X-Trace-", "fieldNameTransformer": "remove_prefix"}
+  ],
+  "regexHeaders": [
+    {"pattern": "X-.*-Id", "fieldNameTransformer": "lower_underscore"}
+  ],
+  "excludeHeaders": [
+    {"pattern": "Authorization|Cookie", "valueTransformer": "mask_full"}
+  ],
+  "computedFields": ["GEOLOCATION_COUNTRY", "RESPONSE_TIME_CATEGORY"]
+}
+```
+
+Use the configuration file:
+
+```bash
+$ ./run.bash --activity_log_format JSON --activity_log_field_config ./logging-config.json
+```
+
+**Inline CLI Options:**
+
+For simple configurations, use CLI options directly:
+
+```bash
+# Log all headers starting with X-Custom- and X-Trace-
+$ ./run.bash --activity_log_format JSON --activity_log_prefix_headers "X-Custom-,X-Trace-"
+
+# Log headers matching regex patterns
+$ ./run.bash --activity_log_format JSON --activity_log_regex_headers "X-.*-Id,X-Request-.*"
+
+# Exclude sensitive headers
+$ ./run.bash --activity_log_format JSON --activity_log_exclude_headers "Authorization,Cookie,X-API-Key"
+
+# Combined example
+$ ./run.bash --activity_log_format JSON \
+  --activity_log_prefix_headers "X-Custom-" \
+  --activity_log_exclude_headers "Authorization,Cookie"
+```
+
+**Hybrid Approach (File + CLI):**
+
+You can combine a base configuration file with CLI overrides:
+
+```bash
+$ ./run.bash --activity_log_format JSON \
+  --activity_log_field_config ./base-config.json \
+  --activity_log_exclude_headers "X-Secret-Header"
+```
+
+**Field Name Transformers:**
+
+- `lower_underscore`: Convert header names to lowercase with underscores (e.g., `X-Custom-Auth` → `x_custom_auth`)
+- `remove_prefix`: Remove the X- prefix and convert to lowercase (e.g., `X-Trace-Id` → `trace_id`)
+- `lower_hyphen`: Convert to lowercase with hyphens
+- `upper_underscore`: Convert to uppercase with underscores
+
+**Value Transformers:**
+
+- `mask_sensitive`: Mask sensitive values showing first/last 4 chars (e.g., `secret-token-123` → `secr****t-123`)
+- `mask_full`: Completely mask the value (e.g., `secret` → `****`)
+- `mask_email`: Mask email addresses (e.g., `user@example.com` → `us***@example.com`)
+- `truncate_100`: Truncate values to 100 characters
 
 #### Port
 
@@ -464,27 +544,66 @@ existingServer.clone().withPort(8081).start()
 
 ### Logging Activity Tracker
 
-LittleProxy includes a `LoggingActivityTracker` that can log detailed information about each request and response handled by the proxy. It supports multiple standard log formats, which can be useful for integration with log analysis tools.
+LittleProxy includes an `ActivityLogger` that can log detailed information about each request and response handled by the proxy. It supports multiple standard log formats and customizable field configuration, which can be useful for integration with log analysis tools.
 
-To use it, wrap your functionality or simply add it to your server bootstrap:
+**Package:** `org.littleshoot.proxy.extras.logging`
+
+**Basic Usage:**
 
 ```java
-import org.littleshoot.proxy.extras.ActivityLogger;
-import org.littleshoot.proxy.extras.LoggingActivityTracker;
-import org.littleshoot.proxy.extras.LogFormat;
+import org.littleshoot.proxy.extras.logging.ActivityLogger;
+import org.littleshoot.proxy.extras.logging.LogFormat;
 
 // ...
 
 DefaultHttpProxyServer.bootstrap()
-    .
+    .withPort(8080)
+    .plusActivityTracker(new ActivityLogger(LogFormat.CLF)) // Use Common Log Format
+    .start();
+```
 
-withPort(8080)
-    .
+**With Custom Field Configuration:**
 
-plusActivityTracker(new ActivityLogger(LogFormat.CLF)) // Use Common Log Format
-        .
+```java
+import org.littleshoot.proxy.extras.logging.ActivityLogger;
+import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
+import org.littleshoot.proxy.extras.logging.LogFormat;
+import org.littleshoot.proxy.extras.logging.StandardField;
+import org.littleshoot.proxy.extras.logging.ComputedField;
 
-start();
+// ...
+
+// Build custom field configuration
+LogFieldConfiguration fieldConfig = LogFieldConfiguration.builder()
+    .addStandardField(StandardField.TIMESTAMP)
+    .addStandardField(StandardField.CLIENT_IP)
+    .addStandardField(StandardField.METHOD)
+    .addStandardField(StandardField.URI)
+    .addStandardField(StandardField.STATUS)
+    .addRequestHeadersWithPrefix("X-Custom-")              // Log all headers starting with X-Custom-
+    .addRequestHeadersMatching("X-.*-Id")                  // Log headers matching regex
+    .excludeRequestHeadersMatching("Authorization|Cookie") // Exclude sensitive headers
+    .addComputedField(ComputedField.GEOLOCATION_COUNTRY)   // Add computed fields
+    .build();
+
+DefaultHttpProxyServer.bootstrap()
+    .withPort(8080)
+    .plusActivityTracker(new ActivityLogger(LogFormat.JSON, fieldConfig))
+    .start();
+```
+
+**Loading Configuration from JSON File:**
+
+```java
+import org.littleshoot.proxy.extras.logging.LogFieldConfigurationFactory;
+
+// Load configuration from JSON file
+LogFieldConfiguration fieldConfig = LogFieldConfigurationFactory.fromJsonFile("/path/to/config.json");
+
+DefaultHttpProxyServer.bootstrap()
+    .withPort(8080)
+    .plusActivityTracker(new ActivityLogger(LogFormat.JSON, fieldConfig))
+    .start();
 ```
 
 #### Supported Log Formats
@@ -517,16 +636,15 @@ You can customize the `log4j.xml` configuration to control how logs are output. 
 To print access logs to the console without standard Log4j prefixes (timestamps, thread names, etc.), use a specific appender for the tracker:
 
 ```xml
-
 <appender class="org.apache.log4j.ConsoleAppender" name="AccessLogAppender">
     <layout class="org.apache.log4j.PatternLayout">
         <param value="%m%n" name="ConversionPattern"/>
     </layout>
 </appender>
 
-<logger additivity="false" name="org.littleshoot.proxy.extras.ActivityLogger">
-<level value="info"/>
-<appender-ref ref="AccessLogAppender"/>
+<logger additivity="false" name="org.littleshoot.proxy.extras.logging.ActivityLogger">
+    <level value="info"/>
+    <appender-ref ref="AccessLogAppender"/>
 </logger>
 ```
 
@@ -535,7 +653,6 @@ To print access logs to the console without standard Log4j prefixes (timestamps,
 To write access logs to a separate file (e.g., `access.log`) and exclude them from the main log, use a `FileAppender`:
 
 ```xml
-
 <appender class="org.apache.log4j.FileAppender" name="AccessLogFileAppender">
     <param value="access.log" name="File"/>
     <layout class="org.apache.log4j.PatternLayout">
@@ -543,9 +660,9 @@ To write access logs to a separate file (e.g., `access.log`) and exclude them fr
     </layout>
 </appender>
 
-<logger additivity="false" name="org.littleshoot.proxy.extras.ActivityLogger">
-<level value="info"/>
-<appender-ref ref="AccessLogFileAppender"/>
+<logger additivity="false" name="org.littleshoot.proxy.extras.logging.ActivityLogger">
+    <level value="info"/>
+    <appender-ref ref="AccessLogFileAppender"/>
 </logger>
 ```
 

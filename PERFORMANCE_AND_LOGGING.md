@@ -13,6 +13,11 @@ This guide covers logging performance optimization techniques and configuration 
   - [BurstFilter Configuration](#burstfilter-configuration)
   - [Custom Filter Implementation](#custom-filter-implementation)
 - [Activity Logging](#activity-logging)
+  - [LogFieldConfiguration](#logfieldconfiguration)
+  - [Field Name Transformers](#field-name-transformers)
+  - [Value Transformers](#value-transformers)
+  - [Header Pattern Types](#header-pattern-types)
+  - [CLI Options for Field Configuration](#cli-options-for-field-configuration)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
 
@@ -437,7 +442,7 @@ Log4j2 supports Groovy scripts for dynamic filtering without compilation. This i
 
 ## Activity Logging
 
-Activity logging in LittleProxy captures HTTP request/response details. This can be a significant performance factor.
+Activity logging in LittleProxy captures HTTP request/response details. This can be a significant performance factor. The logging system is located in the `org.littleshoot.proxy.extras.logging` package.
 
 ### Activity Log Formats
 
@@ -481,6 +486,172 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 --activity_log_format HAPROXY
 ```
 
+### LogFieldConfiguration
+
+The `LogFieldConfiguration` class provides fine-grained control over which fields are logged. You can configure it programmatically or load it from a JSON file.
+
+#### Programmatic Configuration
+
+```java
+import org.littleshoot.proxy.extras.logging.*;
+
+LogFieldConfiguration fieldConfig = LogFieldConfiguration.builder()
+    // Add standard fields
+    .addStandardField(StandardField.TIMESTAMP)
+    .addStandardField(StandardField.CLIENT_IP)
+    .addStandardField(StandardField.METHOD)
+    .addStandardField(StandardField.URI)
+    .addStandardField(StandardField.STATUS)
+    
+    // Log headers by prefix
+    .addRequestHeadersWithPrefix("X-Custom-")
+    .addResponseHeadersWithPrefix("X-RateLimit-")
+    
+    // Log headers by regex pattern
+    .addRequestHeadersMatching("X-.*-Id")
+    
+    // Exclude sensitive headers
+    .excludeRequestHeadersMatching("Authorization|Cookie")
+    
+    // Add computed fields
+    .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
+    .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+    
+    .build();
+
+ActivityLogger logger = new ActivityLogger(LogFormat.JSON, fieldConfig);
+```
+
+#### JSON Configuration File
+
+Create a JSON configuration file for easier maintenance:
+
+```json
+{
+  "standardFields": ["TIMESTAMP", "CLIENT_IP", "METHOD", "URI", "STATUS"],
+  "prefixHeaders": [
+    {
+      "prefix": "X-Custom-",
+      "fieldNameTransformer": "lower_underscore"
+    },
+    {
+      "prefix": "X-Trace-",
+      "fieldNameTransformer": "remove_prefix"
+    }
+  ],
+  "regexHeaders": [
+    {
+      "pattern": "X-.*-Id",
+      "fieldNameTransformer": "lower_underscore"
+    }
+  ],
+  "excludeHeaders": [
+    {
+      "pattern": "Authorization|Cookie",
+      "valueTransformer": "mask_full"
+    }
+  ],
+  "computedFields": ["GEOLOCATION_COUNTRY", "RESPONSE_TIME_CATEGORY"]
+}
+```
+
+Load the configuration:
+
+```java
+LogFieldConfiguration config = LogFieldConfigurationFactory.fromJsonFile("config.json");
+```
+
+Or via CLI:
+
+```bash
+./run.bash --activity_log_format JSON --activity_log_field_config ./config.json
+```
+
+### Field Name Transformers
+
+Field name transformers convert HTTP header names to log field names:
+
+| Transformer | Description | Example |
+|-------------|-------------|---------|
+| `lower_underscore` | Lowercase with underscores | `X-Custom-Auth` → `x_custom_auth` |
+| `remove_prefix` | Remove X- prefix, lowercase | `X-Trace-Id` → `trace_id` |
+| `lower_hyphen` | Lowercase with hyphens | `X-Custom-Auth` → `x-custom-auth` |
+| `upper_underscore` | Uppercase with underscores | `X-Custom-Auth` → `X_CUSTOM_AUTH` |
+
+### Value Transformers
+
+Value transformers modify header values before logging (useful for masking sensitive data):
+
+| Transformer | Description | Example |
+|-------------|-------------|---------|
+| `mask_sensitive` | Show first/last 4 chars | `secret-token-123` → `secr****t-123` |
+| `mask_full` | Complete masking | `secret` → `****` |
+| `mask_email` | Mask email addresses | `user@example.com` → `us***@example.com` |
+| `truncate_100` | Truncate to 100 chars | Long value → `First 100 chars...` |
+
+### Header Pattern Types
+
+**Prefix Patterns:**
+```java
+// Log all headers starting with X-Custom-
+builder.addRequestHeadersWithPrefix("X-Custom-");
+
+// With custom field name transformer
+builder.addRequestHeadersWithPrefix("X-RateLimit-", 
+    name -> name.replace("X-RateLimit-", "").toLowerCase());
+// Result: X-RateLimit-Limit → limit
+```
+
+**Regex Patterns:**
+```java
+// Log all headers matching X-*-Id pattern
+builder.addRequestHeadersMatching("X-.*-Id");
+// Matches: X-Request-Id, X-Trace-Id, X-Session-Id
+
+// With value transformer for masking
+builder.addRequestHeadersMatching("X-API-.*", 
+    name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
+    value -> value.length() > 8 ? value.substring(0, 4) + "****" + value.substring(value.length() - 4) : value);
+```
+
+**Exclude Patterns:**
+```java
+// Log all headers EXCEPT matching patterns
+builder.excludeRequestHeadersMatching("Authorization|Cookie|X-API-Key");
+```
+
+### CLI Options for Field Configuration
+
+**Basic inline options:**
+```bash
+# Log headers by prefix
+./run.bash --activity_log_format JSON --activity_log_prefix_headers "X-Custom-,X-Trace-"
+
+# Log headers by regex
+./run.bash --activity_log_format JSON --activity_log_regex_headers "X-.*-Id"
+
+# Exclude sensitive headers
+./run.bash --activity_log_format JSON --activity_log_exclude_headers "Authorization,Cookie"
+
+# Combined
+./run.bash --activity_log_format JSON \
+  --activity_log_prefix_headers "X-Custom-" \
+  --activity_log_regex_headers "X-.*-Id" \
+  --activity_log_exclude_headers "Authorization,Cookie"
+```
+
+**File-based configuration:**
+```bash
+./run.bash --activity_log_format JSON --activity_log_field_config ./logging-config.json
+```
+
+**Hybrid (file + CLI overrides):**
+```bash
+./run.bash --activity_log_format JSON \
+  --activity_log_field_config ./base-config.json \
+  --activity_log_exclude_headers "X-Secret-Token"
+```
+
 ### Activity Logging Performance Impact
 
 | Format | Performance | Use Case |
@@ -498,8 +669,11 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 
 1. **Disable in Development**: omit the `--activity_log_format` flag when not needed
 2. **Use CLF in Production**: Fastest format for high-volume scenarios
-3. **Sample Activity Logs**: Consider sampling (every Nth request)
-4. **Separate Activity Logs**: Use different files for access logs vs application logs
+3. **Use JSON with Field Configuration**: For structured logging with custom fields
+4. **Sample Activity Logs**: Consider sampling (every Nth request)
+5. **Separate Activity Logs**: Use different files for access logs vs application logs
+6. **Exclude Sensitive Headers**: Always exclude `Authorization`, `Cookie`, `X-API-Key` in production
+7. **Mask Sensitive Values**: Use value transformers for tokens, passwords, PII
 
 **Example with Activity Logging:**
 ```bash
@@ -510,7 +684,36 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 # Sync logging with JSON activity format (structured logging)
 ./run.bash --server --config ./config/littleproxy.properties \
   --port 9092 --activity_log_format JSON
+
+# JSON with custom field configuration via CLI
+./run.bash --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format JSON \
+  --activity_log_prefix_headers "X-Custom-,X-Trace-" \
+  --activity_log_exclude_headers "Authorization,Cookie"
+
+# JSON with configuration file (recommended for complex setups)
+./run.bash --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format JSON \
+  --activity_log_field_config ./logging-config.json
 ```
+
+### Performance Impact of Field Configuration
+
+| Configuration | Performance Impact | Best For |
+|---------------|-------------------|----------|
+| **No field config** | ⚡ Minimal | Default logging |
+| **Standard fields only** | ⚡ Fast | Production, high volume |
+| **Prefix patterns** | 🏃 Moderate | Custom header logging |
+| **Regex patterns** | 🐢 Slower | Complex matching needs |
+| **Exclude patterns** | 🏃 Moderate | Security/privacy compliance |
+| **Value transformers** | 🐢 Slower | Sensitive data masking |
+
+**Recommendations:**
+- Use prefix patterns instead of regex when possible (faster)
+- Limit the number of regex patterns (each adds overhead)
+- Apply exclude patterns early to avoid processing sensitive headers
+- Cache field configurations instead of rebuilding for each request
+- Use `mask_sensitive` transformer only when necessary
 
 ## Best Practices
 
