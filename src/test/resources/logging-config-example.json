@@ -1,0 +1,74 @@
+{
+  "_comment": "Example logging configuration for LittleProxy - Copy this file and customize for your needs",
+  "standardFields": [
+    "TIMESTAMP",
+    "CLIENT_IP",
+    "METHOD",
+    "URI",
+    "STATUS",
+    "BYTES",
+    "DURATION"
+  ],
+  "prefixHeaders": [
+    {
+      "_comment": "Log all X-Custom-* headers with lowercase underscore field names",
+      "prefix": "X-Custom-",
+      "fieldNameTransformer": "lower_underscore"
+    },
+    {
+      "_comment": "Log all X-Trace-* headers, removing the X- prefix",
+      "prefix": "X-Trace-",
+      "fieldNameTransformer": "remove_prefix"
+    },
+    {
+      "_comment": "Log rate limit headers with custom transformer",
+      "prefix": "X-RateLimit-",
+      "fieldNameTransformer": "lower_underscore"
+    }
+  ],
+  "regexHeaders": [
+    {
+      "_comment": "Log all headers matching X-*-Id pattern (X-Request-Id, X-Trace-Id, etc.)",
+      "pattern": "X-.*-Id",
+      "fieldNameTransformer": "lower_underscore"
+    },
+    {
+      "_comment": "Log correlation headers with sensitive value masking",
+      "pattern": "X-Correlation-.*",
+      "fieldNameTransformer": "lower_underscore",
+      "valueTransformer": "mask_sensitive"
+    }
+  ],
+  "excludeHeaders": [
+    {
+      "_comment": "Never log Authorization or Cookie headers (security)",
+      "pattern": "Authorization|Cookie",
+      "fieldNameTransformer": "lower_underscore",
+      "valueTransformer": "mask_full"
+    },
+    {
+      "_comment": "Never log API keys",
+      "pattern": "X-API-Key",
+      "fieldNameTransformer": "lower_underscore",
+      "valueTransformer": "mask_full"
+    }
+  ],
+  "computedFields": [
+    "GEOLOCATION_COUNTRY",
+    "RESPONSE_TIME_CATEGORY"
+  ],
+  "singleHeaders": [
+    {
+      "_comment": "Log specific request headers",
+      "headerName": "User-Agent",
+      "fieldName": "user_agent",
+      "request": true
+    },
+    {
+      "_comment": "Log specific response headers",
+      "headerName": "Content-Type",
+      "fieldName": "content_type",
+      "request": false
+    }
+  ]
+}
