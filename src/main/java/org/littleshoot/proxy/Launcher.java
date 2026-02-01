@@ -3,6 +3,7 @@ package org.littleshoot.proxy;
 import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.Arrays;
@@ -11,7 +12,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.jspecify.annotations.NonNull;
 import org.littleshoot.proxy.extras.logging.ActivityLogger;
+import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
+import org.littleshoot.proxy.extras.logging.LogFieldConfigurationFactory;
 import org.littleshoot.proxy.extras.logging.LogFormat;
+import org.littleshoot.proxy.extras.logging.StandardField;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.ProxyUtils;
@@ -64,6 +68,11 @@ public class Launcher {
       PROXY_TO_SERVER_WORKER_THREADS;
   private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
   private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
+  private static final String OPTION_ACTIVITY_LOG_FIELD_CONFIG = "activity_log_field_config";
+  private static final String OPTION_ACTIVITY_LOG_PREFIX_HEADERS = "activity_log_prefix_headers";
+  private static final String OPTION_ACTIVITY_LOG_REGEX_HEADERS = "activity_log_regex_headers";
+  private static final String OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS = "activity_log_exclude_headers";
+  private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
   public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
@@ -286,17 +295,8 @@ public class Launcher {
       bootstrap.withThreadPoolConfiguration(threadPoolConfiguration);
     }
 
-    if (cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
-      String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
-      try {
-        LogFormat logFormat = LogFormat.valueOf(format.toUpperCase());
-        bootstrap.plusActivityTracker(new ActivityLogger(logFormat,null));
-        LOG.info("Using activity log format: {}", logFormat);
-      } catch (IllegalArgumentException e) {
-        printHelp(options, "Unknown activity log format: " + format);
-        return;
-      }
-    }
+    // Configure activity logging
+    configureActivityLogging(cmd, bootstrap, options);
 
     LOG.info("About to start...");
     HttpProxyServer httpProxyServer = bootstrap.start();
@@ -314,6 +314,114 @@ public class Launcher {
         Thread.currentThread().interrupt();
       }
     }
+  }
+
+  /**
+   * Configures activity logging based on CLI options.
+   * Supports both file-based configuration and inline CLI options.
+   *
+   * @param cmd the command line
+   * @param bootstrap the server bootstrap
+   * @param options the CLI options
+   */
+  private void configureActivityLogging(CommandLine cmd, HttpProxyServerBootstrap bootstrap, Options options) {
+    if (!cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
+      return;
+    }
+
+    String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
+    LogFormat logFormat;
+    try {
+      logFormat = LogFormat.valueOf(format.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      printHelp(options, "Unknown activity log format: " + format);
+      return;
+    }
+
+    LogFieldConfiguration fieldConfig = null;
+
+    // Try to load configuration from file first
+    if (cmd.hasOption(OPTION_ACTIVITY_LOG_FIELD_CONFIG)) {
+      String configPath = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FIELD_CONFIG);
+      try {
+        fieldConfig = LogFieldConfigurationFactory.fromJsonFile(configPath);
+        LOG.info("Loaded logging field configuration from: {}", configPath);
+      } catch (IOException e) {
+        LOG.error("Failed to load logging configuration from {}: {}", configPath, e.getMessage());
+        printHelp(options, "Failed to load logging configuration: " + e.getMessage());
+        return;
+      }
+    }
+
+    // If no file config or if CLI options are provided, build/extend configuration
+    if (fieldConfig == null || hasCliLoggingOptions(cmd)) {
+      LogFieldConfiguration.Builder builder = fieldConfig != null 
+          ? LogFieldConfiguration.builder().addAll(fieldConfig.getFields())
+          : LogFieldConfiguration.builder();
+
+      // Add standard fields if starting from scratch
+      if (fieldConfig == null) {
+        builder.addStandardField(StandardField.TIMESTAMP)
+               .addStandardField(StandardField.CLIENT_IP)
+               .addStandardField(StandardField.METHOD)
+               .addStandardField(StandardField.URI)
+               .addStandardField(StandardField.STATUS);
+      }
+
+      // Process prefix headers
+      if (cmd.hasOption(OPTION_ACTIVITY_LOG_PREFIX_HEADERS)) {
+        String prefixes = cmd.getOptionValue(OPTION_ACTIVITY_LOG_PREFIX_HEADERS);
+        for (String prefix : prefixes.split(",")) {
+          prefix = prefix.trim();
+          if (!prefix.isEmpty()) {
+            builder.addRequestHeadersWithPrefix(prefix);
+            LOG.debug("Added prefix header matcher: {}", prefix);
+          }
+        }
+      }
+
+      // Process regex headers
+      if (cmd.hasOption(OPTION_ACTIVITY_LOG_REGEX_HEADERS)) {
+        String patterns = cmd.getOptionValue(OPTION_ACTIVITY_LOG_REGEX_HEADERS);
+        for (String pattern : patterns.split(",")) {
+          pattern = pattern.trim();
+          if (!pattern.isEmpty()) {
+            builder.addRequestHeadersMatching(pattern);
+            LOG.debug("Added regex header matcher: {}", pattern);
+          }
+        }
+      }
+
+      // Process exclude headers
+      if (cmd.hasOption(OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS)) {
+        String patterns = cmd.getOptionValue(OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS);
+        for (String pattern : patterns.split(",")) {
+          pattern = pattern.trim();
+          if (!pattern.isEmpty()) {
+            builder.excludeRequestHeadersMatching(pattern);
+            LOG.debug("Added exclude header matcher: {}", pattern);
+          }
+        }
+      }
+
+      fieldConfig = builder.build();
+    }
+
+    bootstrap.plusActivityTracker(new ActivityLogger(logFormat, fieldConfig));
+    LOG.info("Using activity log format: {} with custom field configuration", logFormat);
+  }
+
+  /**
+   * Checks if any CLI logging options are provided.
+   *
+   * @param cmd the command line
+   * @return true if any logging-related CLI options are present
+   */
+  private boolean hasCliLoggingOptions(CommandLine cmd) {
+    return cmd.hasOption(OPTION_ACTIVITY_LOG_PREFIX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_REGEX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_MASK_SENSITIVE);
   }
 
   @SuppressWarnings("java:S106")
@@ -423,7 +531,17 @@ public class Launcher {
         "Number of proxy-to-server worker threads.");
     options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
+        null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+    options.addOption(
+        null, OPTION_ACTIVITY_LOG_FIELD_CONFIG, true, "Path to JSON configuration file for logging fields");
+    options.addOption(
+        null, OPTION_ACTIVITY_LOG_PREFIX_HEADERS, true, "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
+    options.addOption(
+        null, OPTION_ACTIVITY_LOG_REGEX_HEADERS, true, "Comma-separated list of regex patterns for headers to log");
+    options.addOption(
+        null, OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS, true, "Comma-separated list of regex patterns for headers to exclude from logging");
+    options.addOption(
+        null, OPTION_ACTIVITY_LOG_MASK_SENSITIVE, true, "Mask sensitive header values (true|false)");
     return options;
   }
 

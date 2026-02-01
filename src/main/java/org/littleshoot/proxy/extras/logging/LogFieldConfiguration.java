@@ -99,6 +99,16 @@ public class LogFieldConfiguration {
             Collections.addAll(fields, StandardField.values());
             return this;
         }
+
+        /**
+         * Adds all fields from a collection.
+         * @param fieldsToAdd the fields to add
+         * @return this builder for chaining
+         */
+        public Builder addAll(Collection<LogField> fieldsToAdd) {
+            fields.addAll(fieldsToAdd);
+            return this;
+        }
         
         /**
          * Adds a specific standard field.

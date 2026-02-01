@@ -272,6 +272,14 @@
             <scope>optional</scope>
         </dependency>
 
+        <!-- JSON processing for logging configuration -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.bom.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Optional DNS dependencies -->
         <dependency>
             <groupId>org.littleshoot</groupId>
