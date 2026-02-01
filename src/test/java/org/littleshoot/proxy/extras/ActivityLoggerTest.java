@@ -1,6 +1,6 @@
 package org.littleshoot.proxy.extras;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,8 +40,8 @@ class ActivityLoggerTest {
 
     System.out.println("CLF Log: " + tracker.lastLogMessage);
     // Expecting: 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100
-    assertTrue(tracker.lastLogMessage.contains("127.0.0.1 - - ["));
-    assertTrue(tracker.lastLogMessage.contains("] \"GET /test HTTP/1.1\" 200 100"));
+    assertThat(tracker.lastLogMessage).contains("127.0.0.1 - - [");
+    assertThat(tracker.lastLogMessage).contains("] \"GET /test HTTP/1.1\" 200 100");
   }
 
   @Test
@@ -53,12 +53,12 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("JSON Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.startsWith("{"));
-    assertTrue(tracker.lastLogMessage.contains("\"client_ip\":\"127.0.0.1\""));
-    assertTrue(tracker.lastLogMessage.contains("\"method\":\"GET\""));
-    assertTrue(tracker.lastLogMessage.contains("\"uri\":\"/test\""));
-    assertTrue(tracker.lastLogMessage.contains("\"status\":\"200\""));
-    assertTrue(tracker.lastLogMessage.contains("\"bytes\":\"100\""));
+    assertThat(tracker.lastLogMessage).startsWith("{");
+    assertThat(tracker.lastLogMessage).contains("\"client_ip\":\"127.0.0.1\"");
+    assertThat(tracker.lastLogMessage).contains("\"method\":\"GET\"");
+    assertThat(tracker.lastLogMessage).contains("\"uri\":\"/test\"");
+    assertThat(tracker.lastLogMessage).contains("\"status\":\"200\"");
+    assertThat(tracker.lastLogMessage).contains("\"bytes\":\"100\"");
   }
 
   @Test
@@ -84,10 +84,10 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Custom JSON Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"request_id\""));
-    assertTrue(tracker.lastLogMessage.contains("\"response_time\""));
-    assertTrue(tracker.lastLogMessage.contains("\"cache_control\""));
-    assertTrue(tracker.lastLogMessage.contains("\"geolocation_country\""));
+    assertThat(tracker.lastLogMessage).contains("\"request_id\"");
+    assertThat(tracker.lastLogMessage).contains("\"response_time\"");
+    assertThat(tracker.lastLogMessage).contains("\"cache_control\"");
+    assertThat(tracker.lastLogMessage).contains("\"geolocation_country\"");
   }
 
   @Test
@@ -101,10 +101,10 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Security Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"csp\""));
-    assertTrue(tracker.lastLogMessage.contains("\"hsts\""));
-    assertTrue(tracker.lastLogMessage.contains("\"xss_protection\""));
-    assertTrue(tracker.lastLogMessage.contains("\"forwarded_for\""));
+    assertThat(tracker.lastLogMessage).contains("\"csp\"");
+    assertThat(tracker.lastLogMessage).contains("\"hsts\"");
+    assertThat(tracker.lastLogMessage).contains("\"xss_protection\"");
+    assertThat(tracker.lastLogMessage).contains("\"forwarded_for\"");
   }
 
   @Test
@@ -119,8 +119,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Performance Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"cache_status\":\"HIT\""), "Should contain cache_status");
-    assertTrue(tracker.lastLogMessage.contains("\"server_timing\":\"miss,db;dur=53,app;dur=47.2\""), "Should contain server_timing");
+    assertThat(tracker.lastLogMessage).contains("\"cache_status\":\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"server_timing\":\"miss,db;dur=53,app;dur=47.2\"");
   }
 
   @Test
@@ -134,9 +134,9 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("API Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("request_id"));
-    assertTrue(tracker.lastLogMessage.contains("rate_limit"));
-    assertTrue(tracker.lastLogMessage.contains("correlation_id"));
+    assertThat(tracker.lastLogMessage).contains("request_id");
+    assertThat(tracker.lastLogMessage).contains("rate_limit");
+    assertThat(tracker.lastLogMessage).contains("correlation_id");
   }
 
   @Test
@@ -153,10 +153,8 @@ class ActivityLoggerTest {
     // host ident authuser [date] "request" status bytes "referer" "user-agent"
     // 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100 "http://referrer.com"
     // "Mozilla/5.0"
-    assertTrue(tracker.lastLogMessage.startsWith("127.0.0.1 - - ["));
-    assertTrue(
-        tracker.lastLogMessage.contains(
-            "] \"GET /test HTTP/1.1\" 200 100 \"http://referrer.com\" \"Mozilla/5.0\""));
+    assertThat(tracker.lastLogMessage).startsWith("127.0.0.1 - - [");
+    assertThat(tracker.lastLogMessage).contains("] \"GET /test HTTP/1.1\" 200 100 \"http://referrer.com\" \"Mozilla/5.0\"");
   }
 
   @Test
@@ -171,7 +169,7 @@ class ActivityLoggerTest {
     System.out.println("W3C Log: " + tracker.lastLogMessage);
     // date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
     // YYYY-MM-DD HH:MM:SS 127.0.0.1 GET /test 200 100 "Mozilla/5.0"
-    assertTrue(tracker.lastLogMessage.contains(" 127.0.0.1 GET /test 200 100 \"Mozilla/5.0\""));
+    assertThat(tracker.lastLogMessage).contains(" 127.0.0.1 GET /test 200 100 \"Mozilla/5.0\"");
   }
 
   @Test
@@ -190,12 +188,12 @@ class ActivityLoggerTest {
     System.out.println("LTSV Log: " + tracker.lastLogMessage);
     // LTSV uses field names from StandardField (client_ip, bytes) not host/size
     // Check for key fields in the output
-    assertTrue(tracker.lastLogMessage.contains("client_ip:127.0.0.1"), "Should contain client_ip");
-    assertTrue(tracker.lastLogMessage.contains("method:GET"), "Should contain method");
-    assertTrue(tracker.lastLogMessage.contains("uri:/test"), "Should contain uri");
-    assertTrue(tracker.lastLogMessage.contains("status:200"), "Should contain status");
-    assertTrue(tracker.lastLogMessage.contains("bytes:100"), "Should contain bytes");
-    assertTrue(tracker.lastLogMessage.contains("duration:"), "Should contain duration");
+    assertThat(tracker.lastLogMessage).contains("client_ip:127.0.0.1");
+    assertThat(tracker.lastLogMessage).contains("method:GET");
+    assertThat(tracker.lastLogMessage).contains("uri:/test");
+    assertThat(tracker.lastLogMessage).contains("status:200");
+    assertThat(tracker.lastLogMessage).contains("bytes:100");
+    assertThat(tracker.lastLogMessage).contains("duration:");
   }
 
   @Test
@@ -209,12 +207,12 @@ class ActivityLoggerTest {
     System.out.println("CSV Log: " + tracker.lastLogMessage);
     // CSV format uses dynamic field configuration
     // Check for key values in the quoted CSV format
-    assertTrue(tracker.lastLogMessage.contains("\"127.0.0.1\""), "Should contain client IP");
-    assertTrue(tracker.lastLogMessage.contains("\"GET\""), "Should contain method");
-    assertTrue(tracker.lastLogMessage.contains("\"/test\""), "Should contain URI");
-    assertTrue(tracker.lastLogMessage.contains("\"200\""), "Should contain status");
-    assertTrue(tracker.lastLogMessage.contains("\"100\""), "Should contain bytes");
-    assertTrue(tracker.lastLogMessage.contains("\"Mozilla/5.0\""), "Should contain user agent");
+    assertThat(tracker.lastLogMessage).contains("\"127.0.0.1\"");
+    assertThat(tracker.lastLogMessage).contains("\"GET\"");
+    assertThat(tracker.lastLogMessage).contains("\"/test\"");
+    assertThat(tracker.lastLogMessage).contains("\"200\"");
+    assertThat(tracker.lastLogMessage).contains("\"100\"");
+    assertThat(tracker.lastLogMessage).contains("\"Mozilla/5.0\"");
   }
 
   @Test
@@ -227,8 +225,8 @@ class ActivityLoggerTest {
 
     System.out.println("HAProxy Log: " + tracker.lastLogMessage);
     // 127.0.0.1 [date] "GET /test HTTP/1.1" 200 100 duration
-    assertTrue(tracker.lastLogMessage.startsWith("127.0.0.1 ["));
-    assertTrue(tracker.lastLogMessage.contains("] \"GET /test HTTP/1.1\" 200 100 "));
+    assertThat(tracker.lastLogMessage).startsWith("127.0.0.1 [");
+    assertThat(tracker.lastLogMessage).contains("] \"GET /test HTTP/1.1\" 200 100 ");
   }
 
   @Test
@@ -247,9 +245,7 @@ class ActivityLoggerTest {
     // 1234567890.123 0 127.0.0.1 ...
     // We now expect something >= 0, not necessarily hardcoded 0.
     // Regex: timestamp space duration space ip ...
-    assertTrue(
-        tracker.lastLogMessage.matches(
-            ".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*"));
+    assertThat(tracker.lastLogMessage).matches(".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*");
   }
 
   private static class TestableActivityLogger extends ActivityLogger {
@@ -340,8 +336,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Prefix Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"x_custom_auth\":\"token123\""), "Should contain X-Custom-Auth header");
-    assertTrue(tracker.lastLogMessage.contains("\"x_custom_id\":\"abc-456\""), "Should contain X-Custom-Id header");
+    assertThat(tracker.lastLogMessage).contains("\"x_custom_auth\":\"token123\"");
+    assertThat(tracker.lastLogMessage).contains("\"x_custom_id\":\"abc-456\"");
   }
 
   @Test
@@ -364,8 +360,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("RateLimit Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"limit\":\"1000\""), "Should contain limit field");
-    assertTrue(tracker.lastLogMessage.contains("\"remaining\":\"999\""), "Should contain remaining field");
+    assertThat(tracker.lastLogMessage).contains("\"limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"remaining\":\"999\"");
   }
 
   @Test
@@ -388,8 +384,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("LTSV Prefix Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("x_trace_id:trace-123"), "Should contain trace_id");
-    assertTrue(tracker.lastLogMessage.contains("x_span_id:span-456"), "Should contain span_id");
+    assertThat(tracker.lastLogMessage).contains("x_trace_id:trace-123");
+    assertThat(tracker.lastLogMessage).contains("x_span_id:span-456");
   }
 
   @Test
@@ -411,8 +407,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("CSV Prefix Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"HIT\""), "Should contain cache status");
-    assertTrue(tracker.lastLogMessage.contains("\"42\""), "Should contain cache hits");
+    assertThat(tracker.lastLogMessage).contains("\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"42\"");
   }
 
   @Test
@@ -436,9 +432,9 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Regex Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"x_request_id\":\"req-123\""), "Should contain X-Request-Id header");
-    assertTrue(tracker.lastLogMessage.contains("\"x_trace_id\":\"trace-456\""), "Should contain X-Trace-Id header");
-    assertTrue(tracker.lastLogMessage.contains("\"x_session_id\":\"sess-789\""), "Should contain X-Session-Id header");
+    assertThat(tracker.lastLogMessage).contains("\"x_request_id\":\"req-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"x_trace_id\":\"trace-456\"");
+    assertThat(tracker.lastLogMessage).contains("\"x_session_id\":\"sess-789\"");
   }
 
   @Test
@@ -462,9 +458,9 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Regex RateLimit Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"limit\":\"1000\""), "Should contain limit field");
-    assertTrue(tracker.lastLogMessage.contains("\"remaining\":\"999\""), "Should contain remaining field");
-    assertTrue(!tracker.lastLogMessage.contains("cache"), "Should not contain cache header");
+    assertThat(tracker.lastLogMessage).contains("\"limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"remaining\":\"999\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("cache");
   }
 
   @Test
@@ -488,9 +484,9 @@ class ActivityLoggerTest {
 
     System.out.println("Case-Insensitive Regex Log: " + tracker.lastLogMessage);
     // All three headers should be matched regardless of case
-    assertTrue(tracker.lastLogMessage.contains("x_request_id:req-abc") || tracker.lastLogMessage.contains("x_request_id:req-abc"), "Should contain request id");
-    assertTrue(tracker.lastLogMessage.contains("x_trace_id:trace-def") || tracker.lastLogMessage.contains("x_trace_id:trace-def"), "Should contain trace id");
-    assertTrue(tracker.lastLogMessage.contains("x_span_id:span-ghi") || tracker.lastLogMessage.contains("x_span_id:span-ghi"), "Should contain span id");
+    assertThat(tracker.lastLogMessage).contains("x_request_id:req-abc");
+    assertThat(tracker.lastLogMessage).contains("x_trace_id:trace-def");
+    assertThat(tracker.lastLogMessage).contains("x_span_id:span-ghi");
   }
 
   @Test
@@ -513,8 +509,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("CSV Regex Headers Log: " + tracker.lastLogMessage);
-    assertTrue(tracker.lastLogMessage.contains("\"corr-123\""), "Should contain correlation id");
-    assertTrue(tracker.lastLogMessage.contains("\"txn-456\""), "Should contain transaction id");
-    assertTrue(!tracker.lastLogMessage.contains("server01"), "Should not contain server name (doesn't match pattern)");
+    assertThat(tracker.lastLogMessage).contains("\"corr-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"txn-456\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("server01");
   }
 }
