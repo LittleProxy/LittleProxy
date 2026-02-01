@@ -3,10 +3,6 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import org.littleshoot.proxy.FlowContext;
-import org.littleshoot.proxy.FullFlowContext;
-
-import java.net.InetAddress;
-import java.util.regex.Pattern;
 
 /**
  * Enumeration of computed log fields that derive their values from other request/response data.
