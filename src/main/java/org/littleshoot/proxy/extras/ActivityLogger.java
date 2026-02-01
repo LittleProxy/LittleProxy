@@ -256,9 +256,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    */
   private void formatJsonEntry(StringBuilder sb, FlowContext flowContext, 
       HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     sb.append("{");
     
     // Use configured fields dynamically
@@ -281,9 +279,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    */
   private void formatLtsvEntry(StringBuilder sb, FlowContext flowContext, 
       HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // Labeled Tab-Separated Values
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
@@ -302,9 +298,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    */
   private void formatCsvEntry(StringBuilder sb, FlowContext flowContext, 
       HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // Comma-Separated Values
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
