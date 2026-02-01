@@ -62,6 +62,84 @@ class ActivityLoggerTest {
   }
 
   @Test
+  void testCustomConfiguration() {
+    // Test custom field configuration
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+      .addStandardField(StandardField.TIMESTAMP)
+      .addStandardField(StandardField.CLIENT_IP)
+      .addStandardField(StandardField.METHOD)
+      .addStandardField(StandardField.URI)
+      .addStandardField(StandardField.STATUS)
+      .addRequestHeader("X-Request-ID", "request_id")
+      .addRequestHeader("Authorization", "auth")
+      .addResponseHeader("X-Response-Time", "response_time")
+      .addResponseHeader("Cache-Control", "cache_control")
+      .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
+      .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Custom JSON Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"request_id\""));
+    assertTrue(tracker.lastLogMessage.contains("\"response_time\""));
+    assertTrue(tracker.lastLogMessage.contains("\"cache_control\""));
+    assertTrue(tracker.lastLogMessage.contains("\"geolocation_country\""));
+  }
+
+  @Test
+  void testSecurityMonitoringConfiguration() {
+    LogFieldConfiguration config = SecurityMonitoringConfig.create();
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    
+    setupSecurityMocks();
+    
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Security Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"csp\""));
+    assertTrue(tracker.lastLogMessage.contains("\"hsts\""));
+    assertTrue(tracker.lastLogMessage.contains("\"xss_protection\""));
+    assertTrue(tracker.lastLogMessage.contains("\"forwarded_for\""));
+  }
+
+  @Test
+  void testPerformanceAnalyticsConfiguration() {
+    LogFieldConfiguration config = PerformanceAnalyticsConfig.create();
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.W3C, config);
+    
+    setupPerformanceMocks();
+    
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Performance Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("cache_status"));
+    assertTrue(tracker.lastLogMessage.contains("server_timing"));
+    assertTrue(tracker.lastLogMessage.contains("cache_hit_ratio"));
+  }
+
+  @Test
+  void testAPIManagementConfiguration() {
+    LogFieldConfiguration config = APIManagementConfig.create();
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    
+    setupAPIMocks();
+    
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("API Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("request_id"));
+    assertTrue(tracker.lastLogMessage.contains("rate_limit"));
+    assertTrue(tracker.lastLogMessage.contains("correlation_id"));
+  }
+
+  @Test
   void testElfFormat() {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.ELF);
     setupMocks();
@@ -173,6 +251,10 @@ class ActivityLoggerTest {
       super(logFormat);
     }
 
+    public TestableActivityLogger(LogFormat logFormat, LogFieldConfiguration config) {
+      super(logFormat, config);
+    }
+
     @Override
     protected void log(String message) {
       this.lastLogMessage = message;
@@ -201,5 +283,32 @@ class ActivityLoggerTest {
 
     when(response.status()).thenReturn(HttpResponseStatus.OK);
     when(responseHeaders.get("Content-Length")).thenReturn("100");
+  }
+
+  private void setupSecurityMocks() {
+    setupMocksCommon();
+    when(requestHeaders.get("X-Forwarded-For")).thenReturn("203.0.113.1");
+    when(requestHeaders.get("Authorization")).thenReturn("Bearer token123");
+    when(responseHeaders.get("Content-Security-Policy")).thenReturn("default-src 'self'");
+    when(responseHeaders.get("Strict-Transport-Security")).thenReturn("max-age=31536000");
+  }
+
+  private void setupPerformanceMocks() {
+    setupMocksCommon();
+    when(requestHeaders.get("Accept-Encoding")).thenReturn("gzip, deflate");
+    when(requestHeaders.get("If-None-Match")).thenReturn("\"12345\"");
+    when(responseHeaders.get("X-Cache")).thenReturn("HIT");
+    when(responseHeaders.get("Server-Timing")).thenReturn("miss,db;dur=53,app;dur=47.2");
+    when(responseHeaders.get("Cache-Control")).thenReturn("public, max-age=3600");
+  }
+
+  private void setupAPIMocks() {
+    setupMocksCommon();
+    when(requestHeaders.get("X-Request-ID")).thenReturn("req-12345");
+    when(requestHeaders.get("X-API-Version")).thenReturn("v1.0");
+    when(requestHeaders.get("X-Correlation-ID")).thenReturn("corr-67890");
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
   }
 }
