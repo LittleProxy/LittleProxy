@@ -290,7 +290,7 @@ public class Launcher {
       String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
       try {
         LogFormat logFormat = LogFormat.valueOf(format.toUpperCase());
-        bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
+        bootstrap.plusActivityTracker(new ActivityLogger(logFormat,null));
         LOG.info("Using activity log format: {}", logFormat);
       } catch (IllegalArgumentException e) {
         printHelp(options, "Unknown activity log format: " + format);

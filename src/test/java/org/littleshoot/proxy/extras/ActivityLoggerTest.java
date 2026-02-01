@@ -256,7 +256,7 @@ class ActivityLoggerTest {
     String lastLogMessage;
 
     public TestableActivityLogger(LogFormat logFormat) {
-      super(logFormat);
+      super(logFormat,null);
     }
 
     public TestableActivityLogger(LogFormat logFormat, LogFieldConfiguration config) {

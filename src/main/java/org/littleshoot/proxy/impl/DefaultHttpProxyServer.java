@@ -779,7 +779,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         try {
           org.littleshoot.proxy.extras.LogFormat logFormat =
               org.littleshoot.proxy.extras.LogFormat.valueOf(format.toUpperCase());
-          plusActivityTracker(new ActivityLogger(logFormat));
+          plusActivityTracker(new ActivityLogger(logFormat,null));
         } catch (IllegalArgumentException e) {
           LOG.warn("Unknown activity log format requested in properties: {}", format);
         }

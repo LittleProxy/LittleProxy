@@ -46,12 +46,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     validateStandardsCompliance();
   }
 
-  // Backward compatibility constructor (deprecated)
-  @Deprecated
-  public ActivityLogger(LogFormat logFormat) {
-    this(logFormat, null);
-  }
-
   /**
    * Validates that the current configuration complies with logging standards.
    * Throws IllegalArgumentException if configuration violates standards.
