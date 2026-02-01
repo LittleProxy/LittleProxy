@@ -151,7 +151,49 @@ public class LogFieldConfiguration {
             fields.add(new ResponseHeaderField(headerName, fieldName));
             return this;
         }
-        
+
+        /**
+         * Adds all request headers matching a prefix.
+         * @param prefix the prefix to match (e.g., "X-Custom-")
+         * @return this builder for chaining
+         */
+        public Builder addRequestHeadersWithPrefix(String prefix) {
+            fields.add(new PrefixRequestHeaderField(prefix));
+            return this;
+        }
+
+        /**
+         * Adds all request headers matching a prefix with custom field name transformation.
+         * @param prefix the prefix to match (e.g., "X-Custom-")
+         * @param fieldNameTransformer function to transform header names to field names
+         * @return this builder for chaining
+         */
+        public Builder addRequestHeadersWithPrefix(String prefix, java.util.function.Function<String, String> fieldNameTransformer) {
+            fields.add(new PrefixRequestHeaderField(prefix, fieldNameTransformer));
+            return this;
+        }
+
+        /**
+         * Adds all response headers matching a prefix.
+         * @param prefix the prefix to match (e.g., "X-RateLimit-")
+         * @return this builder for chaining
+         */
+        public Builder addResponseHeadersWithPrefix(String prefix) {
+            fields.add(new PrefixResponseHeaderField(prefix));
+            return this;
+        }
+
+        /**
+         * Adds all response headers matching a prefix with custom field name transformation.
+         * @param prefix the prefix to match (e.g., "X-RateLimit-")
+         * @param fieldNameTransformer function to transform header names to field names
+         * @return this builder for chaining
+         */
+        public Builder addResponseHeadersWithPrefix(String prefix, java.util.function.Function<String, String> fieldNameTransformer) {
+            fields.add(new PrefixResponseHeaderField(prefix, fieldNameTransformer));
+            return this;
+        }
+
         /**
          * Adds a computed field.
          * @param field the computed field to add

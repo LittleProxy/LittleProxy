@@ -319,4 +319,99 @@ class ActivityLoggerTest {
     when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
     when(responseHeaders.get("Content-Type")).thenReturn("application/json");
   }
+
+  @Test
+  void testPrefixRequestHeaders() {
+    // Setup custom headers with prefix
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Custom-Auth", "X-Custom-Id", "User-Agent"));
+    when(requestHeaders.get("X-Custom-Auth")).thenReturn("token123");
+    when(requestHeaders.get("X-Custom-Id")).thenReturn("abc-456");
+    when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addRequestHeadersWithPrefix("X-Custom-")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Prefix Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"x_custom_auth\":\"token123\""), "Should contain X-Custom-Auth header");
+    assertTrue(tracker.lastLogMessage.contains("\"x_custom_id\":\"abc-456\""), "Should contain X-Custom-Id header");
+  }
+
+  @Test
+  void testPrefixResponseHeadersWithTransformer() {
+    // Setup rate limit headers
+    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Content-Type"));
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addResponseHeadersWithPrefix("X-RateLimit-", name -> name.replace("X-RateLimit-", "").toLowerCase())
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("RateLimit Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"limit\":\"1000\""), "Should contain limit field");
+    assertTrue(tracker.lastLogMessage.contains("\"remaining\":\"999\""), "Should contain remaining field");
+  }
+
+  @Test
+  void testPrefixHeadersInLtsvFormat() {
+    // Setup custom headers
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Trace-Id", "X-Span-Id"));
+    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-123");
+    when(requestHeaders.get("X-Span-Id")).thenReturn("span-456");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addRequestHeadersWithPrefix("X-Trace-")
+        .addRequestHeadersWithPrefix("X-Span-")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("LTSV Prefix Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("x_trace_id:trace-123"), "Should contain trace_id");
+    assertTrue(tracker.lastLogMessage.contains("x_span_id:span-456"), "Should contain span_id");
+  }
+
+  @Test
+  void testPrefixHeadersInCsvFormat() {
+    // Setup custom headers
+    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-Cache-Status", "X-Cache-Hits"));
+    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
+    when(responseHeaders.get("X-Cache-Hits")).thenReturn("42");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addResponseHeadersWithPrefix("X-Cache-")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("CSV Prefix Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"HIT\""), "Should contain cache status");
+    assertTrue(tracker.lastLogMessage.contains("\"42\""), "Should contain cache hits");
+  }
 }

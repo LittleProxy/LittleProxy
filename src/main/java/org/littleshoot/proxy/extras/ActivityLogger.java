@@ -248,61 +248,124 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   /**
    * Formats JSON log entry.
    */
-  private void formatJsonEntry(StringBuilder sb, FlowContext flowContext, 
+  private void formatJsonEntry(StringBuilder sb, FlowContext flowContext,
       HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
 
     sb.append("{");
-    
+
     // Use configured fields dynamically
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
-      if (!first) {
-        sb.append(",");
+      // Handle pattern-based fields that expand to multiple entries
+      if (field instanceof PrefixRequestHeaderField) {
+        PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof PrefixResponseHeaderField) {
+        PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else {
+        if (!first) {
+          sb.append(",");
+        }
+        first = false;
+
+        String value = field.extractValue(flowContext, request, response, duration);
+        sb.append("\"").append(field.getName()).append("\":\"").append(escapeJson(value)).append("\"");
       }
-      first = false;
-      
-      String value = field.extractValue(flowContext, request, response, duration);
-      sb.append("\"").append(field.getName()).append("\":\"").append(escapeJson(value)).append("\"");
     }
-    
+
     sb.append("}");
   }
 
   /**
    * Formats LTSV log entry.
    */
-  private void formatLtsvEntry(StringBuilder sb, FlowContext flowContext, 
+  private void formatLtsvEntry(StringBuilder sb, FlowContext flowContext,
       HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
 
     // Labeled Tab-Separated Values
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
-      if (!first) {
-        sb.append("\t");
+      // Handle pattern-based fields that expand to multiple entries
+      if (field instanceof PrefixRequestHeaderField) {
+        PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+          sb.append(entry.getKey()).append(":").append(entry.getValue());
+        }
+      } else if (field instanceof PrefixResponseHeaderField) {
+        PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+          sb.append(entry.getKey()).append(":").append(entry.getValue());
+        }
+      } else {
+        if (!first) {
+          sb.append("\t");
+        }
+        first = false;
+
+        String value = field.extractValue(flowContext, request, response, duration);
+        sb.append(field.getName()).append(":").append(value);
       }
-      first = false;
-      
-      String value = field.extractValue(flowContext, request, response, duration);
-      sb.append(field.getName()).append(":").append(value);
     }
   }
 
   /**
    * Formats CSV log entry.
    */
-  private void formatCsvEntry(StringBuilder sb, FlowContext flowContext, 
+  private void formatCsvEntry(StringBuilder sb, FlowContext flowContext,
       HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
 
     // Comma-Separated Values
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
-      if (!first) {
-        sb.append(",");
+      // Handle pattern-based fields that expand to multiple entries
+      if (field instanceof PrefixRequestHeaderField) {
+        PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof PrefixResponseHeaderField) {
+        PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else {
+        if (!first) {
+          sb.append(",");
+        }
+        first = false;
+
+        String value = field.extractValue(flowContext, request, response, duration);
+        sb.append("\"").append(escapeJson(value)).append("\"");
       }
-      first = false;
-      
-      String value = field.extractValue(flowContext, request, response, duration);
-      sb.append("\"").append(escapeJson(value)).append("\"");
     }
   }
 
