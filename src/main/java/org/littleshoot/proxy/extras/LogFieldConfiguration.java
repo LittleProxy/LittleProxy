@@ -237,6 +237,98 @@ public class LogFieldConfiguration {
         }
 
         /**
+         * Adds all request headers matching a regex pattern with custom field name and value transformation.
+         * @param regexPattern the regex pattern to match
+         * @param fieldNameTransformer function to transform header names to field names
+         * @param valueTransformer function to transform header values
+         * @return this builder for chaining
+         */
+        public Builder addRequestHeadersMatching(String regexPattern, java.util.function.Function<String, String> fieldNameTransformer, java.util.function.Function<String, String> valueTransformer) {
+            fields.add(new RegexRequestHeaderField(regexPattern, fieldNameTransformer, valueTransformer));
+            return this;
+        }
+
+        /**
+         * Adds all response headers matching a regex pattern with custom field name and value transformation.
+         * @param regexPattern the regex pattern to match
+         * @param fieldNameTransformer function to transform header names to field names
+         * @param valueTransformer function to transform header values
+         * @return this builder for chaining
+         */
+        public Builder addResponseHeadersMatching(String regexPattern, java.util.function.Function<String, String> fieldNameTransformer, java.util.function.Function<String, String> valueTransformer) {
+            fields.add(new RegexResponseHeaderField(regexPattern, fieldNameTransformer, valueTransformer));
+            return this;
+        }
+
+        /**
+         * Adds all request headers with a prefix and custom field name and value transformation.
+         * @param prefix the prefix to match
+         * @param fieldNameTransformer function to transform header names to field names
+         * @param valueTransformer function to transform header values
+         * @return this builder for chaining
+         */
+        public Builder addRequestHeadersWithPrefix(String prefix, java.util.function.Function<String, String> fieldNameTransformer, java.util.function.Function<String, String> valueTransformer) {
+            fields.add(new PrefixRequestHeaderField(prefix, fieldNameTransformer, valueTransformer));
+            return this;
+        }
+
+        /**
+         * Adds all response headers with a prefix and custom field name and value transformation.
+         * @param prefix the prefix to match
+         * @param fieldNameTransformer function to transform header names to field names
+         * @param valueTransformer function to transform header values
+         * @return this builder for chaining
+         */
+        public Builder addResponseHeadersWithPrefix(String prefix, java.util.function.Function<String, String> fieldNameTransformer, java.util.function.Function<String, String> valueTransformer) {
+            fields.add(new PrefixResponseHeaderField(prefix, fieldNameTransformer, valueTransformer));
+            return this;
+        }
+
+        /**
+         * Excludes request headers matching a regex pattern (logs all others).
+         * @param excludePattern the regex pattern for headers to exclude
+         * @return this builder for chaining
+         */
+        public Builder excludeRequestHeadersMatching(String excludePattern) {
+            fields.add(new ExcludeRequestHeaderField(excludePattern));
+            return this;
+        }
+
+        /**
+         * Excludes request headers matching a regex pattern with custom transformers.
+         * @param excludePattern the regex pattern for headers to exclude
+         * @param fieldNameTransformer function to transform header names to field names
+         * @param valueTransformer function to transform header values
+         * @return this builder for chaining
+         */
+        public Builder excludeRequestHeadersMatching(String excludePattern, java.util.function.Function<String, String> fieldNameTransformer, java.util.function.Function<String, String> valueTransformer) {
+            fields.add(new ExcludeRequestHeaderField(excludePattern, fieldNameTransformer, valueTransformer));
+            return this;
+        }
+
+        /**
+         * Excludes response headers matching a regex pattern (logs all others).
+         * @param excludePattern the regex pattern for headers to exclude
+         * @return this builder for chaining
+         */
+        public Builder excludeResponseHeadersMatching(String excludePattern) {
+            fields.add(new ExcludeResponseHeaderField(excludePattern));
+            return this;
+        }
+
+        /**
+         * Excludes response headers matching a regex pattern with custom transformers.
+         * @param excludePattern the regex pattern for headers to exclude
+         * @param fieldNameTransformer function to transform header names to field names
+         * @param valueTransformer function to transform header values
+         * @return this builder for chaining
+         */
+        public Builder excludeResponseHeadersMatching(String excludePattern, java.util.function.Function<String, String> fieldNameTransformer, java.util.function.Function<String, String> valueTransformer) {
+            fields.add(new ExcludeResponseHeaderField(excludePattern, fieldNameTransformer, valueTransformer));
+            return this;
+        }
+
+        /**
          * Adds a computed field.
          * @param field the computed field to add
          * @return this builder for chaining

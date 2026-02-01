@@ -293,6 +293,24 @@ public class ActivityLogger extends ActivityTrackerAdapter {
           first = false;
           sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
         }
+      } else if (field instanceof ExcludeRequestHeaderField) {
+        ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof ExcludeResponseHeaderField) {
+        ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+        }
       } else {
         if (!first) {
           sb.append(",");
@@ -353,6 +371,24 @@ public class ActivityLogger extends ActivityTrackerAdapter {
           first = false;
           sb.append(entry.getKey()).append(":").append(entry.getValue());
         }
+      } else if (field instanceof ExcludeRequestHeaderField) {
+        ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+          sb.append(entry.getKey()).append(":").append(entry.getValue());
+        }
+      } else if (field instanceof ExcludeResponseHeaderField) {
+        ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+          sb.append(entry.getKey()).append(":").append(entry.getValue());
+        }
       } else {
         if (!first) {
           sb.append("\t");
@@ -405,6 +441,24 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof ExcludeRequestHeaderField) {
+        ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof ExcludeResponseHeaderField) {
+        ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }

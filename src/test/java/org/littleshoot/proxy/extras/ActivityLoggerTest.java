@@ -513,4 +513,127 @@ class ActivityLoggerTest {
     assertThat(tracker.lastLogMessage).contains("\"txn-456\"");
     assertThat(tracker.lastLogMessage).doesNotContain("server01");
   }
+
+  @Test
+  void testExcludeRequestHeaders() {
+    // Setup headers including sensitive ones to exclude
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-Id", "Authorization", "Cookie", "Content-Type"));
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
+    when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token");
+    when(requestHeaders.get("Cookie")).thenReturn("session=abc123");
+    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .excludeRequestHeadersMatching("Authorization|Cookie")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Exclude Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"x_request_id\":\"req-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("authorization");
+    assertThat(tracker.lastLogMessage).doesNotContain("cookie");
+    assertThat(tracker.lastLogMessage).doesNotContain("secret-token");
+    assertThat(tracker.lastLogMessage).doesNotContain("session=abc123");
+  }
+
+  @Test
+  void testHeaderValueMasking() {
+    // Setup headers with sensitive values to mask
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("Authorization", "X-API-Key", "X-Request-Id"));
+    when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token-123");
+    when(requestHeaders.get("X-API-Key")).thenReturn("api-key-456");
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-789");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addRequestHeadersMatching("X-.*", 
+            name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
+            value -> {
+              // Mask sensitive values
+              if (value.length() > 8) {
+                return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+              }
+              return value;
+            })
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Masked Headers Log: " + tracker.lastLogMessage);
+    // api-key-456 -> api-****-456 (first 4 chars + **** + last 4 chars)
+    assertThat(tracker.lastLogMessage).contains("\"x_api_key\":\"api-****-456\"");
+    assertThat(tracker.lastLogMessage).contains("\"x_request_id\":\"req-789\"");
+  }
+
+  @Test
+  void testExcludeResponseHeaders() {
+    // Setup response headers including sensitive ones to exclude
+    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-RateLimit-Limit", "Set-Cookie", "X-Cache-Status", "Content-Type"));
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("Set-Cookie")).thenReturn("session=secret123; HttpOnly");
+    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .excludeResponseHeadersMatching("Set-Cookie")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Exclude Response Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"x_ratelimit_limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"x_cache_status\":\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("set_cookie");
+    assertThat(tracker.lastLogMessage).doesNotContain("secret123");
+  }
+
+  @Test
+  void testExcludeWithAllHeaders() {
+    // Setup headers with X- prefix, using exclude to filter out sensitive ones
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-API-Key", "X-Client-Id", "Content-Type"));
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
+    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
+    when(requestHeaders.get("X-API-Key")).thenReturn("secret-api-key");
+    when(requestHeaders.get("X-Client-Id")).thenReturn("client-789");
+    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+
+    // Use exclude to log all headers EXCEPT the sensitive X-API-Key
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .excludeRequestHeadersMatching("X-API-Key",
+            name -> name.replace("X-", "").toLowerCase().replaceAll("[^a-z0-9]", "-"),
+            value -> value)
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Exclude with All Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("request-id:req-123");
+    assertThat(tracker.lastLogMessage).contains("trace-id:trace-456");
+    assertThat(tracker.lastLogMessage).contains("client-id:client-789");
+    assertThat(tracker.lastLogMessage).contains("content-type:application/json");
+    assertThat(tracker.lastLogMessage).doesNotContain("api-key");
+    assertThat(tracker.lastLogMessage).doesNotContain("secret-api-key");
+  }
 }
