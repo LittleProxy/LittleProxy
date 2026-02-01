@@ -256,7 +256,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Use configured fields dynamically
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
-      // Handle pattern-based fields that expand to multiple entries
+      // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -269,6 +269,24 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof RegexRequestHeaderField) {
+        RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof RegexResponseHeaderField) {
+        RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -298,7 +316,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Labeled Tab-Separated Values
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
-      // Handle pattern-based fields that expand to multiple entries
+      // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -311,6 +329,24 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+          sb.append(entry.getKey()).append(":").append(entry.getValue());
+        }
+      } else if (field instanceof RegexRequestHeaderField) {
+        RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+          sb.append(entry.getKey()).append(":").append(entry.getValue());
+        }
+      } else if (field instanceof RegexResponseHeaderField) {
+        RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -338,7 +374,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Comma-Separated Values
     boolean first = true;
     for (LogField field : fieldConfiguration.getFields()) {
-      // Handle pattern-based fields that expand to multiple entries
+      // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -351,6 +387,24 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof RegexRequestHeaderField) {
+        RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
+        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+        }
+      } else if (field instanceof RegexResponseHeaderField) {
+        RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
+        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }

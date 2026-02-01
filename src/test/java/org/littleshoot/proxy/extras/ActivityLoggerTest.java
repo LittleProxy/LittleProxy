@@ -414,4 +414,107 @@ class ActivityLoggerTest {
     assertTrue(tracker.lastLogMessage.contains("\"HIT\""), "Should contain cache status");
     assertTrue(tracker.lastLogMessage.contains("\"42\""), "Should contain cache hits");
   }
+
+  @Test
+  void testRegexRequestHeaders() {
+    // Setup headers that match X-.*-Id pattern
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-Session-Id", "Content-Type"));
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
+    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
+    when(requestHeaders.get("X-Session-Id")).thenReturn("sess-789");
+    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addRequestHeadersMatching("X-.*-Id")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Regex Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"x_request_id\":\"req-123\""), "Should contain X-Request-Id header");
+    assertTrue(tracker.lastLogMessage.contains("\"x_trace_id\":\"trace-456\""), "Should contain X-Trace-Id header");
+    assertTrue(tracker.lastLogMessage.contains("\"x_session_id\":\"sess-789\""), "Should contain X-Session-Id header");
+  }
+
+  @Test
+  void testRegexResponseHeadersWithCaptureGroupTransformer() {
+    // Setup rate limit headers with different patterns
+    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Cache-Status", "Content-Type"));
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
+    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addResponseHeadersMatching("X-RateLimit-.*", name -> name.replaceAll("X-RateLimit-", "").toLowerCase())
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Regex RateLimit Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"limit\":\"1000\""), "Should contain limit field");
+    assertTrue(tracker.lastLogMessage.contains("\"remaining\":\"999\""), "Should contain remaining field");
+    assertTrue(!tracker.lastLogMessage.contains("cache"), "Should not contain cache header");
+  }
+
+  @Test
+  void testRegexHeadersCaseInsensitive() {
+    // Setup headers with mixed case
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-ID", "x-trace-id", "X-SPAN-ID"));
+    when(requestHeaders.get("X-Request-ID")).thenReturn("req-abc");
+    when(requestHeaders.get("x-trace-id")).thenReturn("trace-def");
+    when(requestHeaders.get("X-SPAN-ID")).thenReturn("span-ghi");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addRequestHeadersMatching("(?i)x-.*-id")  // case-insensitive
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Case-Insensitive Regex Log: " + tracker.lastLogMessage);
+    // All three headers should be matched regardless of case
+    assertTrue(tracker.lastLogMessage.contains("x_request_id:req-abc") || tracker.lastLogMessage.contains("x_request_id:req-abc"), "Should contain request id");
+    assertTrue(tracker.lastLogMessage.contains("x_trace_id:trace-def") || tracker.lastLogMessage.contains("x_trace_id:trace-def"), "Should contain trace id");
+    assertTrue(tracker.lastLogMessage.contains("x_span_id:span-ghi") || tracker.lastLogMessage.contains("x_span_id:span-ghi"), "Should contain span id");
+  }
+
+  @Test
+  void testRegexHeadersInCsvFormat() {
+    // Setup headers matching correlation pattern
+    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-Correlation-Id", "X-Transaction-Id", "X-Server-Name"));
+    when(responseHeaders.get("X-Correlation-Id")).thenReturn("corr-123");
+    when(responseHeaders.get("X-Transaction-Id")).thenReturn("txn-456");
+    when(responseHeaders.get("X-Server-Name")).thenReturn("server01");
+
+    LogFieldConfiguration config = LogFieldConfiguration.builder()
+        .addStandardField(StandardField.CLIENT_IP)
+        .addResponseHeadersMatching("X-.*-Id")
+        .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("CSV Regex Headers Log: " + tracker.lastLogMessage);
+    assertTrue(tracker.lastLogMessage.contains("\"corr-123\""), "Should contain correlation id");
+    assertTrue(tracker.lastLogMessage.contains("\"txn-456\""), "Should contain transaction id");
+    assertTrue(!tracker.lastLogMessage.contains("server01"), "Should not contain server name (doesn't match pattern)");
+  }
 }

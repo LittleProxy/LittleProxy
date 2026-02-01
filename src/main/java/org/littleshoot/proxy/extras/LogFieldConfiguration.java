@@ -195,6 +195,48 @@ public class LogFieldConfiguration {
         }
 
         /**
+         * Adds all request headers matching a regex pattern.
+         * @param regexPattern the regex pattern to match (e.g., "X-.*-Id")
+         * @return this builder for chaining
+         */
+        public Builder addRequestHeadersMatching(String regexPattern) {
+            fields.add(new RegexRequestHeaderField(regexPattern));
+            return this;
+        }
+
+        /**
+         * Adds all request headers matching a regex pattern with custom field name transformation.
+         * @param regexPattern the regex pattern to match
+         * @param fieldNameTransformer function to transform header names to field names
+         * @return this builder for chaining
+         */
+        public Builder addRequestHeadersMatching(String regexPattern, java.util.function.Function<String, String> fieldNameTransformer) {
+            fields.add(new RegexRequestHeaderField(regexPattern, fieldNameTransformer));
+            return this;
+        }
+
+        /**
+         * Adds all response headers matching a regex pattern.
+         * @param regexPattern the regex pattern to match (e.g., "X-RateLimit-.*")
+         * @return this builder for chaining
+         */
+        public Builder addResponseHeadersMatching(String regexPattern) {
+            fields.add(new RegexResponseHeaderField(regexPattern));
+            return this;
+        }
+
+        /**
+         * Adds all response headers matching a regex pattern with custom field name transformation.
+         * @param regexPattern the regex pattern to match
+         * @param fieldNameTransformer function to transform header names to field names
+         * @return this builder for chaining
+         */
+        public Builder addResponseHeadersMatching(String regexPattern, java.util.function.Function<String, String> fieldNameTransformer) {
+            fields.add(new RegexResponseHeaderField(regexPattern, fieldNameTransformer));
+            return this;
+        }
+
+        /**
          * Adds a computed field.
          * @param field the computed field to add
          * @return this builder for chaining
