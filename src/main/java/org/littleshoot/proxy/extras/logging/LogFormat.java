@@ -1,4 +1,4 @@
-package org.littleshoot.proxy.extras;
+package org.littleshoot.proxy.extras.logging;
 
 /** Enumeration of supported log formats for the {@link ActivityLogger}. */
 public enum LogFormat {

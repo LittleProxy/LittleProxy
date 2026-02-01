@@ -1,4 +1,4 @@
-package org.littleshoot.proxy.extras;
+package org.littleshoot.proxy.extras.logging;
 
 import java.util.*;
 

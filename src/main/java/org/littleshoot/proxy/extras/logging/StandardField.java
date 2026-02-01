@@ -1,4 +1,4 @@
-package org.littleshoot.proxy.extras;
+package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;

@@ -28,7 +28,7 @@ import javax.net.ssl.SSLEngine;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.*;
-import org.littleshoot.proxy.extras.ActivityLogger;
+import org.littleshoot.proxy.extras.logging.ActivityLogger;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -777,8 +777,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       if (props.containsKey(ACTIVITY_LOG_FORMAT)) {
         String format = props.getProperty(ACTIVITY_LOG_FORMAT);
         try {
-          org.littleshoot.proxy.extras.LogFormat logFormat =
-              org.littleshoot.proxy.extras.LogFormat.valueOf(format.toUpperCase());
+          org.littleshoot.proxy.extras.logging.LogFormat logFormat =
+              org.littleshoot.proxy.extras.logging.LogFormat.valueOf(format.toUpperCase());
           plusActivityTracker(new ActivityLogger(logFormat,null));
         } catch (IllegalArgumentException e) {
           LOG.warn("Unknown activity log format requested in properties: {}", format);
