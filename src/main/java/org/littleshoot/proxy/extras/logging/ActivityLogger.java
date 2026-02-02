@@ -41,14 +41,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   public ActivityLogger(LogFormat logFormat, LogFieldConfiguration fieldConfiguration) {
     this.logFormat = logFormat;
-    this.fieldConfiguration = fieldConfiguration != null ? 
-      fieldConfiguration : LogFieldConfiguration.defaultConfig();
+    this.fieldConfiguration =
+        fieldConfiguration != null ? fieldConfiguration : LogFieldConfiguration.defaultConfig();
     validateStandardsCompliance();
   }
 
   /**
-   * Validates that the current configuration complies with logging standards.
-   * Throws IllegalArgumentException if configuration violates standards.
+   * Validates that the current configuration complies with logging standards. Throws
+   * IllegalArgumentException if configuration violates standards.
    */
   private void validateStandardsCompliance() {
     if (fieldConfiguration.isStrictStandardsCompliance()) {
@@ -56,23 +56,23 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         case CLF:
           // CLF format is very strict - only allows standard fields
           for (LogField field : fieldConfiguration.getFields()) {
-            if (!(field instanceof StandardField) || 
-                field == StandardField.REFERER || 
-                field == StandardField.USER_AGENT) {
+            if (!(field instanceof StandardField)
+                || field == StandardField.REFERER
+                || field == StandardField.USER_AGENT) {
               throw new IllegalArgumentException(
                   "CLF format does not support custom headers or referer/user-agent in strict compliance mode");
             }
           }
           break;
-          
+
         case ELF:
           // ELF format should include referer by standard
           if (!fieldConfiguration.hasField(StandardField.REFERER)) {
             throw new IllegalArgumentException(
-                  "ELF format should include referer field according to NCSA combined log standard");
+                "ELF format should include referer field according to NCSA combined log standard");
           }
           break;
-          
+
         case W3C:
           // Validate W3C field naming conventions
           for (LogField field : fieldConfiguration.getFields()) {
@@ -87,7 +87,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
             }
           }
           break;
-          
+
         default:
           // JSON, LTSV, CSV, SQUID, HAPROXY are flexible
           break;
@@ -126,9 +126,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   /**
-   * Formats a log entry using the configured fields.
-   * This method dynamically generates log entries based on the field configuration
-   * rather than hardcoded field lists.
+   * Formats a log entry using the configured fields. This method dynamically generates log entries
+   * based on the field configuration rather than hardcoded field lists.
    */
   private String formatLogEntry(
       FlowContext flowContext, TimedRequest timedInfo, HttpResponse response) {
@@ -175,14 +174,17 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     return sb.toString();
   }
 
-  /**
-   * Formats CLF log entry.
-   */
-  private void formatClfEntry(StringBuilder sb, FlowContext flowContext, 
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats CLF log entry. */
+  private void formatClfEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // CLF: host ident authuser [date] "request" status bytes
     sb.append(clientIp).append(" ");
     sb.append("- "); // ident
@@ -199,14 +201,17 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     sb.append(getContentLength(response));
   }
 
-  /**
-   * Formats ELF log entry.
-   */
-  private void formatElfEntry(StringBuilder sb, FlowContext flowContext, 
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats ELF log entry. */
+  private void formatElfEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // ELF: host ident authuser [date] "request" status bytes "referer" "user-agent"
     sb.append(clientIp).append(" ");
     sb.append("- "); // ident
@@ -225,14 +230,17 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     sb.append("\"").append(getHeader(request, USER_AGENT)).append("\"");
   }
 
-  /**
-   * Formats W3C log entry.
-   */
-  private void formatW3cEntry(StringBuilder sb, FlowContext flowContext, 
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats W3C log entry. */
+  private void formatW3cEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // W3C: date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
     DateTimeFormatter w3cDateTimeFormatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US);
@@ -245,11 +253,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     sb.append("\"").append(getHeader(request, USER_AGENT)).append("\"");
   }
 
-  /**
-   * Formats JSON log entry.
-   */
-  private void formatJsonEntry(StringBuilder sb, FlowContext flowContext,
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats JSON log entry. */
+  private void formatJsonEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
 
     sb.append("{");
 
@@ -259,57 +270,87 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
           first = false;
-          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"")
+              .append(entry.getKey())
+              .append("\":\"")
+              .append(escapeJson(entry.getValue()))
+              .append("\"");
         }
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
           first = false;
-          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"")
+              .append(entry.getKey())
+              .append("\":\"")
+              .append(escapeJson(entry.getValue()))
+              .append("\"");
         }
       } else if (field instanceof RegexRequestHeaderField) {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            regexField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
           first = false;
-          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"")
+              .append(entry.getKey())
+              .append("\":\"")
+              .append(escapeJson(entry.getValue()))
+              .append("\"");
         }
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
           first = false;
-          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"")
+              .append(entry.getKey())
+              .append("\":\"")
+              .append(escapeJson(entry.getValue()))
+              .append("\"");
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
           first = false;
-          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"")
+              .append(entry.getKey())
+              .append("\":\"")
+              .append(escapeJson(entry.getValue()))
+              .append("\"");
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
           first = false;
-          sb.append("\"").append(entry.getKey()).append("\":\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"")
+              .append(entry.getKey())
+              .append("\":\"")
+              .append(escapeJson(entry.getValue()))
+              .append("\"");
         }
       } else {
         if (!first) {
@@ -318,18 +359,25 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         first = false;
 
         String value = field.extractValue(flowContext, request, response, duration);
-        sb.append("\"").append(field.getName()).append("\":\"").append(escapeJson(value)).append("\"");
+        sb.append("\"")
+            .append(field.getName())
+            .append("\":\"")
+            .append(escapeJson(value))
+            .append("\"");
       }
     }
 
     sb.append("}");
   }
 
-  /**
-   * Formats LTSV log entry.
-   */
-  private void formatLtsvEntry(StringBuilder sb, FlowContext flowContext,
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats LTSV log entry. */
+  private void formatLtsvEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
 
     // Labeled Tab-Separated Values
     boolean first = true;
@@ -337,7 +385,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -346,7 +395,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -355,7 +405,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof RegexRequestHeaderField) {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            regexField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -364,7 +415,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -373,7 +425,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -382,7 +435,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append("\t");
           }
@@ -401,11 +455,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
   }
 
-  /**
-   * Formats CSV log entry.
-   */
-  private void formatCsvEntry(StringBuilder sb, FlowContext flowContext,
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats CSV log entry. */
+  private void formatCsvEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
 
     // Comma-Separated Values
     boolean first = true;
@@ -413,7 +470,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -422,7 +480,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -431,7 +490,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof RegexRequestHeaderField) {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            regexField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -440,7 +500,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : regexField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -449,7 +510,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
-        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -458,7 +520,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
-        for (Map.Entry<String, String> entry : excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
+        for (Map.Entry<String, String> entry :
+            excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           if (!first) {
             sb.append(",");
           }
@@ -477,14 +540,17 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
   }
 
-  /**
-   * Formats SQUID log entry.
-   */
-  private void formatSquidEntry(StringBuilder sb, FlowContext flowContext, 
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats SQUID log entry. */
+  private void formatSquidEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost type
     long timestamp = now.toEpochSecond();
     sb.append(timestamp / 1000).append(".").append(timestamp % 1000).append(" ");
@@ -499,14 +565,17 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     sb.append(getContentType(response));
   }
 
-  /**
-   * Formats HAProxy log entry.
-   */
-  private void formatHaproxyEntry(StringBuilder sb, FlowContext flowContext, 
-      HttpRequest request, HttpResponse response, long duration, ZonedDateTime now) {
+  /** Formats HAProxy log entry. */
+  private void formatHaproxyEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    
+
     // HAProxy HTTP format approximation - client_ip [date] method uri status bytes duration
     sb.append(clientIp).append(" ");
     sb.append("[").append(format(now, "dd/MMM/yyyy:HH:mm:ss.SSS")).append("] ");
@@ -523,9 +592,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   /**
-   * Reconstructs the full URL from the request.
-   * If the URI is already absolute (starts with http:// or https://), returns it as-is.
-   * Otherwise, prepends the Host header to create a complete URL.
+   * Reconstructs the full URL from the request. If the URI is already absolute (starts with http://
+   * or https://), returns it as-is. Otherwise, prepends the Host header to create a complete URL.
    *
    * @param request the HTTP request
    * @return the full URL
@@ -563,6 +631,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   /**
    * Gets header value from request.
+   *
    * @param request the HTTP request
    * @param headerName the header name
    * @return header value or "-"
@@ -574,6 +643,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   /**
    * Gets content length from response.
+   *
    * @param response the HTTP response
    * @return content length or "-"
    */
@@ -584,6 +654,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   /**
    * Gets content type from response.
+   *
    * @param response the HTTP response
    * @return content type or "-"
    */
@@ -594,6 +665,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   /**
    * Gets server IP from flow context.
+   *
    * @param context the flow context
    * @return server IP or "-"
    */
@@ -611,6 +683,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   /**
    * Escapes JSON strings for safe logging.
+   *
    * @param s the string to escape
    * @return escaped string
    */
@@ -621,6 +694,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   /**
    * Formats timestamp using specified pattern.
+   *
    * @param zonedDateTime the date/time to format
    * @param pattern the date format pattern
    * @return formatted timestamp
@@ -629,5 +703,4 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern(pattern, Locale.US);
     return zonedDateTime.format(dtf);
   }
-
 }

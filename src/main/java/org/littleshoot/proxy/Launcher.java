@@ -11,13 +11,13 @@ import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.jspecify.annotations.NonNull;
+import org.littleshoot.proxy.extras.SelfSignedMitmManager;
+import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.extras.logging.ActivityLogger;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFieldConfigurationFactory;
 import org.littleshoot.proxy.extras.logging.LogFormat;
 import org.littleshoot.proxy.extras.logging.StandardField;
-import org.littleshoot.proxy.extras.SelfSignedMitmManager;
-import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.ProxyUtils;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.slf4j.Logger;
@@ -317,14 +317,15 @@ public class Launcher {
   }
 
   /**
-   * Configures activity logging based on CLI options.
-   * Supports both file-based configuration and inline CLI options.
+   * Configures activity logging based on CLI options. Supports both file-based configuration and
+   * inline CLI options.
    *
    * @param cmd the command line
    * @param bootstrap the server bootstrap
    * @param options the CLI options
    */
-  private void configureActivityLogging(CommandLine cmd, HttpProxyServerBootstrap bootstrap, Options options) {
+  private void configureActivityLogging(
+      CommandLine cmd, HttpProxyServerBootstrap bootstrap, Options options) {
     if (!cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
       return;
     }
@@ -355,17 +356,19 @@ public class Launcher {
 
     // If no file config or if CLI options are provided, build/extend configuration
     if (fieldConfig == null || hasCliLoggingOptions(cmd)) {
-      LogFieldConfiguration.Builder builder = fieldConfig != null 
-          ? LogFieldConfiguration.builder().addAll(fieldConfig.getFields())
-          : LogFieldConfiguration.builder();
+      LogFieldConfiguration.Builder builder =
+          fieldConfig != null
+              ? LogFieldConfiguration.builder().addAll(fieldConfig.getFields())
+              : LogFieldConfiguration.builder();
 
       // Add standard fields if starting from scratch
       if (fieldConfig == null) {
-        builder.addStandardField(StandardField.TIMESTAMP)
-               .addStandardField(StandardField.CLIENT_IP)
-               .addStandardField(StandardField.METHOD)
-               .addStandardField(StandardField.URI)
-               .addStandardField(StandardField.STATUS);
+        builder
+            .addStandardField(StandardField.TIMESTAMP)
+            .addStandardField(StandardField.CLIENT_IP)
+            .addStandardField(StandardField.METHOD)
+            .addStandardField(StandardField.URI)
+            .addStandardField(StandardField.STATUS);
       }
 
       // Process prefix headers
@@ -531,17 +534,35 @@ public class Launcher {
         "Number of proxy-to-server worker threads.");
     options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+        null,
+        OPTION_ACTIVITY_LOG_FORMAT,
+        true,
+        "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_FIELD_CONFIG, true, "Path to JSON configuration file for logging fields");
+        null,
+        OPTION_ACTIVITY_LOG_FIELD_CONFIG,
+        true,
+        "Path to JSON configuration file for logging fields");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_PREFIX_HEADERS, true, "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
+        null,
+        OPTION_ACTIVITY_LOG_PREFIX_HEADERS,
+        true,
+        "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_REGEX_HEADERS, true, "Comma-separated list of regex patterns for headers to log");
+        null,
+        OPTION_ACTIVITY_LOG_REGEX_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for headers to log");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS, true, "Comma-separated list of regex patterns for headers to exclude from logging");
+        null,
+        OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for headers to exclude from logging");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_MASK_SENSITIVE, true, "Mask sensitive header values (true|false)");
+        null,
+        OPTION_ACTIVITY_LOG_MASK_SENSITIVE,
+        true,
+        "Mask sensitive header values (true|false)");
     return options;
   }
 

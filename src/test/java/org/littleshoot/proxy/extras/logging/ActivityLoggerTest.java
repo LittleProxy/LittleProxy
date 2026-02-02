@@ -64,18 +64,19 @@ class ActivityLoggerTest {
   @Test
   void testCustomConfiguration() {
     // Test custom field configuration
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-      .addStandardField(StandardField.TIMESTAMP)
-      .addStandardField(StandardField.CLIENT_IP)
-      .addStandardField(StandardField.METHOD)
-      .addStandardField(StandardField.URI)
-      .addStandardField(StandardField.STATUS)
-      .addRequestHeader("X-Request-ID", "request_id")
-      .addRequestHeader("Authorization", "auth")
-      .addResponseHeader("X-Response-Time", "response_time")
-      .addResponseHeader("Cache-Control", "cache_control")
-      .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
-      .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.TIMESTAMP)
+            .addStandardField(StandardField.CLIENT_IP)
+            .addStandardField(StandardField.METHOD)
+            .addStandardField(StandardField.URI)
+            .addStandardField(StandardField.STATUS)
+            .addRequestHeader("X-Request-ID", "request_id")
+            .addRequestHeader("Authorization", "auth")
+            .addResponseHeader("X-Response-Time", "response_time")
+            .addResponseHeader("Cache-Control", "cache_control")
+            .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -94,9 +95,9 @@ class ActivityLoggerTest {
   void testSecurityMonitoringConfiguration() {
     LogFieldConfiguration config = SecurityMonitoringConfig.create();
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
-    
+
     setupSecurityMocks();
-    
+
     tracker.requestReceivedFromClient(flowContext, request);
     tracker.responseSentToClient(flowContext, response);
 
@@ -112,24 +113,25 @@ class ActivityLoggerTest {
     LogFieldConfiguration config = PerformanceAnalyticsConfig.create();
     // Use JSON format to verify dynamic field configuration works
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
-    
+
     setupPerformanceMocks();
-    
+
     tracker.requestReceivedFromClient(flowContext, request);
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Performance Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"cache_status\":\"HIT\"");
-    assertThat(tracker.lastLogMessage).contains("\"server_timing\":\"miss,db;dur=53,app;dur=47.2\"");
+    assertThat(tracker.lastLogMessage)
+        .contains("\"server_timing\":\"miss,db;dur=53,app;dur=47.2\"");
   }
 
   @Test
   void testAPIManagementConfiguration() {
     LogFieldConfiguration config = APIManagementConfig.create();
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
-    
+
     setupAPIMocks();
-    
+
     tracker.requestReceivedFromClient(flowContext, request);
     tracker.responseSentToClient(flowContext, response);
 
@@ -154,7 +156,8 @@ class ActivityLoggerTest {
     // 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100 "http://referrer.com"
     // "Mozilla/5.0"
     assertThat(tracker.lastLogMessage).startsWith("127.0.0.1 - - [");
-    assertThat(tracker.lastLogMessage).contains("] \"GET /test HTTP/1.1\" 200 100 \"http://referrer.com\" \"Mozilla/5.0\"");
+    assertThat(tracker.lastLogMessage)
+        .contains("] \"GET /test HTTP/1.1\" 200 100 \"http://referrer.com\" \"Mozilla/5.0\"");
   }
 
   @Test
@@ -245,14 +248,15 @@ class ActivityLoggerTest {
     // 1234567890.123 0 127.0.0.1 ...
     // We now expect something >= 0, not necessarily hardcoded 0.
     // Regex: timestamp space duration space ip ...
-    assertThat(tracker.lastLogMessage).matches(".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*");
+    assertThat(tracker.lastLogMessage)
+        .matches(".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*");
   }
 
   private static class TestableActivityLogger extends ActivityLogger {
     String lastLogMessage;
 
     public TestableActivityLogger(LogFormat logFormat) {
-      super(logFormat,null);
+      super(logFormat, null);
     }
 
     public TestableActivityLogger(LogFormat logFormat, LogFieldConfiguration config) {
@@ -319,15 +323,17 @@ class ActivityLoggerTest {
   @Test
   void testPrefixRequestHeaders() {
     // Setup custom headers with prefix
-    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Custom-Auth", "X-Custom-Id", "User-Agent"));
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Custom-Auth", "X-Custom-Id", "User-Agent"));
     when(requestHeaders.get("X-Custom-Auth")).thenReturn("token123");
     when(requestHeaders.get("X-Custom-Id")).thenReturn("abc-456");
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addRequestHeadersWithPrefix("X-Custom-")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersWithPrefix("X-Custom-")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -343,15 +349,18 @@ class ActivityLoggerTest {
   @Test
   void testPrefixResponseHeadersWithTransformer() {
     // Setup rate limit headers
-    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Content-Type"));
+    when(responseHeaders.names())
+        .thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Content-Type"));
     when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
     when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
     when(responseHeaders.get("Content-Type")).thenReturn("application/json");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addResponseHeadersWithPrefix("X-RateLimit-", name -> name.replace("X-RateLimit-", "").toLowerCase())
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersWithPrefix(
+                "X-RateLimit-", name -> name.replace("X-RateLimit-", "").toLowerCase())
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -371,11 +380,12 @@ class ActivityLoggerTest {
     when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-123");
     when(requestHeaders.get("X-Span-Id")).thenReturn("span-456");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addRequestHeadersWithPrefix("X-Trace-")
-        .addRequestHeadersWithPrefix("X-Span-")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersWithPrefix("X-Trace-")
+            .addRequestHeadersWithPrefix("X-Span-")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
     setupMocks();
@@ -395,10 +405,11 @@ class ActivityLoggerTest {
     when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
     when(responseHeaders.get("X-Cache-Hits")).thenReturn("42");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addResponseHeadersWithPrefix("X-Cache-")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersWithPrefix("X-Cache-")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
     setupMocks();
@@ -414,16 +425,18 @@ class ActivityLoggerTest {
   @Test
   void testRegexRequestHeaders() {
     // Setup headers that match X-.*-Id pattern
-    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-Session-Id", "Content-Type"));
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-Session-Id", "Content-Type"));
     when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
     when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
     when(requestHeaders.get("X-Session-Id")).thenReturn("sess-789");
     when(requestHeaders.get("Content-Type")).thenReturn("application/json");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addRequestHeadersMatching("X-.*-Id")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersMatching("X-.*-Id")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -440,16 +453,21 @@ class ActivityLoggerTest {
   @Test
   void testRegexResponseHeadersWithCaptureGroupTransformer() {
     // Setup rate limit headers with different patterns
-    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Cache-Status", "Content-Type"));
+    when(responseHeaders.names())
+        .thenReturn(
+            java.util.Set.of(
+                "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Cache-Status", "Content-Type"));
     when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
     when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
     when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
     when(responseHeaders.get("Content-Type")).thenReturn("application/json");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addResponseHeadersMatching("X-RateLimit-.*", name -> name.replaceAll("X-RateLimit-", "").toLowerCase())
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersMatching(
+                "X-RateLimit-.*", name -> name.replaceAll("X-RateLimit-", "").toLowerCase())
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -466,15 +484,17 @@ class ActivityLoggerTest {
   @Test
   void testRegexHeadersCaseInsensitive() {
     // Setup headers with mixed case
-    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-ID", "x-trace-id", "X-SPAN-ID"));
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Request-ID", "x-trace-id", "X-SPAN-ID"));
     when(requestHeaders.get("X-Request-ID")).thenReturn("req-abc");
     when(requestHeaders.get("x-trace-id")).thenReturn("trace-def");
     when(requestHeaders.get("X-SPAN-ID")).thenReturn("span-ghi");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addRequestHeadersMatching("(?i)x-.*-id")  // case-insensitive
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersMatching("(?i)x-.*-id") // case-insensitive
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
     setupMocks();
@@ -492,15 +512,17 @@ class ActivityLoggerTest {
   @Test
   void testRegexHeadersInCsvFormat() {
     // Setup headers matching correlation pattern
-    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-Correlation-Id", "X-Transaction-Id", "X-Server-Name"));
+    when(responseHeaders.names())
+        .thenReturn(java.util.Set.of("X-Correlation-Id", "X-Transaction-Id", "X-Server-Name"));
     when(responseHeaders.get("X-Correlation-Id")).thenReturn("corr-123");
     when(responseHeaders.get("X-Transaction-Id")).thenReturn("txn-456");
     when(responseHeaders.get("X-Server-Name")).thenReturn("server01");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addResponseHeadersMatching("X-.*-Id")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersMatching("X-.*-Id")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
     setupMocks();
@@ -517,16 +539,18 @@ class ActivityLoggerTest {
   @Test
   void testExcludeRequestHeaders() {
     // Setup headers including sensitive ones to exclude
-    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-Id", "Authorization", "Cookie", "Content-Type"));
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Request-Id", "Authorization", "Cookie", "Content-Type"));
     when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
     when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token");
     when(requestHeaders.get("Cookie")).thenReturn("session=abc123");
     when(requestHeaders.get("Content-Type")).thenReturn("application/json");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .excludeRequestHeadersMatching("Authorization|Cookie")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .excludeRequestHeadersMatching("Authorization|Cookie")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -546,23 +570,26 @@ class ActivityLoggerTest {
   @Test
   void testHeaderValueMasking() {
     // Setup headers with sensitive values to mask
-    when(requestHeaders.names()).thenReturn(java.util.Set.of("Authorization", "X-API-Key", "X-Request-Id"));
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("Authorization", "X-API-Key", "X-Request-Id"));
     when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token-123");
     when(requestHeaders.get("X-API-Key")).thenReturn("api-key-456");
     when(requestHeaders.get("X-Request-Id")).thenReturn("req-789");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .addRequestHeadersMatching("X-.*", 
-            name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
-            value -> {
-              // Mask sensitive values
-              if (value.length() > 8) {
-                return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
-              }
-              return value;
-            })
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersMatching(
+                "X-.*",
+                name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
+                value -> {
+                  // Mask sensitive values
+                  if (value.length() > 8) {
+                    return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+                  }
+                  return value;
+                })
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -579,16 +606,19 @@ class ActivityLoggerTest {
   @Test
   void testExcludeResponseHeaders() {
     // Setup response headers including sensitive ones to exclude
-    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-RateLimit-Limit", "Set-Cookie", "X-Cache-Status", "Content-Type"));
+    when(responseHeaders.names())
+        .thenReturn(
+            java.util.Set.of("X-RateLimit-Limit", "Set-Cookie", "X-Cache-Status", "Content-Type"));
     when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
     when(responseHeaders.get("Set-Cookie")).thenReturn("session=secret123; HttpOnly");
     when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
     when(responseHeaders.get("Content-Type")).thenReturn("application/json");
 
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .excludeResponseHeadersMatching("Set-Cookie")
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .excludeResponseHeadersMatching("Set-Cookie")
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
@@ -607,7 +637,10 @@ class ActivityLoggerTest {
   @Test
   void testExcludeWithAllHeaders() {
     // Setup headers with X- prefix, using exclude to filter out sensitive ones
-    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-API-Key", "X-Client-Id", "Content-Type"));
+    when(requestHeaders.names())
+        .thenReturn(
+            java.util.Set.of(
+                "X-Request-Id", "X-Trace-Id", "X-API-Key", "X-Client-Id", "Content-Type"));
     when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
     when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
     when(requestHeaders.get("X-API-Key")).thenReturn("secret-api-key");
@@ -615,12 +648,14 @@ class ActivityLoggerTest {
     when(requestHeaders.get("Content-Type")).thenReturn("application/json");
 
     // Use exclude to log all headers EXCEPT the sensitive X-API-Key
-    LogFieldConfiguration config = LogFieldConfiguration.builder()
-        .addStandardField(StandardField.CLIENT_IP)
-        .excludeRequestHeadersMatching("X-API-Key",
-            name -> name.replace("X-", "").toLowerCase().replaceAll("[^a-z0-9]", "-"),
-            value -> value)
-        .build();
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .excludeRequestHeadersMatching(
+                "X-API-Key",
+                name -> name.replace("X-", "").toLowerCase().replaceAll("[^a-z0-9]", "-"),
+                value -> value)
+            .build();
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
     setupMocks();
