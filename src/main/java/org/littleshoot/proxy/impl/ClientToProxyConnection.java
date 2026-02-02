@@ -1205,7 +1205,6 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         String base64Credentials = Base64.getEncoder().encodeToString(credentials.getBytes(UTF_8));
         String authHeader = "Basic " + base64Credentials;
 
-        LOG.debug("Adding Proxy-Authorization header for upstream proxy: {}", authHeader);
         headers.set(HttpHeaderNames.PROXY_AUTHORIZATION, authHeader);
       }
     }
