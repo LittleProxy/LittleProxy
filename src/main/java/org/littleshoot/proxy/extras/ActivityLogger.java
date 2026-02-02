@@ -92,7 +92,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("\"")
             .append(request.method())
             .append(" ")
-            .append(request.uri())
+            .append(getFullUrl(request))
             .append(" ")
             .append(request.protocolVersion())
             .append("\" ");
@@ -110,7 +110,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("\"")
             .append(request.method())
             .append(" ")
-            .append(request.uri())
+            .append(getFullUrl(request))
             .append(" ")
             .append(request.protocolVersion())
             .append("\" ");
@@ -129,7 +129,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append(now.format(w3cDateTimeFormatter)).append(" ");
         sb.append(clientIp).append(" ");
         sb.append(request.method()).append(" ");
-        sb.append(request.uri()).append(" ");
+        sb.append(getFullUrl(request)).append(" ");
         sb.append(response.status().code()).append(" ");
         sb.append(getContentLength(response)).append(" ");
         sb.append("\"").append(getHeader(request, USER_AGENT)).append("\"");
@@ -140,7 +140,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("\"timestamp\":\"").append(format(now, ISO_8601_PATTERN)).append("\",");
         sb.append("\"client_ip\":\"").append(clientIp).append("\",");
         sb.append("\"method\":\"").append(request.method()).append("\",");
-        sb.append("\"uri\":\"").append(escapeJson(request.uri())).append("\",");
+        sb.append("\"uri\":\"").append(escapeJson(getFullUrl(request))).append("\",");
         sb.append("\"protocol\":\"").append(request.protocolVersion()).append("\",");
         sb.append("\"status\":").append(response.status().code()).append(",");
         sb.append("\"bytes\":").append(getContentLength(response)).append(",");
@@ -156,7 +156,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("time:").append(format(now, ISO_8601_PATTERN)).append("\t");
         sb.append("host:").append(clientIp).append("\t");
         sb.append("method:").append(request.method()).append("\t");
-        sb.append("uri:").append(request.uri()).append("\t");
+        sb.append("uri:").append(getFullUrl(request)).append("\t");
         sb.append("status:").append(response.status().code()).append("\t");
         sb.append("size:").append(getContentLength(response)).append("\t");
         sb.append("duration:").append(duration).append("\t");
@@ -168,7 +168,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("\"").append(format(now, ISO_8601_PATTERN)).append("\",");
         sb.append("\"").append(clientIp).append("\",");
         sb.append("\"").append(request.method()).append("\",");
-        sb.append("\"").append(escapeJson(request.uri())).append("\",");
+        sb.append("\"").append(escapeJson(getFullUrl(request))).append("\",");
         sb.append(response.status().code()).append(",");
         sb.append(getContentLength(response)).append(",");
         sb.append(duration).append(",");
@@ -185,7 +185,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("TCP_MISS/").append(response.status().code()).append(" ");
         sb.append(getContentLength(response)).append(" ");
         sb.append(request.method()).append(" ");
-        sb.append(request.uri()).append(" ");
+        sb.append(getFullUrl(request)).append(" ");
         sb.append("- "); // rfc931
         sb.append("DIRECT/").append(getServerIp(flowContext)).append(" ");
         sb.append(getContentType(response));
@@ -201,7 +201,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         sb.append("\"")
             .append(request.method())
             .append(" ")
-            .append(request.uri())
+            .append(getFullUrl(request))
             .append(" ")
             .append(request.protocolVersion())
             .append("\" ");
@@ -212,6 +212,45 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
 
     return sb.toString();
+  }
+
+  /**
+   * Reconstructs the full URL from the request.
+   * If the URI is already absolute (starts with http:// or https://), returns it as-is.
+   * Otherwise, prepends the Host header to create a complete URL.
+   *
+   * @param request the HTTP request
+   * @return the full URL
+   */
+  protected String getFullUrl(HttpRequest request) {
+    String uri = request.uri();
+
+    // Check if URI is already absolute (contains scheme)
+    if (uri.startsWith("http://") || uri.startsWith("https://")) {
+      return uri;
+    }
+
+    // For CONNECT requests, the URI is just host:port
+    if (request.method().name().equals("CONNECT")) {
+      return uri;
+    }
+
+    // Get host from Host header
+    String host = request.headers().get("Host");
+    if (host == null || host.isEmpty()) {
+      // Fallback: return URI as-is if no Host header
+      return uri;
+    }
+
+    // Determine scheme (default to http)
+    String scheme = "http";
+
+    // Reconstruct full URL
+    if (uri.startsWith("/")) {
+      return scheme + "://" + host + uri;
+    } else {
+      return scheme + "://" + host + "/" + uri;
+    }
   }
 
   private String format(ZonedDateTime zonedDateTime, String pattern) {
