@@ -1106,12 +1106,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       switchProxyConnectionHeader(headers);
       stripConnectionTokens(headers);
 
-      // Check if we need to preserve Proxy-Authorization for upstream proxy authentication
-      boolean preserveProxyAuthorization = shouldPreserveProxyAuthorizationForUpstream();
-      stripHopByHopHeaders(headers, preserveProxyAuthorization);
+      stripHopByHopHeaders(headers);
 
       // If we're forwarding to an upstream proxy that requires authentication, add the credentials
-      if (preserveProxyAuthorization) {
+      if (shouldPreserveProxyAuthorizationForUpstream()) {
         addUpstreamProxyAuthorization(headers);
       }
 
@@ -1309,20 +1307,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * Headers.
    *
    * @param headers The headers to modify
-   * @param preserveProxyAuthorization true if Proxy-Authorization headers should be preserved
-   */
-  void stripHopByHopHeaders(HttpHeaders headers, boolean preserveProxyAuthorization) {
-    ProxyUtils.stripHopByHopHeaders(headers, preserveProxyAuthorization);
-  }
-
-  /**
-   * Removes all headers that should not be forwarded. See RFC 2616 13.5.1 End-to-end and Hop-by-hop
-   * Headers.
-   *
-   * @param headers The headers to modify
    */
   void stripHopByHopHeaders(HttpHeaders headers) {
-    stripHopByHopHeaders(headers, false);
+    ProxyUtils.stripHopByHopHeaders(headers);
   }
 
   /* *************************************************************************
@@ -1610,5 +1597,4 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   public AtomicBoolean getAuthenticated() {
     return authenticated;
   }
-
 }
