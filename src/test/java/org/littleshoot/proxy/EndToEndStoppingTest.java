@@ -99,9 +99,6 @@ public class EndToEndStoppingTest {
                                 .withStatusCode(200)
                                 .withBody("Success!")
                 );
-        // final String url = "https://www.exceptional.io/api/errors?" +
-        // "api_key="+"9848f38fb5ad1db0784675b75b9152c87dc1eb95"+"&protocol_version=6";
-
         final String url = "http://127.0.0.1:" + mockServerPort + "/success";
         final String[] sites = { url };// "https://www.google.com.ua"};//"https://exceptional.io"};//"http://www.google.com.ua"};
         for (final String site : sites) {
