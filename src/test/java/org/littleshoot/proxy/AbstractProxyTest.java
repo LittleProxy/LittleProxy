@@ -251,7 +251,7 @@ public abstract class AbstractProxyTest {
   protected HttpProxyServerBootstrap bootstrapProxy() {
     return DefaultHttpProxyServer.bootstrap()
         .plusActivityTracker(
-            new ActivityTracker() {
+            new ActivityTrackerAdapter() {
               @Override
               public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {
                 bytesReceivedFromClient.addAndGet(numberOfBytes);

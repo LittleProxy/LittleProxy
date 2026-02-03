@@ -223,6 +223,16 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   /* *************************************************************************
+   * Lifecycle
+   **************************************************************************/
+
+  @Override
+  protected void connected() {
+    super.connected();
+    recordServerConnected();
+  }
+
+  /* *************************************************************************
    * Reading
    **************************************************************************/
 
@@ -428,24 +438,28 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void becameSaturated() {
     super.becameSaturated();
+    recordConnectionSaturated();
     clientConnection.serverBecameSaturated(this);
   }
 
   @Override
   protected void becameWritable() {
     super.becameWritable();
+    recordConnectionWritable();
     clientConnection.serverBecameWriteable(this);
   }
 
   @Override
   protected void timedOut() {
     super.timedOut();
+    recordConnectionTimedOut();
     clientConnection.timedOut(this);
   }
 
   @Override
   protected void disconnected() {
     super.disconnected();
+    recordServerDisconnected();
     if (chainedProxy != null) {
       // Let the ChainedProxy know that we disconnected
       try {
@@ -460,6 +474,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void exceptionCaught(Throwable cause) {
     try {
+      recordConnectionExceptionCaught(cause);
       if (cause instanceof ProxyConnectException) {
         LOG.info(
             "A ProxyConnectException occurred on ProxyToServerConnection: " + cause.getMessage());
@@ -1301,4 +1316,70 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           }
         }
       };
+
+  private void recordServerConnected() {
+    try {
+      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.serverConnected(flowContext, remoteAddress);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordServerConnected", e);
+    }
+  }
+
+  private void recordServerDisconnected() {
+    try {
+      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.serverDisconnected(flowContext, remoteAddress);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordServerDisconnected", e);
+    }
+  }
+
+  private void recordConnectionSaturated() {
+    try {
+      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.connectionSaturated(flowContext);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordConnectionSaturated", e);
+    }
+  }
+
+  private void recordConnectionWritable() {
+    try {
+      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.connectionWritable(flowContext);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordConnectionWritable", e);
+    }
+  }
+
+  private void recordConnectionTimedOut() {
+    try {
+      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.connectionTimedOut(flowContext);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordConnectionTimedOut", e);
+    }
+  }
+
+  private void recordConnectionExceptionCaught(Throwable cause) {
+    try {
+      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.connectionExceptionCaught(flowContext, cause);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordConnectionExceptionCaught", e);
+    }
+  }
 }

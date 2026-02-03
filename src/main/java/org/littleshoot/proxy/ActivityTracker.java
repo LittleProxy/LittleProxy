@@ -92,4 +92,49 @@ public interface ActivityTracker {
    * @param httpResponse
    */
   void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse);
+
+  /**
+   * Record that the proxy connected to the server.
+   *
+   * @param flowContext provides contextual information about the flow
+   * @param serverAddress the address of the server that was connected
+   */
+  void serverConnected(FullFlowContext flowContext, InetSocketAddress serverAddress);
+
+  /**
+   * Record that the proxy disconnected from the server.
+   *
+   * @param flowContext provides contextual information about the flow
+   * @param serverAddress the address of the server that was disconnected
+   */
+  void serverDisconnected(FullFlowContext flowContext, InetSocketAddress serverAddress);
+
+  /**
+   * Record that a connection became saturated (not writable).
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   */
+  void connectionSaturated(FlowContext flowContext);
+
+  /**
+   * Record that a connection became writable again after being saturated.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   */
+  void connectionWritable(FlowContext flowContext);
+
+  /**
+   * Record that a connection timed out due to idle timeout.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   */
+  void connectionTimedOut(FlowContext flowContext);
+
+  /**
+   * Record that an exception was caught on a connection.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   * @param cause the exception that was caught
+   */
+  void connectionExceptionCaught(FlowContext flowContext, Throwable cause);
 }
