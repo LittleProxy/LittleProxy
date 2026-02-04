@@ -20,7 +20,7 @@ public enum StandardField implements LogField {
   URI("uri", "Request URI or full URL"),
   STATUS("status", "HTTP response status code"),
   BYTES("bytes", "Response content length in bytes"),
-  DURATION("duration", "Request processing duration in milliseconds"),
+  DURATION("duration", "HTTP request processing duration from receipt to response (milliseconds)"),
   REFERER("referer", "Referer header from the request"),
   USER_AGENT("user_agent", "User-Agent header from the request"),
   PROTOCOL("protocol", "HTTP protocol version"),
@@ -28,7 +28,8 @@ public enum StandardField implements LogField {
   SERVER_CONNECTION_DURATION(
       "server_connection_duration", "Total server connection duration in milliseconds"),
   CLIENT_CONNECTION_DURATION(
-      "client_connection_duration", "Total client connection duration in milliseconds"),
+      "tcp_connection_duration",
+      "Total TCP connection lifetime from connect to disconnect (includes pre-request time, milliseconds)"),
   SSL_HANDSHAKE_TIME("ssl_handshake_time", "SSL handshake duration in milliseconds"),
   SATURATION_COUNT("saturation_count", "Number of times connection became saturated"),
   EXCEPTION_TYPE("exception_type", "Type of exception if occurred");

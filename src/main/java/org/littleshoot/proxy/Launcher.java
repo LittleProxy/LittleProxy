@@ -567,7 +567,10 @@ public class Launcher {
         true,
         "Comma-separated list of regex patterns for headers to exclude from logging");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_MASK_SENSITIVE, true, "Mask sensitive header values (true|false)");
+        null,
+        OPTION_ACTIVITY_LOG_MASK_SENSITIVE,
+        true,
+        "Mask sensitive header values (true|false)");
     options.addOption(
         null,
         OPTION_ACTIVITY_LOG_LEVEL,
@@ -589,7 +592,10 @@ public class Launcher {
         "Number of proxy-to-server worker threads.");
     options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+        null,
+        OPTION_ACTIVITY_LOG_FORMAT,
+        true,
+        "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
     options.addOption(
         null,
         OPTION_ACTIVITY_LOG_FIELD_CONFIG,

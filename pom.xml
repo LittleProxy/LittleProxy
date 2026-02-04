@@ -38,6 +38,7 @@
         <selenium.version>4.40.0</selenium.version>
         <slf4j.version>2.0.17</slf4j.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <ulid.version>5.2.3</ulid.version>
     </properties>
 
     <licenses>
@@ -202,6 +203,13 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>${commons.lang3.version}</version>
+        </dependency>
+
+        <!-- ULID for globally unique, sortable flow IDs -->
+        <dependency>
+            <groupId>com.github.f4b6a3</groupId>
+            <artifactId>ulid-creator</artifactId>
+            <version>${ulid.version}</version>
         </dependency>
 
         <!-- Netty - using specific modules instead of netty-all for smaller footprint -->

@@ -523,7 +523,7 @@ DEBUG: Connection exception caught: client, type: IOException, message: Connecti
 
 **Example output**:
 ```
-INFO: flow_id=flow-123 client_ip=192.168.1.1 client_port=12345 server_ip=10.0.0.1 server_port=443 method=GET uri="/api/status" protocol=HTTP/1.1 status=200 bytes=1234 duration_ms=150 server_connect_ms=45 ssl_handshake_ms=12 client_saturations=0 server_saturations=0 exception=none
+INFO: flow_id=01HV8J3K2M4N5P6Q7R8S9T0UV client_ip=192.168.1.1 client_port=12345 server_ip=10.0.0.1 server_port=443 method=GET uri="/api/status" protocol=HTTP/1.1 status=200 bytes=1234 http_request_ms=150 tcp_connection_ms=152 server_connect_ms=45 ssl_handshake_ms=12 client_saturations=0 server_saturations=0 exception=none
 ```
 
 **Performance impact**: Low - single log entry per request. Recommended for production.

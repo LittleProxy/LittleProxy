@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.extras.logging;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
@@ -9,7 +10,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLSession;
 import org.littleshoot.proxy.ActivityTrackerAdapter;
 import org.littleshoot.proxy.FlowContext;
@@ -36,8 +36,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   public static final String USER_AGENT = "User-Agent";
   public static final String ISO_8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
-  // Flow ID generator for tracing
-  private static final AtomicLong FLOW_ID_GENERATOR = new AtomicLong(0);
+  // Flow ID generator using ULID for globally unique, sortable identifiers
 
   private final LogFormat logFormat;
   private final LogFieldConfiguration fieldConfiguration;
@@ -102,7 +101,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    * @return unique flow identifier
    */
   private String generateFlowId() {
-    return "flow-" + FLOW_ID_GENERATOR.incrementAndGet();
+    return UlidCreator.getUlid().toString();
   }
 
   /**
@@ -245,7 +244,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Get client state metrics
     ClientState clientState = clientStates.get(clientAddress);
     long clientConnectTime = clientState != null ? clientState.connectTime : 0;
-    long clientConnectionDuration = clientConnectTime > 0 ? System.currentTimeMillis() - clientConnectTime : 0;
+    long clientConnectionDuration =
+        clientConnectTime > 0 ? System.currentTimeMillis() - clientConnectTime : 0;
     long sslHandshakeTime =
         clientState != null && clientState.sslHandshakeEndTime > 0
             ? clientState.sslHandshakeEndTime - clientState.sslHandshakeStartTime
@@ -284,8 +284,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     sb.append(" protocol=").append(request.protocolVersion());
     sb.append(" status=").append(response.status().code());
     sb.append(" bytes=").append(getContentLength(response));
-    sb.append(" duration_ms=").append(duration);
-    sb.append(" client_connection_duration_ms=").append(clientConnectionDuration);
+    sb.append(" http_request_ms=").append(duration);
+    sb.append(" tcp_connection_ms=").append(clientConnectionDuration);
     sb.append(" server_connect_ms=").append(serverConnectTime);
     sb.append(" ssl_handshake_ms=").append(sslHandshakeTime);
     sb.append(" client_saturations=").append(clientSaturations);
