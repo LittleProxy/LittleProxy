@@ -24,7 +24,8 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li><strong>TRACE</strong>: Detailed diagnostics - method entry, state transitions, thread info
  *   <li><strong>DEBUG</strong>: Essential operations - connections, disconnections, errors
- *   <li><strong>INFO</strong>: Complete interaction summary - aggregated metrics per request/response
+ *   <li><strong>INFO</strong>: Complete interaction summary - aggregated metrics per
+ *       request/response
  * </ul>
  */
 public class ActivityLogger extends ActivityTrackerAdapter {
@@ -206,8 +207,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   /**
-   * Determines if formatted log entries should be logged. This method can be overridden in tests
-   * to force logging regardless of the logger's debug level.
+   * Determines if formatted log entries should be logged. This method can be overridden in tests to
+   * force logging regardless of the logger's debug level.
    *
    * @return true if formatted entries should be logged
    */
@@ -253,7 +254,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // Get server state metrics
     ServerState serverState =
-        flowContext instanceof FullFlowContext ? serverStates.get((FullFlowContext) flowContext) : null;
+        flowContext instanceof FullFlowContext
+            ? serverStates.get((FullFlowContext) flowContext)
+            : null;
     long serverConnectTime =
         serverState != null && serverState.connectEndTime > 0
             ? serverState.connectEndTime - serverState.connectStartTime
@@ -315,8 +318,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
-  public void clientSSLHandshakeSucceeded(
-      InetSocketAddress clientAddress, SSLSession sslSession) {
+  public void clientSSLHandshakeSucceeded(InetSocketAddress clientAddress, SSLSession sslSession) {
     long now = System.currentTimeMillis();
     ClientState state = clientStates.get(clientAddress);
 
@@ -349,10 +351,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
-      LOG.trace(
-          "ENTER clientDisconnected - address={}, timestamp={}",
-          clientAddress,
-          now);
+      LOG.trace("ENTER clientDisconnected - address={}, timestamp={}", clientAddress, now);
     }
 
     if (state != null) {
@@ -402,16 +401,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
-      LOG.trace(
-          "ENTER serverDisconnected - serverAddress={}, timestamp={}",
-          serverAddress,
-          now);
+      LOG.trace("ENTER serverDisconnected - serverAddress={}, timestamp={}", serverAddress, now);
     }
 
     if (state != null) {
       state.disconnectTime = now;
-      long duration =
-          state.connectEndTime > 0 ? state.disconnectTime - state.connectEndTime : 0;
+      long duration = state.connectEndTime > 0 ? state.disconnectTime - state.connectEndTime : 0;
       long timeToConnect = state.connectEndTime - state.connectStartTime;
 
       // DEBUG: Essential operation with timing

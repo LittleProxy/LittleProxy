@@ -25,8 +25,10 @@ public enum StandardField implements LogField {
   USER_AGENT("user_agent", "User-Agent header from the request"),
   PROTOCOL("protocol", "HTTP protocol version"),
   SERVER_CONNECT_TIME("server_connect_time", "Time to establish server connection in milliseconds"),
-  SERVER_CONNECTION_DURATION("server_connection_duration", "Total server connection duration in milliseconds"),
-  CLIENT_CONNECTION_DURATION("client_connection_duration", "Total client connection duration in milliseconds"),
+  SERVER_CONNECTION_DURATION(
+      "server_connection_duration", "Total server connection duration in milliseconds"),
+  CLIENT_CONNECTION_DURATION(
+      "client_connection_duration", "Total client connection duration in milliseconds"),
   SSL_HANDSHAKE_TIME("ssl_handshake_time", "SSL handshake duration in milliseconds"),
   SATURATION_COUNT("saturation_count", "Number of times connection became saturated"),
   EXCEPTION_TYPE("exception_type", "Type of exception if occurred");
