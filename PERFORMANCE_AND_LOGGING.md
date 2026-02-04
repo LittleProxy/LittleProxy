@@ -761,6 +761,37 @@ builder.excludeRequestHeadersMatching("Authorization|Cookie|X-API-Key");
   --activity_log_exclude_headers "X-Secret-Token"
 ```
 
+### Activity Log Level Control
+
+Control the verbosity of ActivityLogger at runtime using the `--activity_log_level` CLI option:
+
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| **TRACE** | Detailed diagnostics - method entry, state transitions, thread info | Debugging complex issues |
+| **DEBUG** | Essential operations - connections, disconnections, errors | Development, troubleshooting |
+| **INFO** | Complete interaction summary - aggregated metrics per request | Production (default) |
+| **WARN** | Warnings and errors only | Reduced logging |
+| **ERROR** | Errors only | Minimal logging |
+| **OFF** | Disable activity logging completely | Disable logging |
+
+**Examples:**
+```bash
+# Default INFO level (production)
+./run.bash --server --port 8080 --activity_log_format JSON
+
+# DEBUG level for troubleshooting
+./run.bash --server --port 8080 --activity_log_format JSON --activity_log_level DEBUG
+
+# TRACE level for detailed diagnostics
+./run.bash --server --port 8080 --activity_log_format JSON --activity_log_level TRACE
+
+# Disable activity logging
+./run.bash --server --port 8080 --activity_log_level OFF
+```
+
+**How it works:**
+The `--activity_log_level` option sets a system property that is referenced by the Log4j2 configuration files. This allows runtime control without modifying XML configuration files.
+
 ### Activity Logging Performance Impact
 
 | Format | Performance | Use Case |

@@ -73,6 +73,7 @@ public class Launcher {
   private static final String OPTION_ACTIVITY_LOG_REGEX_HEADERS = "activity_log_regex_headers";
   private static final String OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS = "activity_log_exclude_headers";
   private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
+  private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
   public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
@@ -429,6 +430,13 @@ public class Launcher {
 
   @SuppressWarnings("java:S106")
   private void configureLogging(CommandLine cmd) {
+    // Set ActivityLogger log level from CLI before initializing Log4j2
+    if (cmd.hasOption(OPTION_ACTIVITY_LOG_LEVEL)) {
+      String level = cmd.getOptionValue(OPTION_ACTIVITY_LOG_LEVEL).toUpperCase();
+      System.setProperty("log4j2.ActivityLogger.level", level);
+      System.out.println("Setting ActivityLogger level to: " + level);
+    }
+
     if (cmd.hasOption(OPTION_LOG_CONFIG)) {
       String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
       File logConfigPath = new File(optionValue);
@@ -519,50 +527,12 @@ public class Launcher {
         true,
         "Allow requests to origin server (true|false).");
     options.addOption(
-        null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
-    options.addOption(
-        null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
+        null, OPTION_ACTIVITY_LOG_MASK_SENSITIVE, true, "Mask sensitive header values (true|false)");
     options.addOption(
         null,
-        OPTION_CLIENT_TO_PROXY_WORKER_THREADS,
+        OPTION_ACTIVITY_LOG_LEVEL,
         true,
-        "Number of client-to-proxy worker threads.");
-    options.addOption(
-        null,
-        OPTION_PROXY_TO_SERVER_WORKER_THREADS,
-        true,
-        "Number of proxy-to-server worker threads.");
-    options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_FORMAT,
-        true,
-        "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_FIELD_CONFIG,
-        true,
-        "Path to JSON configuration file for logging fields");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_PREFIX_HEADERS,
-        true,
-        "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_REGEX_HEADERS,
-        true,
-        "Comma-separated list of regex patterns for headers to log");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
-        true,
-        "Comma-separated list of regex patterns for headers to exclude from logging");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_MASK_SENSITIVE,
-        true,
-        "Mask sensitive header values (true|false)");
+        "ActivityLogger log level: TRACE, DEBUG, INFO, WARN, ERROR, OFF (default: INFO)");
     return options;
   }
 
