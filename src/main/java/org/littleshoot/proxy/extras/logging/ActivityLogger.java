@@ -245,6 +245,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Get client state metrics
     ClientState clientState = clientStates.get(clientAddress);
     long clientConnectTime = clientState != null ? clientState.connectTime : 0;
+    long clientConnectionDuration = clientConnectTime > 0 ? System.currentTimeMillis() - clientConnectTime : 0;
     long sslHandshakeTime =
         clientState != null && clientState.sslHandshakeEndTime > 0
             ? clientState.sslHandshakeEndTime - clientState.sslHandshakeStartTime
@@ -284,6 +285,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     sb.append(" status=").append(response.status().code());
     sb.append(" bytes=").append(getContentLength(response));
     sb.append(" duration_ms=").append(duration);
+    sb.append(" client_connection_duration_ms=").append(clientConnectionDuration);
     sb.append(" server_connect_ms=").append(serverConnectTime);
     sb.append(" ssl_handshake_ms=").append(sslHandshakeTime);
     sb.append(" client_saturations=").append(clientSaturations);
