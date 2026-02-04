@@ -527,12 +527,89 @@ public class Launcher {
         true,
         "Allow requests to origin server (true|false).");
     options.addOption(
+        null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
+    options.addOption(
+        null, OPTION_SEND_PROXY_PROTOCOL, true, "Send Proxy Protocol header (true|false).");
+    options.addOption(
+        null,
+        OPTION_CLIENT_TO_PROXY_WORKER_THREADS,
+        true,
+        "Number of client-to-proxy worker threads.");
+    options.addOption(
+        null,
+        OPTION_PROXY_TO_SERVER_WORKER_THREADS,
+        true,
+        "Number of proxy-to-server worker threads.");
+    options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_FORMAT,
+        true,
+        "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_FIELD_CONFIG,
+        true,
+        "Path to JSON configuration file for logging fields");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_PREFIX_HEADERS,
+        true,
+        "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_REGEX_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for headers to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for headers to exclude from logging");
+    options.addOption(
         null, OPTION_ACTIVITY_LOG_MASK_SENSITIVE, true, "Mask sensitive header values (true|false)");
     options.addOption(
         null,
         OPTION_ACTIVITY_LOG_LEVEL,
         true,
         "ActivityLogger log level: TRACE, DEBUG, INFO, WARN, ERROR, OFF (default: INFO)");
+    options.addOption(
+        null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
+    options.addOption(
+        null, OPTION_SEND_PROXY_PROTOCOL, true, "Send Proxy Protocol header (true|false).");
+    options.addOption(
+        null,
+        OPTION_CLIENT_TO_PROXY_WORKER_THREADS,
+        true,
+        "Number of client-to-proxy worker threads.");
+    options.addOption(
+        null,
+        OPTION_PROXY_TO_SERVER_WORKER_THREADS,
+        true,
+        "Number of proxy-to-server worker threads.");
+    options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
+    options.addOption(
+        null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_FIELD_CONFIG,
+        true,
+        "Path to JSON configuration file for logging fields");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_PREFIX_HEADERS,
+        true,
+        "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_REGEX_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for headers to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for headers to exclude from logging");
     return options;
   }
 
