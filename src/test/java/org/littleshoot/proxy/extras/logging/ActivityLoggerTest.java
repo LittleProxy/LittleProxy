@@ -336,12 +336,11 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
     InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
 
-    // Should not throw and should track client state
-    tracker.clientConnected(clientAddress);
-
-    // Setup mocks first, then override with our client address
     setupMocks();
     when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Should not throw and should track client state
+    tracker.clientConnected(flowContext);
 
     tracker.requestReceivedFromClient(flowContext, request);
     tracker.responseSentToClient(flowContext, response);
@@ -359,11 +358,12 @@ class ActivityLoggerTest {
     when(sslSession.getProtocol()).thenReturn("TLSv1.3");
     when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
 
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
     // Connect client first
-    tracker.clientConnected(clientAddress);
+    tracker.clientConnected(flowContext);
 
     // Then complete SSL handshake
-    tracker.clientSSLHandshakeSucceeded(clientAddress, sslSession);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
 
     // Verify no exception thrown and tracking works
     assertThat(tracker).isNotNull();
@@ -376,8 +376,9 @@ class ActivityLoggerTest {
     SSLSession sslSession = mock(SSLSession.class);
 
     // Connect then disconnect
-    tracker.clientConnected(clientAddress);
-    tracker.clientDisconnected(clientAddress, sslSession);
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    tracker.clientConnected(flowContext);
+    tracker.clientDisconnected(flowContext, sslSession);
 
     // Verify no exception thrown
     assertThat(tracker).isNotNull();
@@ -423,9 +424,11 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
     InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
 
-    // Connect client
-    tracker.clientConnected(clientAddress);
+    setupMocks();
     when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client
+    tracker.clientConnected(flowContext);
 
     // Mark connection as saturated
     tracker.connectionSaturated(flowContext);
@@ -484,12 +487,13 @@ class ActivityLoggerTest {
     InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
 
     // Setup full interaction using FullFlowContext for server tracking
-    tracker.clientConnected(clientAddress);
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    tracker.clientConnected(flowContext);
 
     SSLSession sslSession = mock(SSLSession.class);
     when(sslSession.getProtocol()).thenReturn("TLSv1.3");
     when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
-    tracker.clientSSLHandshakeSucceeded(clientAddress, sslSession);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
 
     // Setup mocks with fullFlowContext
     when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
@@ -530,10 +534,10 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
     InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
 
-    // Connect client
-    tracker.clientConnected(clientAddress);
-    when(flowContext.getClientAddress()).thenReturn(clientAddress);
     setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Connect client
+    tracker.clientConnected(flowContext);
 
     // Simulate multiple saturation events
     tracker.connectionSaturated(flowContext);
@@ -553,10 +557,10 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
     InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
 
-    // Connect client
-    tracker.clientConnected(clientAddress);
-    when(flowContext.getClientAddress()).thenReturn(clientAddress);
     setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Connect client
+    tracker.clientConnected(flowContext);
 
     // Simulate multiple exceptions
     tracker.connectionExceptionCaught(flowContext, new IOException("Error 1"));

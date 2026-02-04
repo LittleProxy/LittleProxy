@@ -13,6 +13,7 @@ import org.littleshoot.proxy.FlowContext;
  * predefined extraction logic and represent the most common logging data points.
  */
 public enum StandardField implements LogField {
+  FLOW_ID("flow_id", "Unique flow identifier (ULID) for tracing requests across the proxy"),
   TIMESTAMP("timestamp", "Timestamp when the request was processed"),
   CLIENT_IP("client_ip", "IP address of the client making the request"),
   REMOTE_IP("remote_ip", "Remote IP address (from X-Forwarded-For or X-Real-IP)"),

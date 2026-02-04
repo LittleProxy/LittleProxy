@@ -64,9 +64,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     int saturationCount;
     int exceptionCount;
     String lastExceptionType;
+    final String flowId;
 
-    ClientState(long connectTime) {
+    ClientState(long connectTime, String flowId) {
       this.connectTime = connectTime;
+      this.flowId = flowId;
     }
   }
 
@@ -298,13 +300,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   // ==================== CLIENT LIFECYCLE ====================
 
   @Override
-  public void clientConnected(InetSocketAddress clientAddress) {
+  public void clientConnected(FlowContext flowContext) {
     long now = System.currentTimeMillis();
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    String flowId = generateFlowId();
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
       LOG.trace(
-          "ENTER clientConnected - address={}, thread={}, timestamp={}",
+          "[{}] ENTER clientConnected - address={}, thread={}, timestamp={}",
+          flowId,
           clientAddress,
           Thread.currentThread().getName(),
           now);
@@ -312,22 +317,27 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // DEBUG: Essential operation
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Client connected: {}", clientAddress);
+      LOG.debug("[{}] Client connected: {}", flowId, clientAddress);
     }
 
     // Track state
-    clientStates.put(clientAddress, new ClientState(now));
+    if (clientAddress != null) {
+      clientStates.put(clientAddress, new ClientState(now, flowId));
+    }
   }
 
   @Override
-  public void clientSSLHandshakeSucceeded(InetSocketAddress clientAddress, SSLSession sslSession) {
+  public void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession) {
     long now = System.currentTimeMillis();
-    ClientState state = clientStates.get(clientAddress);
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
+    String flowId = state != null ? state.flowId : "unknown";
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
       LOG.trace(
-          "ENTER clientSSLHandshakeSucceeded - address={}, protocol={}, cipherSuite={}, timestamp={}",
+          "[{}] ENTER clientSSLHandshakeSucceeded - address={}, protocol={}, cipherSuite={}, timestamp={}",
+          flowId,
           clientAddress,
           sslSession.getProtocol(),
           sslSession.getCipherSuite(),
@@ -341,19 +351,26 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
       // DEBUG: Essential operation with timing
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Client SSL handshake succeeded: {}, duration: {}ms", clientAddress, duration);
+        LOG.debug(
+            "[{}] Client SSL handshake succeeded: {}, duration: {}ms",
+            flowId,
+            clientAddress,
+            duration);
       }
     }
   }
 
   @Override
-  public void clientDisconnected(InetSocketAddress clientAddress, SSLSession sslSession) {
+  public void clientDisconnected(FlowContext flowContext, SSLSession sslSession) {
     long now = System.currentTimeMillis();
-    ClientState state = clientStates.remove(clientAddress);
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    ClientState state = clientAddress != null ? clientStates.remove(clientAddress) : null;
+    String flowId = state != null ? state.flowId : "unknown";
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
-      LOG.trace("ENTER clientDisconnected - address={}, timestamp={}", clientAddress, now);
+      LOG.trace(
+          "[{}] ENTER clientDisconnected - address={}, timestamp={}", flowId, clientAddress, now);
     }
 
     if (state != null) {
@@ -362,12 +379,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
       // DEBUG: Essential operation with timing
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Client disconnected: {}, duration: {}ms", clientAddress, duration);
+        LOG.debug("[{}] Client disconnected: {}, duration: {}ms", flowId, clientAddress, duration);
       }
     } else {
       // DEBUG: Still log even if state not found
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Client disconnected: {} (no state found)", clientAddress);
+        LOG.debug("[{}] Client disconnected: {} (no state found)", flowId, clientAddress);
       }
     }
   }
@@ -400,10 +417,15 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   public void serverDisconnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {
     long now = System.currentTimeMillis();
     ServerState state = serverStates.remove(flowContext);
+    String flowId = getFlowId(flowContext);
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
-      LOG.trace("ENTER serverDisconnected - serverAddress={}, timestamp={}", serverAddress, now);
+      LOG.trace(
+          "[{}] ENTER serverDisconnected - serverAddress={}, timestamp={}",
+          flowId,
+          serverAddress,
+          now);
     }
 
     if (state != null) {
@@ -414,7 +436,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       // DEBUG: Essential operation with timing
       if (LOG.isDebugEnabled()) {
         LOG.debug(
-            "Server disconnected: {}, connection duration: {}ms, time to connect: {}ms",
+            "[{}] Server disconnected: {}, connection duration: {}ms, time to connect: {}ms",
+            flowId,
             serverAddress,
             duration,
             timeToConnect);
@@ -422,7 +445,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     } else {
       // DEBUG: Still log even if state not found
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Server disconnected: {} (no state found)", serverAddress);
+        LOG.debug("[{}] Server disconnected: {} (no state found)", flowId, serverAddress);
       }
     }
   }
@@ -431,10 +454,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void connectionSaturated(FlowContext flowContext) {
+    String flowId = getFlowId(flowContext);
     // TRACE: Detailed diagnostics
     if (LOG.isTraceEnabled()) {
       String side = isClientContext(flowContext) ? "client" : "server";
-      LOG.trace("Connection saturated - side={}, flowContext={}", side, flowContext);
+      LOG.trace("[{}] Connection saturated - side={}, flowContext={}", flowId, side, flowContext);
     }
 
     // Update state counts
@@ -456,36 +480,41 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void connectionWritable(FlowContext flowContext) {
+    String flowId = getFlowId(flowContext);
     // TRACE: Detailed diagnostics only
     if (LOG.isTraceEnabled()) {
       String side = isClientContext(flowContext) ? "client" : "server";
-      LOG.trace("Connection writable - side={}, flowContext={}", side, flowContext);
+      LOG.trace("[{}] Connection writable - side={}, flowContext={}", flowId, side, flowContext);
     }
   }
 
   @Override
   public void connectionTimedOut(FlowContext flowContext) {
     String side = isClientContext(flowContext) ? "client" : "server";
+    String flowId = getFlowId(flowContext);
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
-      LOG.trace("ENTER connectionTimedOut - side={}, flowContext={}", side, flowContext);
+      LOG.trace(
+          "[{}] ENTER connectionTimedOut - side={}, flowContext={}", flowId, side, flowContext);
     }
 
     // DEBUG: Essential operation
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Connection timed out: {}", side);
+      LOG.debug("[{}] Connection timed out: {}", flowId, side);
     }
   }
 
   @Override
   public void connectionExceptionCaught(FlowContext flowContext, Throwable cause) {
     String side = isClientContext(flowContext) ? "client" : "server";
+    String flowId = getFlowId(flowContext);
 
     // TRACE: Detailed entry logging with stack trace
     if (LOG.isTraceEnabled()) {
       LOG.trace(
-          "ENTER connectionExceptionCaught - side={}, exceptionType={}, message={}",
+          "[{}] ENTER connectionExceptionCaught - side={}, exceptionType={}, message={}",
+          flowId,
           side,
           cause.getClass().getName(),
           cause.getMessage(),
@@ -495,7 +524,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // DEBUG: Essential operation with exception details
     if (LOG.isDebugEnabled()) {
       LOG.debug(
-          "Connection exception caught: {}, type: {}, message: {}",
+          "[{}] Connection exception caught: {}, type: {}, message: {}",
+          flowId,
           side,
           cause.getClass().getSimpleName(),
           cause.getMessage());
@@ -520,6 +550,18 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   // ==================== HELPER METHODS ====================
+
+  private String getFlowId(FlowContext flowContext) {
+    if (flowContext == null) {
+      return "unknown";
+    }
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
+    if (clientAddress == null) {
+      return "unknown";
+    }
+    ClientState state = clientStates.get(clientAddress);
+    return state != null ? state.flowId : "unknown";
+  }
 
   /**
    * Determines if the given flow context represents the client-side connection.

@@ -36,13 +36,13 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {}
 
   @Override
-  public void clientConnected(InetSocketAddress clientAddress) {}
+  public void clientConnected(FlowContext flowContext) {}
 
   @Override
-  public void clientSSLHandshakeSucceeded(InetSocketAddress clientAddress, SSLSession sslSession) {}
+  public void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession) {}
 
   @Override
-  public void clientDisconnected(InetSocketAddress clientAddress, SSLSession sslSession) {}
+  public void clientDisconnected(FlowContext flowContext, SSLSession sslSession) {}
 
   @Override
   public void serverConnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {}

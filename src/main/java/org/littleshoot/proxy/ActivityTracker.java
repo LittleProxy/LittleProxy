@@ -13,13 +13,13 @@ import javax.net.ssl.SSLSession;
 public interface ActivityTracker {
 
   /** Record that a client connected. */
-  void clientConnected(InetSocketAddress clientAddress);
+  void clientConnected(FlowContext flowContext);
 
   /** Record that a client's SSL handshake completed. */
-  void clientSSLHandshakeSucceeded(InetSocketAddress clientAddress, SSLSession sslSession);
+  void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession);
 
   /** Record that a client disconnected. */
-  void clientDisconnected(InetSocketAddress clientAddress, SSLSession sslSession);
+  void clientDisconnected(FlowContext flowContext, SSLSession sslSession);
 
   /**
    * Record that the proxy received bytes from the client.
