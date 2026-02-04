@@ -394,11 +394,13 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   @Override
   public void serverConnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {
     long now = System.currentTimeMillis();
+    String flowId = getFlowId(flowContext);
 
     // TRACE: Detailed entry logging
     if (LOG.isTraceEnabled()) {
       LOG.trace(
-          "ENTER serverConnected - serverAddress={}, flowContext={}, timestamp={}",
+          "[{}] ENTER serverConnected - serverAddress={}, flowContext={}, timestamp={}",
+          flowId,
           serverAddress,
           flowContext,
           now);
@@ -406,7 +408,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // DEBUG: Essential operation
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Server connected: {}", serverAddress);
+      LOG.debug("[{}] Server connected: {}", flowId, serverAddress);
     }
 
     // Track state
