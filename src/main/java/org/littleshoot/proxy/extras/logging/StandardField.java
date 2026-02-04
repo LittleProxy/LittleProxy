@@ -23,7 +23,13 @@ public enum StandardField implements LogField {
   DURATION("duration", "Request processing duration in milliseconds"),
   REFERER("referer", "Referer header from the request"),
   USER_AGENT("user_agent", "User-Agent header from the request"),
-  PROTOCOL("protocol", "HTTP protocol version");
+  PROTOCOL("protocol", "HTTP protocol version"),
+  SERVER_CONNECT_TIME("server_connect_time", "Time to establish server connection in milliseconds"),
+  SERVER_CONNECTION_DURATION("server_connection_duration", "Total server connection duration in milliseconds"),
+  CLIENT_CONNECTION_DURATION("client_connection_duration", "Total client connection duration in milliseconds"),
+  SSL_HANDSHAKE_TIME("ssl_handshake_time", "SSL handshake duration in milliseconds"),
+  SATURATION_COUNT("saturation_count", "Number of times connection became saturated"),
+  EXCEPTION_TYPE("exception_type", "Type of exception if occurred");
 
   private final String name;
   private final String description;
@@ -80,6 +86,27 @@ public enum StandardField implements LogField {
       case USER_AGENT:
         String userAgent = request.headers().get("User-Agent");
         return userAgent != null ? userAgent : "-";
+
+      case PROTOCOL:
+        return request.protocolVersion().text();
+
+      case SERVER_CONNECT_TIME:
+        return "-";
+
+      case SERVER_CONNECTION_DURATION:
+        return "-";
+
+      case CLIENT_CONNECTION_DURATION:
+        return "-";
+
+      case SSL_HANDSHAKE_TIME:
+        return "-";
+
+      case SATURATION_COUNT:
+        return "-";
+
+      case EXCEPTION_TYPE:
+        return "-";
 
       default:
         return "-";

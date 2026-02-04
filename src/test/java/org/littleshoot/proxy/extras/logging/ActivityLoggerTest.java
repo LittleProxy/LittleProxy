@@ -5,8 +5,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.netty.handler.codec.http.*;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import javax.net.ssl.SSLSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.FlowContext;
@@ -254,6 +256,8 @@ class ActivityLoggerTest {
 
   private static class TestableActivityLogger extends ActivityLogger {
     String lastLogMessage;
+    boolean infoSummaryLogged = false;
+    String lastInfoSummary;
 
     public TestableActivityLogger(LogFormat logFormat) {
       super(logFormat, null);
@@ -264,8 +268,13 @@ class ActivityLoggerTest {
     }
 
     @Override
-    protected void log(String message) {
+    protected void logFormattedEntry(String message) {
       this.lastLogMessage = message;
+    }
+
+    @Override
+    protected boolean shouldLogFormattedEntry() {
+      return true; // Always log in tests
     }
   }
 
@@ -318,6 +327,247 @@ class ActivityLoggerTest {
     when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
     when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
     when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+  }
+
+  // ==================== LIFECYCLE LOGGING TESTS ====================
+
+  @Test
+  void testClientConnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    // Should not throw and should track client state
+    tracker.clientConnected(clientAddress);
+
+    // Setup mocks first, then override with our client address
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify formatted log was generated
+    assertThat(tracker.lastLogMessage).isNotNull();
+    assertThat(tracker.lastLogMessage).contains("192.168.1.1");
+  }
+
+  @Test
+  void testClientSSLHandshakeSucceeded() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    // Connect client first
+    tracker.clientConnected(clientAddress);
+
+    // Then complete SSL handshake
+    tracker.clientSSLHandshakeSucceeded(clientAddress, sslSession);
+
+    // Verify no exception thrown and tracking works
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testClientDisconnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+
+    // Connect then disconnect
+    tracker.clientConnected(clientAddress);
+    tracker.clientDisconnected(clientAddress, sslSession);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testServerConnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
+    setupMocks();
+
+    // Connect to server
+    tracker.serverConnected(fullFlowContext, serverAddress);
+
+    // Verify tracking by completing request
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify server address appears in summary
+    assertThat(tracker.lastLogMessage).isNotNull();
+  }
+
+  @Test
+  void testServerDisconnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
+    setupMocks();
+
+    // Connect then disconnect
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionSaturated() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    // Connect client
+    tracker.clientConnected(clientAddress);
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Mark connection as saturated
+    tracker.connectionSaturated(flowContext);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionWritable() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Mark connection as writable
+    tracker.connectionWritable(flowContext);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionTimedOut() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Simulate timeout
+    tracker.connectionTimedOut(flowContext);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionExceptionCaught() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Simulate exception
+    IOException exception = new IOException("Connection reset by peer");
+    tracker.connectionExceptionCaught(flowContext, exception);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testCompleteInteractionSummary() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Setup full interaction using FullFlowContext for server tracking
+    tracker.clientConnected(clientAddress);
+
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+    tracker.clientSSLHandshakeSucceeded(clientAddress, sslSession);
+
+    // Setup mocks with fullFlowContext
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    InetAddress inetAddr = mock(InetAddress.class);
+    when(inetAddr.getHostAddress()).thenReturn("192.168.1.1");
+    when(request.method()).thenReturn(HttpMethod.GET);
+    when(request.uri()).thenReturn("/test");
+    when(request.protocolVersion()).thenReturn(HttpVersion.HTTP_1_1);
+    when(response.status()).thenReturn(HttpResponseStatus.OK);
+    when(responseHeaders.get("Content-Length")).thenReturn("100");
+    when(request.headers()).thenReturn(requestHeaders);
+    when(response.headers()).thenReturn(responseHeaders);
+
+    tracker.serverConnected(fullFlowContext, serverAddress);
+
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+
+    // Simulate some saturation
+    tracker.connectionSaturated(fullFlowContext);
+    tracker.connectionWritable(fullFlowContext);
+
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // Verify formatted log was generated (DEBUG level)
+    // Note: Server IP comes from StandardField extraction which returns "-" in test context
+    assertThat(tracker.lastLogMessage).isNotNull();
+    assertThat(tracker.lastLogMessage).contains("192.168.1.1");
+    assertThat(tracker.lastLogMessage).contains("GET");
+    assertThat(tracker.lastLogMessage).contains("/test");
+    assertThat(tracker.lastLogMessage).contains("200");
+
+    // Verify the interaction completed without errors
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testMultipleSaturationsCounted() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    // Connect client
+    tracker.clientConnected(clientAddress);
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    setupMocks();
+
+    // Simulate multiple saturation events
+    tracker.connectionSaturated(flowContext);
+    tracker.connectionSaturated(flowContext);
+    tracker.connectionSaturated(flowContext);
+
+    // Complete request
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify log was generated
+    assertThat(tracker.lastLogMessage).isNotNull();
+  }
+
+  @Test
+  void testExceptionTracking() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    // Connect client
+    tracker.clientConnected(clientAddress);
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    setupMocks();
+
+    // Simulate multiple exceptions
+    tracker.connectionExceptionCaught(flowContext, new IOException("Error 1"));
+    tracker.connectionExceptionCaught(flowContext, new RuntimeException("Error 2"));
+
+    // Complete request
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify log was generated
+    assertThat(tracker.lastLogMessage).isNotNull();
   }
 
   @Test

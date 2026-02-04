@@ -444,6 +444,115 @@ Log4j2 supports Groovy scripts for dynamic filtering without compilation. This i
 
 Activity logging in LittleProxy captures HTTP request/response details. This can be a significant performance factor. The logging system is located in the `org.littleshoot.proxy.extras.logging` package.
 
+### ActivityLogger Three-Tier Logging Strategy
+
+The `ActivityLogger` class implements a sophisticated three-tier logging strategy that provides different levels of detail based on the log level configuration:
+
+#### TRACE Level - Detailed Diagnostics
+
+**Purpose**: Method entry tracing, state transitions, and detailed context information for deep debugging.
+
+**When to use**: 
+- Development and debugging
+- Troubleshooting complex connection issues
+- Understanding the flow of requests through the proxy
+
+**What is logged**:
+- Method entry points with full context (flow ID, thread name, timestamps)
+- State transitions (client connected, SSL handshake started, etc.)
+- Connection saturation/writability events
+- Exception details with stack traces
+
+**Example output**:
+```
+TRACE: ENTER clientConnected - address=/192.168.1.1:12345, thread=netty-worker-1, timestamp=1234567890
+TRACE: ENTER serverConnected - serverAddress=example.com:443, flowContext=FullFlowContext@abc123, timestamp=1234567891
+TRACE: Connection saturated - side=server, flowContext=FullFlowContext@abc123
+```
+
+**Performance impact**: High - generates many log entries per request. Use only during debugging.
+
+#### DEBUG Level - Essential Operations
+
+**Purpose**: High-level lifecycle events and operational information for production troubleshooting.
+
+**When to use**:
+- Production monitoring
+- Operational dashboards
+- Troubleshooting without overwhelming logs
+
+**What is logged**:
+- Client connections/disconnections with duration
+- Server connections/disconnections with timing
+- SSL handshake completion
+- Connection timeouts
+- Exception summaries (type and message)
+- Formatted log entries (CLF, JSON, etc.)
+
+**Example output**:
+```
+DEBUG: Client connected: /192.168.1.1:12345
+DEBUG: Server connected: example.com:443 (took 45ms)
+DEBUG: Client SSL handshake succeeded: /192.168.1.1:12345, duration: 12ms
+DEBUG: Client disconnected: /192.168.1.1:12345, duration: 150ms
+DEBUG: Connection timed out: server
+DEBUG: Connection exception caught: client, type: IOException, message: Connection reset by peer
+```
+
+**Performance impact**: Moderate - one log entry per lifecycle event. Safe for production with filtering.
+
+#### INFO Level - Complete Interaction Summary
+
+**Purpose**: Single structured log entry per request/response cycle with all aggregated metrics.
+
+**When to use**:
+- Production access logging
+- Analytics and monitoring
+- Audit trails
+- Request tracing
+
+**What is logged**:
+- Single line per request with all metrics:
+  - Flow ID for request tracing
+  - Client and server addresses
+  - HTTP method, URI, protocol
+  - Response status and bytes
+  - Duration metrics (total, server connect, SSL handshake)
+  - Saturation counts
+  - Exception information
+
+**Example output**:
+```
+INFO: flow_id=flow-123 client_ip=192.168.1.1 client_port=12345 server_ip=10.0.0.1 server_port=443 method=GET uri="/api/status" protocol=HTTP/1.1 status=200 bytes=1234 duration_ms=150 server_connect_ms=45 ssl_handshake_ms=12 client_saturations=0 server_saturations=0 exception=none
+```
+
+**Performance impact**: Low - single log entry per request. Recommended for production.
+
+#### Log Level Configuration
+
+Configure log levels in your Log4j2 configuration:
+
+```xml
+<!-- Development: Enable all levels -->
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="TRACE"/>
+
+<!-- Production: INFO for operational visibility -->
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="INFO"/>
+
+<!-- Production with debugging: DEBUG for troubleshooting -->
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="DEBUG"/>
+```
+
+#### Performance Considerations by Level
+
+| Log Level | Events/Request | Performance | Use Case |
+|-----------|----------------|-------------|----------|
+| **TRACE** | 10-20 | 🐢 Slowest | Development only |
+| **DEBUG** | 5-10 | 🏃 Moderate | Production troubleshooting |
+| **INFO** | 1 | ⚡ Fastest | Production standard |
+
+**Recommendation**: Use INFO for production, DEBUG for troubleshooting, TRACE for development only.
+
 ### Activity Log Formats
 
 **CLF (Common Log Format):**
