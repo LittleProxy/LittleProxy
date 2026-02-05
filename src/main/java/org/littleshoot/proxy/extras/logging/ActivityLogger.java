@@ -590,35 +590,35 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     switch (logFormat) {
       case CLF:
-        formatClfEntry(sb, flowContext, request, response, duration, now);
+        formatClfEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case ELF:
-        formatElfEntry(sb, flowContext, request, response, duration, now);
+        formatElfEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case W3C:
-        formatW3cEntry(sb, flowContext, request, response, duration, now);
+        formatW3cEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case JSON:
-        formatJsonEntry(sb, flowContext, request, response, duration, now);
+        formatJsonEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case LTSV:
-        formatLtsvEntry(sb, flowContext, request, response, duration, now);
+        formatLtsvEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case CSV:
-        formatCsvEntry(sb, flowContext, request, response, duration, now);
+        formatCsvEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case SQUID:
-        formatSquidEntry(sb, flowContext, request, response, duration, now);
+        formatSquidEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
 
       case HAPROXY:
-        formatHaproxyEntry(sb, flowContext, request, response, duration, now);
+        formatHaproxyEntry(sb, flowContext, timedInfo, response, duration, now);
         break;
     }
 
@@ -629,10 +629,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatClfEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
@@ -656,10 +657,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatElfEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
@@ -685,20 +687,22 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatW3cEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
     // W3C: date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
+    // cs-uri-stem should be just the path, not full URL
     DateTimeFormatter w3cDateTimeFormatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US);
     sb.append(now.format(w3cDateTimeFormatter)).append(" ");
     sb.append(clientIp).append(" ");
     sb.append(request.method()).append(" ");
-    sb.append(getFullUrl(request)).append(" ");
+    sb.append(getUriStem(request)).append(" ");
     sb.append(response.status().code()).append(" ");
     sb.append(getContentLength(response)).append(" ");
     sb.append("\"").append(getHeader(request, USER_AGENT)).append("\"");
@@ -708,15 +712,18 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatJsonEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
+    String flowId = timedInfo.flowId;
 
     sb.append("{");
+    sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
 
     // Use configured fields dynamically
-    boolean first = true;
+    boolean first = false;
     for (LogField field : fieldConfiguration.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
@@ -825,13 +832,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatLtsvEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
+    String flowId = timedInfo.flowId;
 
     // Labeled Tab-Separated Values
-    boolean first = true;
+    sb.append("flow_id:").append(flowId);
+    boolean first = false;
     for (LogField field : fieldConfiguration.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
@@ -910,13 +920,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatCsvEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
+    String flowId = timedInfo.flowId;
 
     // Comma-Separated Values
-    boolean first = true;
+    sb.append("\"").append(escapeJson(flowId)).append("\"");
+    boolean first = false;
     for (LogField field : fieldConfiguration.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
@@ -995,51 +1008,82 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatSquidEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
-    // time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost type
-    long timestamp = now.toEpochSecond();
-    sb.append(timestamp / 1000).append(".").append(timestamp % 1000).append(" ");
-    sb.append(duration).append(" "); // elapsed
+    // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
+    // type
+    // Time is seconds since epoch with milliseconds (e.g., 1234567890.123)
+    long epochSeconds = now.toEpochSecond();
+    long millis = now.getNano() / 1_000_000;
+    sb.append(epochSeconds).append(".").append(String.format("%03d", millis)).append(" ");
+    sb.append(duration).append(" "); // elapsed time in ms
     sb.append(clientIp).append(" ");
-    sb.append("TCP_MISS/").append(response.status().code()).append(" ");
+    // Determine cache result code based on response
+    String cacheResult = determineCacheResult(response);
+    sb.append(cacheResult).append("/").append(response.status().code()).append(" ");
     sb.append(getContentLength(response)).append(" ");
     sb.append(request.method()).append(" ");
     sb.append(getFullUrl(request)).append(" ");
-    sb.append("- "); // rfc931
+    sb.append("- "); // rfc931 (ident)
     sb.append("DIRECT/").append(getServerIp(flowContext)).append(" ");
     sb.append(getContentType(response));
+  }
+
+  /**
+   * Determines the cache result code for Squid format based on response. Returns TCP_HIT for
+   * 2xx/3xx status codes, TCP_MISS for others.
+   *
+   * @param response the HTTP response
+   * @return cache result code (TCP_HIT or TCP_MISS)
+   */
+  private String determineCacheResult(HttpResponse response) {
+    int status = response.status().code();
+    // 2xx and 3xx are generally considered cacheable hits
+    if (status >= 200 && status < 400) {
+      return "TCP_HIT";
+    }
+    return "TCP_MISS";
   }
 
   /** Formats HAProxy log entry. */
   private void formatHaproxyEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      HttpRequest request,
+      TimedRequest timedInfo,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
+    HttpRequest request = timedInfo.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
+    int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
 
-    // HAProxy HTTP format approximation - client_ip [date] method uri status bytes duration
-    sb.append(clientIp).append(" ");
+    // HAProxy HTTP log format:
+    // process[pid]: client_ip:port [accept_date] frontend backend/server Tq Tw Tc Tr Ta status
+    // bytes
+    // cc cs sc rc sr st rt request
+    // Since LittleProxy doesn't have frontend/backend/server separation, we use simplified format
+    sb.append("littleproxy[0]: "); // process name and pid
+    sb.append(clientIp).append(":").append(clientPort).append(" ");
     sb.append("[").append(format(now, "dd/MMM/yyyy:HH:mm:ss.SSS")).append("] ");
+    sb.append("frontend backend/server "); // placeholder for frontend/backend/server
+    sb.append("0/0/0/0/").append(duration).append(" "); // Tq/Tw/Tc/Tr/Ta timing
+    sb.append(response.status().code()).append(" ");
+    sb.append(getContentLength(response)).append(" ");
+    sb.append("- - - - - - - "); // cc cs sc rc sr st rt (counters and termination state)
     sb.append("\"")
         .append(request.method())
         .append(" ")
         .append(getFullUrl(request))
         .append(" ")
         .append(request.protocolVersion())
-        .append("\" ");
-    sb.append(response.status().code()).append(" ");
-    sb.append(getContentLength(response)).append(" ");
-    sb.append(duration); // duration in ms
+        .append("\"");
   }
 
   /**
@@ -1078,6 +1122,39 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     } else {
       return scheme + "://" + host + "/" + uri;
     }
+  }
+
+  /**
+   * Extracts the URI stem (path) from the request for W3C format. Returns just the path component
+   * without scheme and host.
+   *
+   * @param request the HTTP request
+   * @return the URI stem (path)
+   */
+  protected String getUriStem(HttpRequest request) {
+    String uri = request.uri();
+
+    // If it's already a path (starts with /), return as-is
+    if (uri.startsWith("/")) {
+      return uri;
+    }
+
+    // If it's a full URL, extract just the path
+    if (uri.startsWith("http://") || uri.startsWith("https://")) {
+      int pathStart = uri.indexOf("/", uri.indexOf("://") + 3);
+      if (pathStart == -1) {
+        return "/";
+      }
+      int queryStart = uri.indexOf("?", pathStart);
+      if (queryStart == -1) {
+        return uri.substring(pathStart);
+      } else {
+        return uri.substring(pathStart, queryStart);
+      }
+    }
+
+    // For CONNECT requests or other cases, return as-is
+    return uri;
   }
 
   /**

@@ -229,9 +229,11 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("HAProxy Log: " + tracker.lastLogMessage);
-    // 127.0.0.1 [date] "GET /test HTTP/1.1" 200 100 duration
-    assertThat(tracker.lastLogMessage).startsWith("127.0.0.1 [");
-    assertThat(tracker.lastLogMessage).contains("] \"GET /test HTTP/1.1\" 200 100 ");
+    // HAProxy format: process[pid]: client_ip:port [date] frontend backend/server Tq/Tw/Tc/Tr/Ta
+    // status bytes ...
+    assertThat(tracker.lastLogMessage).startsWith("littleproxy[0]: 127.0.0.1:");
+    assertThat(tracker.lastLogMessage).contains("frontend backend/server");
+    assertThat(tracker.lastLogMessage).contains("\"GET /test HTTP/1.1\"");
   }
 
   @Test
@@ -243,15 +245,12 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Squid Log: " + tracker.lastLogMessage);
-    // time elapsed remotehost code/status bytes method URL rfc931
-    // peerstatus/peerhost type
-    // Check that elapsed time is present (we can't check exact value easily but
-    // check structure)
-    // 1234567890.123 0 127.0.0.1 ...
-    // We now expect something >= 0, not necessarily hardcoded 0.
-    // Regex: timestamp space duration space ip ...
+    // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
+    // type
+    // time is epoch seconds with milliseconds (e.g., 1234567890.123)
+    // For 2xx responses, we expect TCP_HIT (cache hit)
     assertThat(tracker.lastLogMessage)
-        .matches(".*\\d+ \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*");
+        .matches(".*\\d+\\.\\d{3} \\d+ 127\\.0\\.0\\.1 TCP_HIT/200 100 GET /test - DIRECT/- -.*");
   }
 
   private static class TestableActivityLogger extends ActivityLogger {
