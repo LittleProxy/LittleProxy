@@ -555,6 +555,15 @@ Configure log levels in your Log4j2 configuration:
 
 ### Activity Log Formats
 
+**KEYVALUE (Structured Text Format):**
+```bash
+--activity_log_format KEYVALUE
+```
+The default structured text format with `field=value` pairs. Example:
+```
+flow_id=01KGNMFEFZ84ZAR511NTRAFW13 client_ip=127.0.0.1 client_port=53326 method=CONNECT status=200 ...
+```
+
 **CLF (Common Log Format):**
 ```bash
 --activity_log_format CLF
@@ -593,6 +602,24 @@ Configure log levels in your Log4j2 configuration:
 **HAPROXY:**
 ```bash
 --activity_log_format HAPROXY
+```
+
+#### INFO Level and Format Selection
+
+When using `--activity_log_level INFO`, the output format matches the configured `--activity_log_format`:
+
+- `--activity_log_format JSON` → INFO logs in JSON format
+- `--activity_log_format KEYVALUE` → INFO logs in key=value format
+- `--activity_log_format CLF` → INFO logs in CLF format
+- etc.
+
+Example:
+```bash
+# JSON format at INFO level
+./run.bash --server --port 8888 --activity_log_format JSON --activity_log_level INFO
+
+# KEYVALUE format at INFO level (traditional format)
+./run.bash --server --port 8888 --activity_log_format KEYVALUE --activity_log_level INFO
 ```
 
 ### LogFieldConfiguration

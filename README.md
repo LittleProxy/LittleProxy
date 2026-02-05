@@ -65,7 +65,7 @@ The config file is a properties file with the following properties :
 - `allow_requests_to_origin_server` : boolean value to allow requests to origin server (default : `false`)
 - `allow_proxy_protocol` : boolean value to allow proxy protocol (default : `false`)
 - `send_proxy_protocol` : boolean value to send proxy protocol header (default : `false`)
-- `activity_log_format` : string value to set the activity log format (CLF, ELF, JSON, LTSV, CSV, SQUID, HAPROXY) (default: disabled)
+- `activity_log_format` : string value to set the activity log format (KEYVALUE, CLF, ELF, JSON, LTSV, CSV, SQUID, HAPROXY, W3C) (default: disabled)
 - `activity_log_field_config` : string value to set the path to JSON configuration file for custom logging fields (default: disabled)
 - `activity_log_prefix_headers` : comma-separated list of header prefixes to log (e.g., "X-Custom-,X-Trace-")
 - `activity_log_regex_headers` : comma-separated list of regex patterns for headers to log
@@ -133,11 +133,13 @@ $ ./run.bash --log_config /home/user/log4j.xml
 #### Activity Log Format
 
 This will enable the activity tracker with the specified log format.
-Supported formats: `CLF`, `ELF`, `W3C`, `JSON`, `LTSV`, `CSV`, `SQUID`, `HAPROXY`.
+Supported formats: `KEYVALUE`, `CLF`, `ELF`, `W3C`, `JSON`, `LTSV`, `CSV`, `SQUID`, `HAPROXY`.
 
 ```bash
 $ ./run.bash --activity_log_format CLF
 ```
+
+**Note on INFO Level Logging:** When `--activity_log_level INFO` is used, the output format will match the configured `--activity_log_format`. For example, if you set `--activity_log_format JSON`, the INFO level logs will be in JSON format. If you set `--activity_log_format KEYVALUE` (or don't specify a format), the INFO level logs will use the traditional key=value format.
 
 #### Advanced Logging Configuration
 
