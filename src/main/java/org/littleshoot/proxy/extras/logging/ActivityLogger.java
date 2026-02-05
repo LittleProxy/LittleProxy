@@ -193,18 +193,31 @@ public class ActivityLogger extends ActivityTrackerAdapter {
           duration);
     }
 
-    // INFO: Complete interaction summary (single log line with all metrics)
-    if (LOG.isInfoEnabled()) {
-      logInteractionSummary(flowContext, timedRequest, httpResponse, duration, flowId);
-    }
-
-    // DEBUG: Formatted log entry
-    if (shouldLogFormattedEntry()) {
+    // INFO: Use configured format (KEYVALUE, JSON, etc.)
+    if (shouldLogInfoEntry()) {
       String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
       if (logMessage != null) {
-        logFormattedEntry(logMessage);
+        logFormattedEntry(flowId, logMessage);
       }
     }
+
+    // DEBUG: Also log formatted entry at debug level if different from INFO
+    if (LOG.isDebugEnabled() && logFormat != LogFormat.KEYVALUE) {
+      String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
+      if (logMessage != null) {
+        logFormattedEntry(flowId, logMessage);
+      }
+    }
+  }
+
+  /**
+   * Determines if INFO level log entries should be logged. This method can be overridden in tests
+   * to force logging regardless of the logger's info level.
+   *
+   * @return true if INFO entries should be logged
+   */
+  protected boolean shouldLogInfoEntry() {
+    return LOG.isInfoEnabled();
   }
 
   /**
@@ -225,6 +238,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    */
   protected void logFormattedEntry(String message) {
     LOG.debug(message);
+  }
+
+  /**
+   * Logs a formatted entry with flowId prefix at INFO level.
+   *
+   * @param flowId the flow identifier
+   * @param message the formatted log message
+   */
+  protected void logFormattedEntry(String flowId, String message) {
+    LOG.info("[{}] {}", flowId, message);
   }
 
   /**
@@ -618,6 +641,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
       case HAPROXY:
         formatHaproxyEntry(sb, flowContext, timedRequest, response, duration, now);
+        break;
+
+      case KEYVALUE:
+        formatKeyValueEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
     }
 
@@ -1083,6 +1110,70 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         .append(" ")
         .append(request.protocolVersion())
         .append("\"");
+  }
+
+  /** Formats KEYVALUE log entry (structured text format). */
+  private void formatKeyValueEntry(
+      StringBuilder sb,
+      FlowContext flowContext,
+      TimedRequest timedRequest,
+      HttpResponse response,
+      long duration,
+      ZonedDateTime now) {
+    HttpRequest request = timedRequest.request;
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
+    String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
+    int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
+
+    // Get client state metrics
+    ClientState clientState = clientStates.get(clientAddress);
+    long clientConnectTime = clientState != null ? clientState.connectTime : 0;
+    long clientConnectionDuration =
+        clientConnectTime > 0 ? System.currentTimeMillis() - clientConnectTime : 0;
+    long sslHandshakeTime =
+        clientState != null && clientState.sslHandshakeEndTime > 0
+            ? clientState.sslHandshakeEndTime - clientState.sslHandshakeStartTime
+            : 0;
+    int clientSaturations = clientState != null ? clientState.saturationCount : 0;
+    String exceptionType = clientState != null ? clientState.lastExceptionType : null;
+
+    // Get server state metrics
+    ServerState serverState =
+        flowContext instanceof FullFlowContext
+            ? serverStates.get((FullFlowContext) flowContext)
+            : null;
+    long serverConnectTime =
+        serverState != null && serverState.connectEndTime > 0
+            ? serverState.connectEndTime - serverState.connectStartTime
+            : 0;
+    int serverSaturations = serverState != null ? serverState.saturationCount : 0;
+    String serverAddress =
+        serverState != null && serverState.remoteAddress != null
+            ? serverState.remoteAddress.getAddress().getHostAddress()
+            : "-";
+    int serverPort =
+        serverState != null && serverState.remoteAddress != null
+            ? serverState.remoteAddress.getPort()
+            : 0;
+
+    // Build structured log entry: flow_id=... client_ip=... key=value pairs
+    sb.append("flow_id=").append(timedRequest.flowId);
+    sb.append(" client_ip=").append(clientIp);
+    sb.append(" client_port=").append(clientPort);
+    sb.append(" server_ip=").append(serverAddress);
+    sb.append(" server_port=").append(serverPort);
+    sb.append(" method=").append(request.method().name());
+    sb.append(" uri=\"").append(request.uri()).append("\"");
+    sb.append(" protocol=").append(request.protocolVersion());
+    sb.append(" status=").append(response.status().code());
+    sb.append(" bytes=").append(getContentLength(response));
+    sb.append(" http_request_ms=").append(duration);
+    sb.append(" tcp_connection_ms=").append(clientConnectionDuration);
+    sb.append(" server_connect_ms=").append(serverConnectTime);
+    sb.append(" ssl_handshake_ms=").append(sslHandshakeTime);
+    sb.append(" client_saturations=").append(clientSaturations);
+    sb.append(" server_saturations=").append(serverSaturations);
+    sb.append(" exception=").append(exceptionType != null ? exceptionType : "none");
   }
 
   /**

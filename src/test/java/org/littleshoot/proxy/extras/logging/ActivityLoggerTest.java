@@ -267,13 +267,18 @@ class ActivityLoggerTest {
     }
 
     @Override
-    protected void logFormattedEntry(String message) {
+    protected void logFormattedEntry(String flowId, String message) {
       this.lastLogMessage = message;
     }
 
     @Override
+    protected boolean shouldLogInfoEntry() {
+      return true; // Always log INFO entries in tests
+    }
+
+    @Override
     protected boolean shouldLogFormattedEntry() {
-      return true; // Always log in tests
+      return true; // Always log DEBUG entries in tests
     }
   }
 

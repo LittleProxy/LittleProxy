@@ -30,5 +30,8 @@ public enum LogFormat {
   CSV,
 
   /** HAProxy HTTP Log Format. Includes detailed timing information. */
-  HAPROXY
+  HAPROXY,
+
+  /** Key-Value format. Structured text with field=value pairs (e.g., flow_id=... client_ip=...) */
+  KEYVALUE
 }
