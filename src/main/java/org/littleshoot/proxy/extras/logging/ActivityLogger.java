@@ -582,7 +582,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    */
   private String formatLogEntry(
       FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
-    HttpRequest request = timedRequest.request;
     long duration = System.currentTimeMillis() - timedRequest.startTime;
 
     StringBuilder sb = new StringBuilder();
