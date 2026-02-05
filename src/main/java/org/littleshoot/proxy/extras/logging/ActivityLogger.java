@@ -581,44 +581,44 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    * based on the field configuration rather than hardcoded field lists.
    */
   private String formatLogEntry(
-      FlowContext flowContext, TimedRequest timedInfo, HttpResponse response) {
-    HttpRequest request = timedInfo.request;
-    long duration = System.currentTimeMillis() - timedInfo.startTime;
+      FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
+    HttpRequest request = timedRequest.request;
+    long duration = System.currentTimeMillis() - timedRequest.startTime;
 
     StringBuilder sb = new StringBuilder();
     ZonedDateTime now = ZonedDateTime.now(ZoneId.of(UTC));
 
     switch (logFormat) {
       case CLF:
-        formatClfEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatClfEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case ELF:
-        formatElfEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatElfEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case W3C:
-        formatW3cEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatW3cEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case JSON:
-        formatJsonEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatJsonEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case LTSV:
-        formatLtsvEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatLtsvEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case CSV:
-        formatCsvEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatCsvEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case SQUID:
-        formatSquidEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatSquidEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
 
       case HAPROXY:
-        formatHaproxyEntry(sb, flowContext, timedInfo, response, duration, now);
+        formatHaproxyEntry(sb, flowContext, timedRequest, response, duration, now);
         break;
     }
 
@@ -629,11 +629,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatClfEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
+    HttpRequest request = timedRequest.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
@@ -657,11 +657,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatElfEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
+    HttpRequest request = timedRequest.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
@@ -687,11 +687,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatW3cEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
+    HttpRequest request = timedRequest.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
@@ -712,12 +712,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatJsonEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
-    String flowId = timedInfo.flowId;
+    HttpRequest request = timedRequest.request;
+    String flowId = timedRequest.flowId;
 
     sb.append("{");
     sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
@@ -832,12 +832,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatLtsvEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
-    String flowId = timedInfo.flowId;
+    HttpRequest request = timedRequest.request;
+    String flowId = timedRequest.flowId;
 
     // Labeled Tab-Separated Values
     sb.append("flow_id:").append(flowId);
@@ -920,12 +920,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatCsvEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
-    String flowId = timedInfo.flowId;
+    HttpRequest request = timedRequest.request;
+    String flowId = timedRequest.flowId;
 
     // Comma-Separated Values
     sb.append("\"").append(escapeJson(flowId)).append("\"");
@@ -1008,11 +1008,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatSquidEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
+    HttpRequest request = timedRequest.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
 
@@ -1055,11 +1055,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private void formatHaproxyEntry(
       StringBuilder sb,
       FlowContext flowContext,
-      TimedRequest timedInfo,
+      TimedRequest timedRequest,
       HttpResponse response,
       long duration,
       ZonedDateTime now) {
-    HttpRequest request = timedInfo.request;
+    HttpRequest request = timedRequest.request;
     InetSocketAddress clientAddress = flowContext.getClientAddress();
     String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
     int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
