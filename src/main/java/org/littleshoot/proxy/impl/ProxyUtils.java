@@ -517,7 +517,9 @@ public class ProxyUtils {
   public static void stripHopByHopHeaders(HttpHeaders headers) {
     // Not explicitly documented, but remove is case-insensitive as HTTP header handling function
     // should be
-    SHOULD_NOT_PROXY_HOP_BY_HOP_HEADERS.forEach(headers::remove);
+    for (String headerName : SHOULD_NOT_PROXY_HOP_BY_HOP_HEADERS) {
+      headers.remove(headerName);
+    }
   }
 
   /**
