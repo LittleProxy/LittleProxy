@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO" monitorInterval="15">
+    <Appenders>
+        <Console name="STD_OUT">
+            <PatternLayout pattern="%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n"/>
+        </Console>
+        <Console name="ACCESS_LOG">
+            <PatternLayout pattern="%m%n"/>
+        </Console>
+
+        <!-- Synchronous rolling file appender (default) -->
+        <RollingFile name="ROLLING_TEXT_FILE" fileName="logs/app.log"
+                     filePattern="logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+            <PatternLayout>
+                <Pattern>%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="6" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="250 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingFile>
+
+        <!-- Asynchronous rolling file appender (used when async_logging flag is set) -->
+        <RollingRandomAccessFile name="ASYNC_ROLLING_FILE" fileName="logs/app-async.log"
+                                 filePattern="logs/$${date:yyyy-MM}/app-async-%d{yyyy-MM-dd-HH}-%i.log.gz"
+                                 immediateFlush="false">
+            <PatternLayout>
+                <Pattern>%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="6" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="250 MB"/>
+            </Policies>
+        </RollingRandomAccessFile>
+    </Appenders>
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="STD_OUT"/>
+            <!-- Use synchronous rolling file by default -->
+            <AppenderRef ref="ROLLING_TEXT_FILE"/>
+        </Root>
+        <Logger name="org.littleshoot.proxy" level="INFO"/>
+        <Logger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO" additivity="false">
+            <AppenderRef ref="ACCESS_LOG"/>
+        </Logger>
+        <Logger name="org.eclipse.jetty" level="OFF"/>
+    </Loggers>
+</Configuration>
+

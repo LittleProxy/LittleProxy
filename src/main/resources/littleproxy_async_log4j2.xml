@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO" monitorInterval="15">
+    <Appenders>
+        <Console name="STD_OUT">
+            <PatternLayout pattern="%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n"/>
+        </Console>
+        <Console name="ACCESS_LOG">
+            <PatternLayout pattern="%m%n"/>
+        </Console>
+
+        <!-- Asynchronous rolling file appender for better performance -->
+        <RollingRandomAccessFile name="ASYNC_ROLLING_FILE" fileName="logs/app-async.log"
+                                 filePattern="logs/$${date:yyyy-MM}/app-async-%d{yyyy-MM-dd-HH}-%i.log.gz"
+                                 immediateFlush="false">
+            <PatternLayout>
+                <Pattern>%d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="6" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="250 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingRandomAccessFile>
+        <RollingRandomAccessFile name="ASYNC_ACCESS_LOG_FILE" fileName="logs/async-access.log"
+                                 filePattern="logs/$${date:yyyy-MM}/async-access-%d{yyyy-MM-dd-HH}-%i.log.gz"
+                                 immediateFlush="false">
+            <PatternLayout>
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="6" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="250 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingRandomAccessFile>
+    </Appenders>
+    <Loggers>
+        <!-- Use AsyncRoot for asynchronous logging -->
+        <AsyncRoot level="INFO" includeLocation="true">
+            <AppenderRef ref="STD_OUT"/>
+            <!-- Use asynchronous rolling file for better performance -->
+            <AppenderRef ref="ASYNC_ROLLING_FILE"/>
+        </AsyncRoot>
+        <AsyncLogger name="org.littleshoot.proxy" level="INFO" includeLocation="true"/>
+        <AsyncLogger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO" additivity="false" includeLocation="false">
+            <AppenderRef ref="ACCESS_LOG"/>
+            <AppenderRef ref="ASYNC_ACCESS_LOG_FILE"/>
+        </AsyncLogger>
+        <AsyncLogger name="org.eclipse.jetty" level="OFF" includeLocation="true"/>
+    </Loggers>
+</Configuration>

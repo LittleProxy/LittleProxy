@@ -1,0 +1,80 @@
+# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-maven
+
+name: Java CI with Maven
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '.idea/**'
+      - '.run/**'
+      - '**/*.md'
+      - 'src/site/**'
+      - '**/.editorconfig'
+      - '**/.gitattributes'
+      - '**/.gitignore'
+      - '/*.txt'
+      - '/*.bash'
+      - 'release'
+  pull_request:
+    paths-ignore:
+      - '.idea/**'
+      - '.run/**'
+      - '**/*.md'
+      - 'src/site/**'
+      - '**/.editorconfig'
+      - '**/.gitattributes'
+      - '**/.gitignore'
+      - '/*.txt'
+      - '/*.bash'
+      - 'release'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
+
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 7
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Check Java
+        run: java -version
+      - name: Check Maven
+        run: mvn --batch-mode --version
+      - name: Compile code
+        run: mvn --batch-mode compile
+      - name: Branch name [env]
+        run: echo running on branch ${GITHUB_REF##*/}
+      - name: Run smoke tests
+        run: mvn --batch-mode package -Psmoke-test
+      - name: Run slow tests
+        if: success()
+        run: mvn --batch-mode package -Pslow-tests
+
+      - name: Generate Maven test report
+        if: failure()
+        run: mvn --batch-mode surefire-report:report-only
+      - name: Upload test report
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: test-report-${{matrix.platform}}
+          retention-days: 5
+          path: |
+            target/surefire-reports
+            target/site
+            target/*.hprof
+            target/*.txt
+            target/*.jks
+            target/*_cert*

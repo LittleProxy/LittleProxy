@@ -1,93 +1,74 @@
 package org.littleshoot.proxy;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
+import static java.time.Duration.ofSeconds;
+import static java.util.Locale.ROOT;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
+
+import com.github.tomakehurst.wiremock.WireMockServer;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
-import org.mockserver.integration.ClientAndServer;
-import org.mockserver.matchers.Times;
 import org.openqa.selenium.Proxy;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.remote.CapabilityType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
-
-import static org.hamcrest.Matchers.greaterThan;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
-
 /**
- * End to end test making sure the proxy is able to service simple HTTP requests
- * and stop at the end. Made into a unit test from isopov and nasis's
- * contributions at: https://github.com/adamfisk/LittleProxy/issues/36
+ * End-to-end test making sure the proxy is able to service simple HTTP requests and stop at the
+ * end. Made into a unit test from isopov and nasis's contributions at: <a
+ * href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
  */
-public class EndToEndStoppingTest {
-    private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
+public final class EndToEndStoppingTest {
+  private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
 
-    private ClientAndServer mockServer;
-    private int mockServerPort;
+  private WireMockServer mockServer;
+  private int mockServerPort;
 
-    @Before
-    public void setUp() {
-        mockServer = new ClientAndServer(0);
-        mockServerPort = mockServer.getLocalPort();
+  @BeforeEach
+  void setUp() {
+    mockServer = new WireMockServer(options().dynamicPort());
+    mockServer.start();
+    mockServerPort = mockServer.port();
+  }
+
+  @AfterEach
+  void tearDown() {
+    if (mockServer != null) {
+      mockServer.stop();
     }
+  }
 
-    @After
-    public void tearDown() {
-        if (mockServer != null) {
-            mockServer.stop();
-        }
-    }
+  /**
+   * This is a quick test from nasis that exhibits different behavior from unit tests because unit
+   * tests call System.exit(). The stop method should stop all non-daemon threads and should cause
+   * the JVM to exit without explicitly calling System.exit(), which running as an application
+   * properly tests.
+   */
+  public static void main(final String[] args) {
+    HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
 
-    /**
-     * This is a quick test from nasis that exhibits different behavior from
-     * unit tests because unit tests call System.exit(). The stop method should
-     * stop all non-daemon threads and should cause the JVM to exit without
-     * explicitly calling System.exit(), which running as an application
-     * properly tests.
-     */
-    public static void main(final String[] args) {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()
-                .withPort(0)
-                .start();
-
-        Proxy proxy = new Proxy();
-        proxy.setProxyType(Proxy.ProxyType.MANUAL);
-        String proxyStr = String.format("localhost:%d", proxyServer.getListenAddress().getPort());
-        proxy.setHttpProxy(proxyStr);
-        proxy.setSslProxy(proxyStr);
-
-        FirefoxOptions capability = new FirefoxOptions();
-        capability.setCapability(CapabilityType.PROXY, proxy);
-
-        String urlString = "http://www.yahoo.com/";
-        WebDriver driver = new FirefoxDriver(capability);
-        driver.manage().timeouts().pageLoadTimeout(30, TimeUnit.SECONDS);
-
-        driver.get(urlString);
-
-        driver.close();
-        System.out.println("Driver closed");
-
-        proxyServer.abort();
-        System.out.println("Proxy stopped");
-    }
+    Proxy proxy = createSeleniumProxy(proxyServer);
 
     @Test
     public void testWithHttpClient() throws Exception {
@@ -105,92 +86,120 @@ public class EndToEndStoppingTest {
             runSiteTestWithHttpClient(site);
         }
     }
+    FirefoxOptions capability = new FirefoxOptions();
+    capability.setCapability(CapabilityType.PROXY, proxy);
 
-    private void runSiteTestWithHttpClient(final String site) throws Exception {
-        // HttpResponse response = client.execute(get);
+    String urlString = "https://www.yahoo.com/";
+    WebDriver driver = new FirefoxDriver(capability);
+    driver.manage().timeouts().pageLoadTimeout(ofSeconds(30));
 
-        // assertEquals(200, response.getStatusLine().getStatusCode());
-        // EntityUtils.consume(response.getEntity());
-        /*
-         * final HttpProxyServer ssl = new DefaultHttpProxyServer(PROXY_PORT,
-         * null, null, new SslHandshakeHandlerFactory(), new HttpRequestFilter()
-         * {
-         * 
-         * @Override public void filter(HttpRequest httpRequest) {
-         * System.out.println("Request went through proxy"); } });
-         */
+    driver.get(urlString);
 
-        final HttpProxyServer proxy = DefaultHttpProxyServer.bootstrap()
-                .withPort(0)
-                .withFiltersSource(new HttpFiltersSourceAdapter() {
-                    @Override
-                    public HttpFilters filterRequest(HttpRequest originalRequest) {
-                        return new HttpFiltersAdapter(originalRequest) {
-                            @Override
-                            public io.netty.handler.codec.http.HttpResponse proxyToServerRequest(
-                                    HttpObject httpObject) {
-                                System.out.println("Request with through proxy");
-                                return null;
-                            }
-                        };
-                    }
-                }).start();
+    driver.close();
+    System.out.println("Driver closed");
 
-        try {
-            final HttpClient client = TestUtils.createProxiedHttpClient(proxy.getListenAddress().getPort());
+    proxyServer.abort();
+    System.out.println("Proxy stopped");
+  }
 
-            // final HttpPost get = new HttpPost(site);
-            final HttpGet get = new HttpGet(site);
+  @Test
+  public void testWithHttpClient() throws Exception {
+    mockServer.stubFor(
+        get(urlEqualTo("/success")).willReturn(aResponse().withStatus(200).withBody("Success!")));
 
-            // client.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY,
-            // new HttpHost("75.101.134.244", PROXY_PORT));
-            // new HttpHost("localhost", PROXY_PORT, "https"));
-            HttpResponse response = client.execute(get);
-            assertEquals(200, response.getStatusLine().getStatusCode());
-            final HttpEntity entity = response.getEntity();
-            final String body = IOUtils.toString(entity.getContent(), StandardCharsets.US_ASCII);
-            EntityUtils.consume(entity);
-
-            log.info("Consuming entity -- got body: {}", body);
-            EntityUtils.consume(response.getEntity());
-
-            log.info("Stopping proxy");
-        } finally {
-            if (proxy != null) {
-                proxy.abort();
-            }
-        }
+    final String url = "http://127.0.0.1:" + mockServerPort + "/success";
+    final String[] sites = {url};
+    for (final String site : sites) {
+      runSiteTestWithHttpClient(site);
     }
+  }
 
-    // @Test
-    public void testWithWebDriver() {
-        HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap()
-                .withPort(0)
-                .start();
+  private void runSiteTestWithHttpClient(final String site) throws Exception {
+    final HttpProxyServer proxy =
+        DefaultHttpProxyServer.bootstrap()
+            .withPort(0)
+            .withFiltersSource(
+                new HttpFiltersSourceAdapter() {
+                  @NonNull
+                  @Override
+                  public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
+                    return new HttpFiltersAdapter(originalRequest) {
+                      @Override
+                      public io.netty.handler.codec.http.HttpResponse proxyToServerRequest(
+                          @NonNull HttpObject httpObject) {
+                        System.out.println("Request with through proxy");
+                        return null;
+                      }
+                    };
+                  }
+                })
+            .start();
 
-        Proxy proxy = new Proxy();
-        proxy.setProxyType(Proxy.ProxyType.MANUAL);
-        String proxyStr = String.format("localhost:%d", proxyServer.getListenAddress().getPort());
-        proxy.setHttpProxy(proxyStr);
-        proxy.setSslProxy(proxyStr);
+    try (CloseableHttpClient client = createProxiedHttpClient(proxy.getListenAddress().getPort())) {
+      // final HttpPost get = new HttpPost(site);
+      final HttpGet get = new HttpGet(site);
 
-        FirefoxOptions capability = new FirefoxOptions();
-        capability.setCapability(CapabilityType.PROXY, proxy);
+      // client.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY,
+      // new HttpHost("75.101.134.244", PROXY_PORT));
+      // new HttpHost("localhost", PROXY_PORT, "https"));
+      HttpResponse response = client.execute(get);
+      assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
+      final HttpEntity entity = response.getEntity();
+      final String body = IOUtils.toString(entity.getContent(), StandardCharsets.US_ASCII);
+      EntityUtils.consume(entity);
 
-        final String urlString = "http://www.yahoo.com/";
+      log.info("Consuming entity -- got body: {}", body);
+      EntityUtils.consume(response.getEntity());
 
-        // Note this will actually launch a browser!!
-        final WebDriver driver = new FirefoxDriver(capability);
-        driver.manage().timeouts().pageLoadTimeout(30, TimeUnit.SECONDS);
-
-        driver.get(urlString);
-        final String source = driver.getPageSource();
-
-        // Just make sure it got something within reason.
-        assertThat(source.length(), greaterThan(100));
-        driver.close();
-
-        proxyServer.abort();
+      log.info("Stopping proxy");
+    } finally {
+      proxy.abort();
     }
+  }
 
+  /** This test actually launches a browser! */
+  @Test
+  @Timeout(60)
+  public void testWithWebDriver() {
+    String os = System.getProperty("os.name", "unknown").toLowerCase(ROOT);
+    log.info("OS: {} (is windows: {})", os, os.contains("win"));
+    assumeThat(os.contains("win")).isFalse();
+
+    HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
+
+    try {
+      Proxy proxy = createSeleniumProxy(proxyServer);
+      tryProxyWithBrowser(proxy);
+    } finally {
+      proxyServer.abort();
+    }
+  }
+
+  private static Proxy createSeleniumProxy(HttpProxyServer proxyServer) {
+    Proxy proxy = new Proxy();
+    proxy.setProxyType(Proxy.ProxyType.MANUAL);
+    String proxyStr = String.format("localhost:%d", proxyServer.getListenAddress().getPort());
+    proxy.setHttpProxy(proxyStr);
+    proxy.setSslProxy(proxyStr);
+    return proxy;
+  }
+
+  private void tryProxyWithBrowser(Proxy proxy) {
+    ChromeOptions options = new ChromeOptions();
+    options.setCapability(CapabilityType.PROXY, proxy);
+    options.addArguments("--headless=new");
+
+    WebDriver driver = new ChromeDriver(options);
+    try {
+      driver.manage().timeouts().pageLoadTimeout(ofSeconds(30));
+
+      driver.get("https://github.com/littleProxy/LittleProxy");
+      String source = driver.getPageSource();
+
+      // Just make sure it got something within reason
+      assertThat(source).hasSizeGreaterThan(100);
+    } finally {
+      driver.quit();
+    }
+  }
 }

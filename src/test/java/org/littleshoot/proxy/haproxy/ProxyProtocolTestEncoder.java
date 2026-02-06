@@ -7,15 +7,14 @@ import io.netty.handler.codec.MessageToByteEncoder;
 
 public class ProxyProtocolTestEncoder extends MessageToByteEncoder<String> {
 
-    @Override
-    protected void encode(ChannelHandlerContext ctx, String msg, ByteBuf out) {
-        out.writeBytes(msg.getBytes());
-    }
+  @Override
+  protected void encode(ChannelHandlerContext ctx, String msg, ByteBuf out) {
+    out.writeBytes(msg.getBytes());
+  }
 
-    @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        super.write(ctx, msg, promise);
-    }
-
-
+  @Override
+  public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise)
+      throws Exception {
+    super.write(ctx, msg, promise);
+  }
 }

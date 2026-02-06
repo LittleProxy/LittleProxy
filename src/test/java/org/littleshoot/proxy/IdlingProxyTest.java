@@ -1,26 +1,21 @@
 package org.littleshoot.proxy;
 
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
-/**
- * Tests just a single basic proxy.
- */
-public class IdlingProxyTest extends AbstractProxyTest {
-    @Override
-    protected void setUp() {
-        this.proxyServer = bootstrapProxy()
-                .withPort(0)
-                .withIdleConnectionTimeout(1)
-                .start();
-    }
+/** Tests just a single basic proxy. */
+@Tag("slow-test")
+public final class IdlingProxyTest extends AbstractProxyTest {
+  @Override
+  protected void setUp() {
+    proxyServer = bootstrapProxy().withPort(0).withIdleConnectionTimeout(1).start();
+  }
 
-    @Test
-    public void testTimeout() throws Exception {
-        ResponseInfo response = httpGetWithApacheClient(webHost, "/hang", true,
-                false);
-        assertEquals("Received: " + response, 504, response.getStatusCode());
-    }
-
+  @Test
+  public void testTimeout() {
+    ResponseInfo response = httpGetWithApacheClient(webHost, "/hang", true, false);
+    assertThat(response.getStatusCode()).as("Received: %s", response).isEqualTo(504);
+  }
 }
