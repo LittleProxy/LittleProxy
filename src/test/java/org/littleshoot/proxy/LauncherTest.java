@@ -1,11 +1,15 @@
 package org.littleshoot.proxy;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static java.lang.System.nanoTime;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
 /** Unit tests for the Launcher class, specifically testing the start method. */
 class LauncherTest {
@@ -187,21 +191,17 @@ class LauncherTest {
     String[] args = {"--server"};
 
     // When - run in separate thread to avoid hanging
-    Thread testThread =
-        new Thread(
-            () -> {
-              try {
-                launcher.start(args);
-              } catch (Exception e) {
-                // Expected due to interrupt
-              }
-            });
+    Thread testThread = new Thread(() -> launcher.start(args));
     testThread.start();
-    Thread.sleep(100); // Give it a moment to start
+    waitForServerToStart();
+    assertThat(launcher.isRunning()).isTrue();
+
     testThread.interrupt();
     testThread.join(1000);
 
     // Then - thread should terminate
+    waitForServerToStop();
+    assertThat(launcher.isRunning()).isFalse();
     assertSame(Thread.State.TERMINATED, testThread.getState());
   }
 
@@ -532,5 +532,20 @@ class LauncherTest {
 
     // When/Then - should throw exception for port out of range
     assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
+  }
+
+  private void waitForServerToStart() throws InterruptedException {
+    waitForServer(true);
+  }
+
+  private void waitForServerToStop() throws InterruptedException {
+    waitForServer(false);
+  }
+
+  private void waitForServer(boolean alive) throws InterruptedException {
+    long timeout = SECONDS.toNanos(10);
+    for (long start = nanoTime(); launcher.isRunning() != alive && nanoTime() - start < timeout; ) {
+      Thread.sleep(10);
+    }
   }
 }
