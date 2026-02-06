@@ -9,13 +9,17 @@ import org.junit.jupiter.api.Test;
 
 /** Unit tests for the Launcher class, specifically testing the start method. */
 class LauncherTest {
-
   private Launcher launcher;
-  private int port = 0;
+  private final int port = 0;
 
   @BeforeEach
   void setUp() {
     launcher = new Launcher();
+  }
+
+  @AfterEach
+  void tearDown() {
+    launcher.stop();
   }
 
   /**
