@@ -67,6 +67,9 @@ public class Launcher {
   public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
+  @Nullable
+  private volatile HttpProxyServer httpProxyServer;
+
   /**
    * Starts the proxy from the command line.
    *
@@ -299,20 +302,25 @@ public class Launcher {
     }
 
     LOG.info("About to start...");
-    HttpProxyServer httpProxyServer = bootstrap.start();
+    httpProxyServer = bootstrap.start();
     if (cmd.hasOption(OPTION_SERVER)) {
-      Runtime.getRuntime()
-          .addShutdownHook(
-              new Thread(
-                  () -> {
-                    LOG.info("Shutting down...");
-                    httpProxyServer.stop();
-                  }));
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> stop()));
       try {
         Thread.currentThread().join();
       } catch (InterruptedException e) {
+        stop();
         Thread.currentThread().interrupt();
       }
+    }
+  }
+
+  public void stop() {
+    HttpProxyServer server = httpProxyServer;
+    if (server != null) {
+      LOG.info("Shutting down...");
+      server.stop();
+      httpProxyServer = null;
+      LOG.info("Shut down.");
     }
   }
 
