@@ -144,7 +144,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     logLifecycleEvent(
         LifecycleEvent.RESPONSE_SENT,
         flowContext,
-        Map.of("status", httpResponse.status().code(), "http_request_processing_time_ms", httpRequestProcessingTimeMs),
+        Map.of(
+            "status",
+            httpResponse.status().code(),
+            "http_request_processing_time_ms",
+            httpRequestProcessingTimeMs),
         flowId);
 
     // INFO: Use configured format (KEYVALUE, JSON, etc.)
@@ -154,7 +158,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         logFormattedEntry(flowId, logMessage);
       }
     }
-
   }
 
   /**
@@ -222,7 +225,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     logLifecycleEvent(
         LifecycleEvent.CLIENT_CONNECTED,
         flowContext,
-        Map.of("client_address", clientAddress, "timestamp", now),
+        Map.of("client_address", clientAddress, "timestamp", formatTimestamp(now)),
         flowId);
   }
 
@@ -276,14 +279,26 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       logLifecycleEvent(
           LifecycleEvent.CLIENT_DISCONNECTED,
           flowContext,
-          Map.of("client_address", clientAddress, "tcp_client_connection_duration_ms", tcpClientConnectionDurationMs, "timestamp", now),
+          Map.of(
+              "client_address",
+              clientAddress,
+              "tcp_client_connection_duration_ms",
+              tcpClientConnectionDurationMs,
+              "timestamp",
+              formatTimestamp(now)),
           flowId);
     } else {
       // DEBUG: Still log even if state not found
       logLifecycleEvent(
           LifecycleEvent.CLIENT_DISCONNECTED,
           flowContext,
-          Map.of("client_address", clientAddress, "state_found", false, "timestamp", now),
+          Map.of(
+              "client_address",
+              clientAddress,
+              "state_found",
+              false,
+              "timestamp",
+              formatTimestamp(now)),
           flowId);
     }
   }
@@ -305,7 +320,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     logLifecycleEvent(
         LifecycleEvent.SERVER_CONNECTED,
         flowContext,
-        Map.of("server_address", serverAddress, "timestamp", now),
+        Map.of("server_address", serverAddress, "timestamp", formatTimestamp(now)),
         flowId);
   }
 
@@ -329,14 +344,20 @@ public class ActivityLogger extends ActivityTrackerAdapter {
           Map.of(
               "server_address", serverAddress,
               "tcp_server_connection_duration_ms", tcpServerConnectionDurationMs,
-              "timestamp", now),
+              "timestamp", formatTimestamp(now)),
           flowId);
     } else {
       // DEBUG: Still log even if state not found
       logLifecycleEvent(
           LifecycleEvent.SERVER_DISCONNECTED,
           flowContext,
-          Map.of("server_address", serverAddress, "state_found", false, "timestamp", now),
+          Map.of(
+              "server_address",
+              serverAddress,
+              "state_found",
+              false,
+              "timestamp",
+              formatTimestamp(now)),
           flowId);
     }
   }
@@ -349,6 +370,18 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       return timedRequest.flowId;
     }
     return generateFlowId();
+  }
+
+  /**
+   * Formats an epoch millisecond timestamp to ISO-8601 format with UTC timezone.
+   *
+   * @param epochMillis the epoch time in milliseconds
+   * @return ISO-8601 formatted timestamp string
+   */
+  private String formatTimestamp(long epochMillis) {
+    return java.time.Instant.ofEpochMilli(epochMillis)
+        .atZone(UTC_ZONE_ID)
+        .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);
   }
 
   private void logLifecycleEvent(
