@@ -71,7 +71,6 @@ public class Launcher {
   private static final String OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS = "activity_log_exclude_headers";
   private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
   private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
-  public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
   @Nullable private volatile HttpProxyServer httpProxyServer;
