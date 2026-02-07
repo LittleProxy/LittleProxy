@@ -221,11 +221,11 @@ java -jar littleproxy.jar --activity_timing_mode OFF
 
 **Timing Mode Options:**
 
-| Mode | Description | Timing Fields Included |
-|------|-------------|------------------------|
-| `OFF` | No timing data | None |
-| `MINIMAL` | Basic timing only (default) | `http_request_processing_time` |
-| `ALL` | Complete timing breakdown | All timing fields: `http_request_processing_time`, `tcp_connection_establishment_time`, `tcp_client_connection_duration`, `tcp_server_connection_duration`, `ssl_handshake_time` |
+| Mode | Description | Timing Fields Included                                                                                                                                                                          |
+|------|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `OFF` | No timing data | None                                                                                                                                                                                            |
+| `MINIMAL` | Basic timing only (default) | `http_request_processing_time_ms`                                                                                                                                                               |
+| `ALL` | Complete timing breakdown | All timing fields: `http_request_processing_time_ms`, `tcp_connection_establishment_time_ms`, `tcp_client_connection_duration_ms`, `tcp_server_connection_duration_ms`, `ssl_handshake_time_ms` |
 
 ### Programmatic Access
 Timing data is stored in the `FlowContext`. You can access it within your `HttpFilters` or an `ActivityTracker`:

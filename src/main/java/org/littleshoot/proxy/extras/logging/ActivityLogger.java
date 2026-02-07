@@ -194,7 +194,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       FlowContext flowContext, TimedRequest timedRequest, HttpResponse httpResponse) {
     // Calculate and store duration in FlowContext
     long duration = System.currentTimeMillis() - timedRequest.startTime;
-    flowContext.setTimingData("http_request_processing_time", duration);
+    flowContext.setTimingData("http_request_processing_time_ms", duration);
 
     return formatter.format(
         flowContext,

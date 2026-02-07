@@ -49,7 +49,7 @@ public enum ComputedField implements LogField {
         return extractGeolocationCountry(flowContext);
 
       case RESPONSE_TIME_CATEGORY:
-        Long httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time");
+        Long httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time_ms");
         return httpRequestProcessingTime != null
             ? categorizeResponseTime(httpRequestProcessingTime)
             : "-";
