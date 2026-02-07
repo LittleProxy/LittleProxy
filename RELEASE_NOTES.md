@@ -1,7 +1,23 @@
 # Release Notes
 
 - 2.7.0 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
-  - TBD
+  - Major Activity Tracking & Logging Enhancements (#689) by Charles Lescot
+    - **ULID-based Flow IDs**: Globally unique, sortable identifiers (e.g., 01KGNMFEFZ84ZAR511NTRAFW13) replacing sequential flow IDs for better distributed tracing
+    - **Enhanced ActivityTracker Interface**: New lifecycle methods (serverConnected, serverDisconnected, connectionSaturated, connectionWritable, connectionTimedOut, connectionExceptionCaught) and FlowContext support for richer connection state tracking
+    - **Three-Tier Logging Strategy**: Structured TRACE/DEBUG/INFO logging with flow ID correlation across all levels
+    - **Timing Architecture Refactor**: Centralized timing data storage in FlowContext with configurable `--activity_timing_mode OFF|MINIMAL|ALL` CLI option; renamed duration fields for clarity
+    - **Standards-Compliant Formats**: Fixed W3C, Squid, and HAProxy log formats for full specification compliance
+    - **Strategy Pattern Formatters**: Refactored log formatting into modular, testable formatter classes supporting CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, and KEYVALUE formats
+    - **Advanced Field Configuration**: Builder pattern for custom logging fields, header filtering (prefix/regex matching), sensitive data masking, and pre-configured field sets (SecurityMonitoring, PerformanceAnalytics, APIManagement)
+    - **Unified Lifecycle Event Formatting**: DEBUG/TRACE logs now use configured format (JSON, LTSV, etc.) for consistent structured logging across all levels
+    - **New Documentation**: Added comprehensive Timing Metrics guide (docs/TIMING_METRICS.md) and Architecture documentation references
+  - Breaking Changes (#689) by Charles Lescot
+    - Package relocation: ActivityLogger moved to org.littleshoot.proxy.extras.logging
+    - ActivityTracker method signatures changed to accept FlowContext instead of InetSocketAddress
+    - LogField.extractValue() signature changed (removed duration parameter, use FlowContext.getTimingData())
+    - LogEntryFormatter.format() signature changed (removed durationMs parameter, use FlowContext timing map)
+    - Duration field names updated (e.g., duration_ms → http_request_processing_time)
+    - Custom implementations must update to new API signatures 
 
 - 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49?closed=1)
   - Feature/activity tracker logging (#668) by Charles Lescot
