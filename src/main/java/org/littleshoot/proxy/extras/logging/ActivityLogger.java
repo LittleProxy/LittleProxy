@@ -32,10 +32,7 @@ import org.slf4j.LoggerFactory;
 public class ActivityLogger extends ActivityTrackerAdapter {
 
   private static final Logger LOG = LoggerFactory.getLogger(ActivityLogger.class);
-  private static final String DATE_FORMAT_CLF = "dd/MMM/yyyy:HH:mm:ss Z";
   public static final String UTC = "UTC";
-  public static final String USER_AGENT = "User-Agent";
-  public static final String ISO_8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
   // Flow ID generator using ULID for globally unique, sortable identifiers
 
@@ -222,26 +219,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   /**
-   * Determines if formatted log entries should be logged. This method can be overridden in tests to
-   * force logging regardless of the logger's debug level.
-   *
-   * @return true if formatted entries should be logged
-   */
-  protected boolean shouldLogFormattedEntry() {
-    return LOG.isDebugEnabled();
-  }
-
-  /**
-   * Logs a formatted entry at DEBUG level. This method can be overridden by subclasses or tests to
-   * capture the formatted output.
-   *
-   * @param message the formatted log message
-   */
-  protected void logFormattedEntry(String message) {
-    LOG.debug(message);
-  }
-
-  /**
    * Logs a formatted entry with flowId prefix at INFO level.
    *
    * @param flowId the flow identifier
@@ -251,75 +228,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     LOG.info("[{}] {}", flowId, message);
   }
 
-  /**
-   * Logs a complete interaction summary at INFO level. This is the primary operational log entry
-   * containing all aggregated metrics for a request/response cycle.
-   */
-  private void logInteractionSummary(
-      FlowContext flowContext,
-      TimedRequest timedRequest,
-      HttpResponse response,
-      long duration,
-      String flowId) {
-
-    HttpRequest request = timedRequest.request;
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
-    int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
-
-    // Get client state metrics
-    ClientState clientState = clientStates.get(clientAddress);
-    long clientConnectTime = clientState != null ? clientState.connectTime : 0;
-    long clientConnectionDuration =
-        clientConnectTime > 0 ? System.currentTimeMillis() - clientConnectTime : 0;
-    long sslHandshakeTime =
-        clientState != null && clientState.sslHandshakeEndTime > 0
-            ? clientState.sslHandshakeEndTime - clientState.sslHandshakeStartTime
-            : 0;
-    int clientSaturations = clientState != null ? clientState.saturationCount : 0;
-    String exceptionType = clientState != null ? clientState.lastExceptionType : null;
-
-    // Get server state metrics
-    ServerState serverState =
-        flowContext instanceof FullFlowContext
-            ? serverStates.get((FullFlowContext) flowContext)
-            : null;
-    long serverConnectTime =
-        serverState != null && serverState.connectEndTime > 0
-            ? serverState.connectEndTime - serverState.connectStartTime
-            : 0;
-    int serverSaturations = serverState != null ? serverState.saturationCount : 0;
-    String serverAddress =
-        serverState != null && serverState.remoteAddress != null
-            ? serverState.remoteAddress.getAddress().getHostAddress()
-            : "-";
-    int serverPort =
-        serverState != null && serverState.remoteAddress != null
-            ? serverState.remoteAddress.getPort()
-            : 0;
-
-    // Build structured log entry
-    StringBuilder sb = new StringBuilder();
-    sb.append("flow_id=").append(flowId);
-    sb.append(" client_ip=").append(clientIp);
-    sb.append(" client_port=").append(clientPort);
-    sb.append(" server_ip=").append(serverAddress);
-    sb.append(" server_port=").append(serverPort);
-    sb.append(" method=").append(request.method().name());
-    sb.append(" uri=\"").append(request.uri()).append("\"");
-    sb.append(" protocol=").append(request.protocolVersion());
-    sb.append(" status=").append(response.status().code());
-    sb.append(" bytes=").append(getContentLength(response));
-    sb.append(" http_request_ms=").append(duration);
-    sb.append(" tcp_connection_ms=").append(clientConnectionDuration);
-    sb.append(" server_connect_ms=").append(serverConnectTime);
-    sb.append(" ssl_handshake_ms=").append(sslHandshakeTime);
-    sb.append(" client_saturations=").append(clientSaturations);
-    sb.append(" server_saturations=").append(serverSaturations);
-    sb.append(" exception=").append(exceptionType != null ? exceptionType : "none");
-
-    LOG.info(sb.toString());
-  }
 
   // ==================== CLIENT LIFECYCLE ====================
 

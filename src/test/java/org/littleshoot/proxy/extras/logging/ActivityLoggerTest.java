@@ -276,10 +276,6 @@ class ActivityLoggerTest {
       return true; // Always log INFO entries in tests
     }
 
-    @Override
-    protected boolean shouldLogFormattedEntry() {
-      return true; // Always log DEBUG entries in tests
-    }
   }
 
   private void setupMocks() {
