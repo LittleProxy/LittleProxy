@@ -78,8 +78,7 @@ public class Launcher {
   public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
-  @Nullable
-  private volatile HttpProxyServer httpProxyServer;
+  @Nullable private volatile HttpProxyServer httpProxyServer;
 
   /**
    * Starts the proxy from the command line.
