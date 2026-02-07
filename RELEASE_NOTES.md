@@ -1,6 +1,6 @@
 # Release Notes
 
-- 2.6.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
+- 2.7.0 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
   - TBD
 
 - 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49?closed=1)

@@ -74,7 +74,7 @@ The config file is a properties file with the following properties :
 
 Options set from the command line, override the ones set in the config file.
 
-> **Note**: For advanced logging configuration and performance optimization, see our [Performance and Logging Guide](PERFORMANCE_AND_LOGGING.md).
+> **Note**: For advanced logging configuration and performance optimization, see our [Performance and Logging Guide](docs/PERFORMANCE_AND_LOGGING.md).
 
 ##### littleproxy.properties Example
 
@@ -688,7 +688,31 @@ For comprehensive information on logging performance optimization, including:
 - **Groovy Script Filters**: Dynamic filtering with sampling and conditional logic
 - **Best Practices**: Production-ready recommendations and troubleshooting
 
-Please see our **[Performance and Logging Guide](PERFORMANCE_AND_LOGGING.md)**.
+Please see our **[Performance and Logging Guide](docs/PERFORMANCE_AND_LOGGING.md)**.
+
+## Timing Metrics
+
+For detailed documentation on timing metrics, including:
+
+- **HTTP Request Processing Time**: Complete request-response cycle timing
+- **TCP Connection Timings**: Connection establishment and duration metrics
+- **SSL Handshake Time**: TLS/SSL negotiation timing
+- **Visual Diagrams**: Request lifecycle flow and timing relationships
+- **Configuration**: How to enable and use timing metrics
+
+Please see our **[Timing Metrics Documentation](docs/TIMING_METRICS.md)**.
+
+## Architecture Documentation
+
+For detailed information about LittleProxy's internal architecture, including:
+
+- **Request Handling Flow**: How requests are processed from client to server
+- **Component Architecture**: Key classes and their responsibilities
+- **Connection Management**: How connections are established and managed
+- **Threading Model**: How requests are handled concurrently
+- **Data Flow**: Detailed request/response flow diagrams
+
+Please see our **[Request Handling Architecture](docs/LittleProxy_Request_Handling_Architecture.md)**.
 
 Acknowledgments
 ---------------
