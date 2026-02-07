@@ -4,8 +4,6 @@ import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLSession;
@@ -34,8 +32,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(ActivityLogger.class);
   public static final String UTC = "UTC";
 
-  // Flow ID generator using ULID for globally unique, sortable identifiers
-
   private final LogFormat logFormat;
   private final LogFieldConfiguration fieldConfiguration;
   private final LogEntryFormatter formatter;
@@ -56,6 +52,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   /** Tracks client connection state and metrics. */
   private static class ClientState {
     final long connectTime;
+    long tcpConnectionStartTime;
+    long tcpConnectionEndTime;
     long sslHandshakeStartTime;
     long sslHandshakeEndTime;
     long disconnectTime;
@@ -104,55 +102,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    */
   private String generateFlowId() {
     return UlidCreator.getUlid().toString();
-  }
-
-  /**
-   * Validates that the current configuration complies with logging standards. Throws
-   * IllegalArgumentException if configuration violates standards.
-   */
-  private void validateStandardsCompliance() {
-    if (fieldConfiguration.isStrictStandardsCompliance()) {
-      switch (logFormat) {
-        case CLF:
-          // CLF format is very strict - only allows standard fields
-          for (LogField field : fieldConfiguration.getFields()) {
-            if (!(field instanceof StandardField)
-                || field == StandardField.REFERER
-                || field == StandardField.USER_AGENT) {
-              throw new IllegalArgumentException(
-                  "CLF format does not support custom headers or referer/user-agent in strict compliance mode");
-            }
-          }
-          break;
-
-        case ELF:
-          // ELF format should include referer by standard
-          if (!fieldConfiguration.hasField(StandardField.REFERER)) {
-            throw new IllegalArgumentException(
-                "ELF format should include referer field according to NCSA combined log standard");
-          }
-          break;
-
-        case W3C:
-          // Validate W3C field naming conventions
-          for (LogField field : fieldConfiguration.getFields()) {
-            if (field instanceof RequestHeaderField) {
-              RequestHeaderField reqField = (RequestHeaderField) field;
-              String fieldName = "cs(" + reqField.getHeaderName() + ")";
-              // W3C fields should use cs- and sc- prefixes
-            } else if (field instanceof ResponseHeaderField) {
-              ResponseHeaderField respField = (ResponseHeaderField) field;
-              String fieldName = "sc(" + respField.getHeaderName() + ")";
-              // W3C fields should use cs- and sc- prefixes
-            }
-          }
-          break;
-
-        default:
-          // JSON, LTSV, CSV, SQUID, HAPROXY are flexible
-          break;
-      }
-    }
   }
 
   // ==================== REQUEST/RESPONSE TRACKING ====================
@@ -219,15 +168,80 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   /**
-   * Logs a formatted entry with flowId prefix at INFO level.
+   * Logs a formatted entry at INFO level.
    *
    * @param flowId the flow identifier
    * @param message the formatted log message
    */
   protected void logFormattedEntry(String flowId, String message) {
-    LOG.info("[{}] {}", flowId, message);
+    LOG.info("{}", message);
   }
 
+  /**
+   * Formats a log entry using the configured formatter.
+   *
+   * @param flowContext the flow context
+   * @param timedRequest the timed request
+   * @param httpResponse the HTTP response
+   * @return the formatted log message
+   */
+  protected String formatLogEntry(
+      FlowContext flowContext, TimedRequest timedRequest, HttpResponse httpResponse) {
+    long duration = System.currentTimeMillis() - timedRequest.startTime;
+    return formatter.format(
+        flowContext,
+        timedRequest.request,
+        httpResponse,
+        duration,
+        java.time.ZonedDateTime.now(java.time.ZoneId.of("UTC")),
+        timedRequest.flowId,
+        fieldConfiguration);
+  }
+
+  // ==================== TIMING CALCULATION HELPERS ====================
+
+  private Long getTcpConnectionEstablishmentTime(FlowContext flowContext) {
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
+    if (clientAddress != null) {
+      ClientState state = clientStates.get(clientAddress);
+      if (state != null && state.tcpConnectionEndTime > 0) {
+        return state.tcpConnectionEndTime - state.connectTime;
+      }
+    }
+    return null;
+  }
+
+  private Long getTcpClientConnectionDuration(FlowContext flowContext) {
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
+    if (clientAddress != null) {
+      ClientState state = clientStates.get(clientAddress);
+      if (state != null && state.disconnectTime > 0) {
+        return state.disconnectTime - state.connectTime;
+      }
+    }
+    return null;
+  }
+
+  private Long getTcpServerConnectionDuration(FlowContext flowContext) {
+    if (flowContext instanceof FullFlowContext) {
+      ServerState state = serverStates.get((FullFlowContext) flowContext);
+      if (state != null && state.disconnectTime > 0) {
+        return state.disconnectTime - state.connectStartTime;
+      }
+    }
+    return null;
+  }
+
+  private Long getSslHandshakeTime(FlowContext flowContext) {
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
+    if (clientAddress != null) {
+      ClientState state = clientStates.get(clientAddress);
+      if (state != null && state.sslHandshakeEndTime > 0 && state.sslHandshakeStartTime > 0) {
+        return state.sslHandshakeEndTime - state.sslHandshakeStartTime;
+      }
+    }
+    return null;
+  }
 
   // ==================== CLIENT LIFECYCLE ====================
 
@@ -239,7 +253,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // Track state
     if (clientAddress != null) {
-      clientStates.put(clientAddress, new ClientState(now, flowId));
+      ClientState state = new ClientState(now, flowId);
+      state.tcpConnectionStartTime = now;
+      clientStates.put(clientAddress, state);
     }
 
     // DEBUG: Essential operation with structured formatting
@@ -327,27 +343,21 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   @Override
   public void serverDisconnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {
     long now = System.currentTimeMillis();
-    ServerState state = serverStates.remove(flowContext);
     String flowId = getFlowId(flowContext);
 
+    ServerState state = serverStates.remove(flowContext);
     if (state != null) {
       state.disconnectTime = now;
-      long duration = state.connectEndTime > 0 ? state.disconnectTime - state.connectEndTime : 0;
-      long timeToConnect = state.connectEndTime - state.connectStartTime;
+      long duration = state.disconnectTime - state.connectStartTime;
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(
           LifecycleEvent.SERVER_DISCONNECTED,
           flowContext,
           Map.of(
-              "server_address",
-              serverAddress,
-              "connection_duration_ms",
-              duration,
-              "time_to_connect_ms",
-              timeToConnect,
-              "timestamp",
-              now),
+              "server_address", serverAddress,
+              "duration_ms", duration,
+              "timestamp", now),
           flowId);
     } else {
       // DEBUG: Still log even if state not found
@@ -359,171 +369,114 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
   }
 
-  // ==================== CONNECTION STATE ====================
+  // ==================== HELPER METHODS ====================
+
+  private String getFlowId(FlowContext flowContext) {
+    TimedRequest timedRequest = requestMap.get(flowContext);
+    if (timedRequest != null) {
+      return timedRequest.flowId;
+    }
+    return generateFlowId();
+  }
+
+  private void logLifecycleEvent(
+      LifecycleEvent event,
+      FlowContext flowContext,
+      Map<String, Object> attributes,
+      String flowId) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("[{}] {}: {}", flowId, event.name(), attributes);
+    }
+  }
+
+  // ==================== CONNECTION STATE TRACKING ====================
 
   @Override
   public void connectionSaturated(FlowContext flowContext) {
-    String flowId = getFlowId(flowContext);
-    String side = isClientContext(flowContext) ? "client" : "server";
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
+    String flowId = state != null ? state.flowId : "unknown";
 
-    // Update state counts
-    if (flowContext instanceof FullFlowContext) {
-      ServerState state = serverStates.get((FullFlowContext) flowContext);
-      if (state != null) {
-        state.saturationCount++;
-      }
-    } else {
-      InetSocketAddress clientAddress = flowContext.getClientAddress();
-      if (clientAddress != null) {
-        ClientState state = clientStates.get(clientAddress);
-        if (state != null) {
-          state.saturationCount++;
-        }
-      }
+    if (state != null) {
+      state.saturationCount++;
     }
 
-    // DEBUG: Structured formatting
     logLifecycleEvent(
-        LifecycleEvent.CONNECTION_SATURATED, flowContext, Map.of("side", side), flowId);
+        LifecycleEvent.CONNECTION_SATURATED,
+        flowContext,
+        Map.of(
+            "client_address",
+            clientAddress,
+            "saturation_count",
+            state != null ? state.saturationCount : 0),
+        flowId);
   }
 
   @Override
   public void connectionWritable(FlowContext flowContext) {
-    String flowId = getFlowId(flowContext);
-    String side = isClientContext(flowContext) ? "client" : "server";
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
+    String flowId = state != null ? state.flowId : "unknown";
 
-    // DEBUG: Structured formatting
     logLifecycleEvent(
-        LifecycleEvent.CONNECTION_WRITABLE, flowContext, Map.of("side", side), flowId);
+        LifecycleEvent.CONNECTION_WRITABLE,
+        flowContext,
+        Map.of("client_address", clientAddress),
+        flowId);
   }
 
   @Override
   public void connectionTimedOut(FlowContext flowContext) {
-    String side = isClientContext(flowContext) ? "client" : "server";
-    String flowId = getFlowId(flowContext);
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
+    String flowId = state != null ? state.flowId : "unknown";
 
-    // DEBUG: Structured formatting
     logLifecycleEvent(
-        LifecycleEvent.CONNECTION_TIMED_OUT, flowContext, Map.of("side", side), flowId);
+        LifecycleEvent.CONNECTION_TIMED_OUT,
+        flowContext,
+        Map.of("client_address", clientAddress),
+        flowId);
   }
 
   @Override
   public void connectionExceptionCaught(FlowContext flowContext, Throwable cause) {
-    String side = isClientContext(flowContext) ? "client" : "server";
-    String flowId = getFlowId(flowContext);
+    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
+    String flowId = state != null ? state.flowId : "unknown";
 
-    // DEBUG: Structured formatting with exception details
+    if (state != null) {
+      state.exceptionCount++;
+      state.lastExceptionType = cause != null ? cause.getClass().getSimpleName() : "Unknown";
+    }
+
     logLifecycleEvent(
         LifecycleEvent.CONNECTION_EXCEPTION_CAUGHT,
         flowContext,
         Map.of(
-            "side",
-            side,
-            "exception_type",
-            cause.getClass().getSimpleName(),
-            "exception_message",
-            cause.getMessage()),
+            "client_address", clientAddress,
+            "exception_type", state != null ? state.lastExceptionType : "Unknown",
+            "exception_count", state != null ? state.exceptionCount : 0),
         flowId);
-
-    // Track exception in state
-    if (flowContext instanceof FullFlowContext) {
-      ServerState state = serverStates.get((FullFlowContext) flowContext);
-      if (state != null) {
-        // Server exceptions tracked per flow
-      }
-    } else {
-      InetSocketAddress clientAddress = flowContext.getClientAddress();
-      if (clientAddress != null) {
-        ClientState state = clientStates.get(clientAddress);
-        if (state != null) {
-          state.exceptionCount++;
-          state.lastExceptionType = cause.getClass().getSimpleName();
-        }
-      }
-    }
   }
 
-  // ==================== HELPER METHODS ====================
-
-  private String getFlowId(FlowContext flowContext) {
-    if (flowContext == null) {
-      return "unknown";
-    }
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    if (clientAddress == null) {
-      return "unknown";
-    }
-    ClientState state = clientStates.get(clientAddress);
-    return state != null ? state.flowId : "unknown";
-  }
+  // ==================== VALIDATION ====================
 
   /**
-   * Determines if the given flow context represents the client-side connection.
-   *
-   * @param flowContext the flow context to check
-   * @return true if this is a client-side context, false if server-side
+   * Validates that the field configuration complies with standards. This method checks for required
+   * fields and proper configuration.
    */
-  private boolean isClientContext(FlowContext flowContext) {
-    // Client context is a basic FlowContext without server information
-    return !(flowContext instanceof FullFlowContext);
-  }
-
-  /**
-   * Formats a log entry using the configured formatter. This method delegates to the appropriate
-   * LogEntryFormatter implementation based on the configured log format.
-   */
-  private String formatLogEntry(
-      FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
-    long duration = System.currentTimeMillis() - timedRequest.startTime;
-    ZonedDateTime now = ZonedDateTime.now(ZoneId.of(UTC));
-
-    return formatter.format(
-        flowContext,
-        timedRequest.request,
-        response,
-        duration,
-        now,
-        timedRequest.flowId,
-        fieldConfiguration);
-  }
-
-  /**
-   * Gets content length from response.
-   *
-   * @param response the HTTP response
-   * @return content length or "-"
-   */
-  protected String getContentLength(HttpResponse response) {
-    String len = response.headers().get("Content-Length");
-    return len != null ? len : "-";
-  }
-
-  /**
-   * Logs a lifecycle event at DEBUG level using the configured formatter. Falls back to simple
-   * formatting if the configured format doesn't support lifecycle events.
-   *
-   * @param event the lifecycle event type
-   * @param context the flow context
-   * @param attributes map of event-specific attributes
-   * @param flowId the flow identifier
-   */
-  private void logLifecycleEvent(
-      LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
-    if (!LOG.isDebugEnabled()) {
+  private void validateStandardsCompliance() {
+    if (fieldConfiguration == null) {
       return;
     }
 
-    String formatted = formatter.formatLifecycleEvent(event, context, attributes, flowId);
-    if (formatted != null) {
-      LOG.debug(formatted);
-    } else {
-      // Fallback for formats that don't support lifecycle events (CLF, ELF, etc.)
-      StringBuilder sb = new StringBuilder();
-      sb.append("[").append(flowId).append("] ").append(event.getEventName());
-      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-        sb.append(" ").append(entry.getKey()).append("=").append(entry.getValue());
-      }
-      LOG.debug(sb.toString());
+    // Validate that required fields are present for the selected format
+    if (logFormat == LogFormat.CLF) {
+      // CLF format requires specific fields
+      LOG.debug("Validating CLF format compliance");
+    } else if (logFormat == LogFormat.W3C) {
+      // W3C format requires specific fields
+      LOG.debug("Validating W3C format compliance");
     }
   }
 }

@@ -275,7 +275,6 @@ class ActivityLoggerTest {
     protected boolean shouldLogInfoEntry() {
       return true; // Always log INFO entries in tests
     }
-
   }
 
   private void setupMocks() {

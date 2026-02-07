@@ -24,7 +24,7 @@ public class APIManagementConfig {
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
         .addStandardField(StandardField.BYTES)
-        .addStandardField(StandardField.DURATION)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
         .addStandardField(StandardField.USER_AGENT)
 
         // API versioning headers
@@ -131,7 +131,7 @@ public class APIManagementConfig {
         .addStandardField(StandardField.METHOD)
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
-        .addStandardField(StandardField.DURATION)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
 
         // Essential API headers
         .addRequestHeader("X-Request-ID", "x_request_id")
@@ -162,7 +162,7 @@ public class APIManagementConfig {
         .addStandardField(StandardField.METHOD)
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
-        .addStandardField(StandardField.DURATION)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
 
         // Rate limiting headers
         .addRequestHeader("X-Rate-Limit-Key", "x_rate_limit_key")
@@ -200,7 +200,7 @@ public class APIManagementConfig {
         .addStandardField(StandardField.METHOD)
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
-        .addStandardField(StandardField.DURATION)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
 
         // Correlation and tracing headers
         .addRequestHeader("X-Request-ID", "x_request_id")
