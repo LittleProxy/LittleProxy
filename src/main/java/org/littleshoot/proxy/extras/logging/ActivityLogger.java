@@ -390,7 +390,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       Map<String, Object> attributes,
       String flowId) {
     if (LOG.isDebugEnabled()) {
-      LOG.debug("[{}] {}: {}", flowId, event.name(), attributes);
+      String formattedEvent =
+          formatter.formatLifecycleEvent(event, flowContext, attributes, flowId);
+      if (formattedEvent != null) {
+        LOG.debug("{}", formattedEvent);
+      } else {
+        // Fallback to simple format if lifecycle events not supported by this formatter
+        LOG.debug("[{}] {}: {}", flowId, event.name(), attributes);
+      }
     }
   }
 
