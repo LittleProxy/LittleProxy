@@ -22,7 +22,6 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
       FlowContext context,
       HttpRequest request,
       HttpResponse response,
-      long durationMs,
       ZonedDateTime now,
       String flowId,
       LogFieldConfiguration fieldConfig) {
@@ -126,7 +125,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         }
         first = false;
 
-        String value = field.extractValue(context, request, response, durationMs);
+        String value = field.extractValue(context, request, response);
         sb.append("\"")
             .append(field.getName())
             .append("\":\"")

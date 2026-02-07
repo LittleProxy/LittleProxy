@@ -86,8 +86,7 @@ public class ExcludeRequestHeaderField implements LogField {
   }
 
   @Override
-  public String extractValue(
-      FlowContext flowContext, HttpRequest request, HttpResponse response, long duration) {
+  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     return "-";
   }
 

@@ -58,8 +58,7 @@ public enum StandardField implements LogField {
   }
 
   @Override
-  public String extractValue(
-      FlowContext flowContext, HttpRequest request, HttpResponse response, long duration) {
+  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     switch (this) {
       case TIMESTAMP:
         return ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
@@ -85,7 +84,8 @@ public enum StandardField implements LogField {
         return contentLength != null ? contentLength : "-";
 
       case HTTP_REQUEST_PROCESSING_TIME:
-        return String.valueOf(duration);
+        Long httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time");
+        return httpRequestProcessingTime != null ? String.valueOf(httpRequestProcessingTime) : "-";
 
       case REFERER:
         String referer = request.headers().get("Referer");
@@ -98,8 +98,30 @@ public enum StandardField implements LogField {
       case PROTOCOL:
         return request.protocolVersion().text();
 
+      case TCP_CONNECTION_ESTABLISHMENT_TIME:
+        Long tcpConnectionEstablishmentTime =
+            flowContext.getTimingData("tcp_connection_establishment_time");
+        return tcpConnectionEstablishmentTime != null
+            ? String.valueOf(tcpConnectionEstablishmentTime)
+            : "-";
+
+      case TCP_CLIENT_CONNECTION_HTTP_REQUEST_PROCESSING_TIME:
+        Long tcpClientConnectionDuration =
+            flowContext.getTimingData("tcp_client_connection_duration");
+        return tcpClientConnectionDuration != null
+            ? String.valueOf(tcpClientConnectionDuration)
+            : "-";
+
+      case TCP_SERVER_CONNECTION_HTTP_REQUEST_PROCESSING_TIME:
+        Long tcpServerConnectionDuration =
+            flowContext.getTimingData("tcp_server_connection_duration");
+        return tcpServerConnectionDuration != null
+            ? String.valueOf(tcpServerConnectionDuration)
+            : "-";
+
       case SSL_HANDSHAKE_TIME:
-        return "-";
+        Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time");
+        return sslHandshakeTime != null ? String.valueOf(sslHandshakeTime) : "-";
 
       case SATURATION_COUNT:
         return "-";

@@ -30,9 +30,7 @@ public interface LogField {
    * @param flowContext the flow context
    * @param request the HTTP request
    * @param response the HTTP response
-   * @param duration the request processing duration in milliseconds
    * @return the extracted value, or "-" if not available
    */
-  String extractValue(
-      FlowContext flowContext, HttpRequest request, HttpResponse response, long duration);
+  String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response);
 }

@@ -106,8 +106,7 @@ public class RegexResponseHeaderField implements LogField {
   }
 
   @Override
-  public String extractValue(
-      FlowContext flowContext, HttpRequest request, HttpResponse response, long duration) {
+  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     // This method is not used directly for pattern fields
     // Instead, use extractMatchingHeaders() to get all matches
     return "-";

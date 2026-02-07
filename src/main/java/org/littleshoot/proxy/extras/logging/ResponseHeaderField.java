@@ -48,8 +48,7 @@ public class ResponseHeaderField implements LogField {
   }
 
   @Override
-  public String extractValue(
-      FlowContext flowContext, HttpRequest request, HttpResponse response, long duration) {
+  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     String value = response.headers().get(headerName);
     return value != null ? value : "-";
   }

@@ -37,8 +37,7 @@ public enum ComputedField implements LogField {
   }
 
   @Override
-  public String extractValue(
-      FlowContext flowContext, HttpRequest request, HttpResponse response, long duration) {
+  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     switch (this) {
       case CACHE_HIT_RATIO:
         return extractCacheHitRatio(request, response);
@@ -50,7 +49,10 @@ public enum ComputedField implements LogField {
         return extractGeolocationCountry(flowContext);
 
       case RESPONSE_TIME_CATEGORY:
-        return categorizeResponseTime(duration);
+        Long httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time");
+        return httpRequestProcessingTime != null
+            ? categorizeResponseTime(httpRequestProcessingTime)
+            : "-";
 
       case REQUEST_SIZE:
         return extractRequestSize(request);

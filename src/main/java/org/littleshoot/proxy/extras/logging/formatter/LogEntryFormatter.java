@@ -21,7 +21,6 @@ public interface LogEntryFormatter {
    * @param context the flow context containing client and server connection information
    * @param request the HTTP request
    * @param response the HTTP response
-   * @param durationMs the request processing duration in milliseconds
    * @param now the current timestamp with timezone
    * @param flowId the unique flow identifier for tracing
    * @param fieldConfig the field configuration determining which fields to include
@@ -31,7 +30,6 @@ public interface LogEntryFormatter {
       FlowContext context,
       HttpRequest request,
       HttpResponse response,
-      long durationMs,
       ZonedDateTime now,
       String flowId,
       LogFieldConfiguration fieldConfig);

@@ -25,7 +25,6 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
       FlowContext context,
       HttpRequest request,
       HttpResponse response,
-      long durationMs,
       ZonedDateTime now,
       String flowId,
       LogFieldConfiguration fieldConfig) {
@@ -47,6 +46,9 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
       }
     }
 
+    // Get timing data from flow context
+    String httpRequestMs = getTimingData(context, "http_request_processing_time");
+
     // Build structured log entry: flow_id=... client_ip=... key=value pairs
     sb.append("flow_id=").append(flowId);
     sb.append(" client_ip=").append(clientIp);
@@ -58,7 +60,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     sb.append(" protocol=").append(request.protocolVersion());
     sb.append(" status=").append(response.status().code());
     sb.append(" bytes=").append(getContentLength(response));
-    sb.append(" http_request_ms=").append(durationMs);
+    sb.append(" http_request_ms=").append(httpRequestMs);
 
     return sb.toString();
   }

@@ -164,6 +164,18 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
   }
 
   /**
+   * Gets timing data from flow context.
+   *
+   * @param context the flow context
+   * @param key the timing metric key
+   * @return timing value as string, or "-" if not available
+   */
+  protected String getTimingData(FlowContext context, String key) {
+    Long value = context.getTimingData(key);
+    return value != null ? String.valueOf(value) : "-";
+  }
+
+  /**
    * Gets client port from flow context.
    *
    * @param context the flow context

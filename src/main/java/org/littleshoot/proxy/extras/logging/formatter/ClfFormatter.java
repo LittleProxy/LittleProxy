@@ -21,7 +21,6 @@ public class ClfFormatter extends AbstractLogEntryFormatter {
       FlowContext context,
       HttpRequest request,
       HttpResponse response,
-      long durationMs,
       ZonedDateTime now,
       String flowId,
       LogFieldConfiguration fieldConfig) {

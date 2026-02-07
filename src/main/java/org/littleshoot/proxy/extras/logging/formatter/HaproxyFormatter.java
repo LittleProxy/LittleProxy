@@ -22,7 +22,6 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
       FlowContext context,
       HttpRequest request,
       HttpResponse response,
-      long durationMs,
       ZonedDateTime now,
       String flowId,
       LogFieldConfiguration fieldConfig) {
@@ -30,6 +29,9 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
     StringBuilder sb = new StringBuilder();
     String clientIp = getClientIp(context);
     int clientPort = getClientPort(context);
+
+    // Get timing data from flow context
+    String durationMs = getTimingData(context, "http_request_processing_time");
 
     // HAProxy HTTP log format:
     // process[pid]: client_ip:port [accept_date] frontend backend/server Tq Tw Tc Tr Ta status
