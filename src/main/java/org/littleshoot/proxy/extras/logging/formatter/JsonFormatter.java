@@ -144,4 +144,23 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
   public LogFormat getSupportedFormat() {
     return LogFormat.JSON;
   }
+
+  @Override
+  public String formatLifecycleEvent(
+      LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("{");
+    sb.append("\"event\":\"").append(event.getEventName()).append("\"");
+    sb.append(",\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
+    sb.append(",\"client_ip\":\"").append(escapeJson(getClientIp(context))).append("\"");
+
+    // Add all event-specific attributes
+    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+      sb.append(",\"").append(entry.getKey()).append("\":\"");
+      sb.append(escapeJson(String.valueOf(entry.getValue()))).append("\"");
+    }
+
+    sb.append("}");
+    return sb.toString();
+  }
 }

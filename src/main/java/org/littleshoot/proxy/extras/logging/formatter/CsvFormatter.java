@@ -111,4 +111,20 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
   public LogFormat getSupportedFormat() {
     return LogFormat.CSV;
   }
+
+  @Override
+  public String formatLifecycleEvent(
+      LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("\"").append(event.getEventName()).append("\"");
+    sb.append(",\"").append(escapeJson(flowId)).append("\"");
+    sb.append(",\"").append(escapeJson(getClientIp(context))).append("\"");
+
+    // Add all event-specific attributes
+    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+      sb.append(",\"").append(escapeJson(String.valueOf(entry.getValue()))).append("\"");
+    }
+
+    return sb.toString();
+  }
 }

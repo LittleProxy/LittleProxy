@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 
@@ -196,5 +197,22 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
   protected String format(ZonedDateTime zonedDateTime, String pattern) {
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern(pattern, Locale.US);
     return zonedDateTime.format(dtf);
+  }
+
+  /**
+   * Default implementation for lifecycle event formatting. Returns null by default, indicating that
+   * this format does not support lifecycle events. Subclasses should override this method to
+   * provide format-specific lifecycle event formatting.
+   *
+   * @param event the lifecycle event type
+   * @param context the flow context containing client and server connection information
+   * @param attributes map of event-specific attributes
+   * @param flowId the unique flow identifier for tracing
+   * @return null by default, or formatted string if overridden
+   */
+  @Override
+  public String formatLifecycleEvent(
+      LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
+    return null;
   }
 }

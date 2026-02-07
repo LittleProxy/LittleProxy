@@ -4,6 +4,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
@@ -65,5 +66,21 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
   @Override
   public LogFormat getSupportedFormat() {
     return LogFormat.KEYVALUE;
+  }
+
+  @Override
+  public String formatLifecycleEvent(
+      LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("event=").append(event.getEventName());
+    sb.append(" flow_id=").append(flowId);
+    sb.append(" client_ip=").append(getClientIp(context));
+
+    // Add all event-specific attributes
+    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+      sb.append(" ").append(entry.getKey()).append("=").append(entry.getValue());
+    }
+
+    return sb.toString();
   }
 }

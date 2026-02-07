@@ -111,4 +111,20 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
   public LogFormat getSupportedFormat() {
     return LogFormat.LTSV;
   }
+
+  @Override
+  public String formatLifecycleEvent(
+      LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("event:").append(event.getEventName());
+    sb.append("\tflow_id:").append(flowId);
+    sb.append("\tclient_ip:").append(getClientIp(context));
+
+    // Add all event-specific attributes
+    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+      sb.append("\t").append(entry.getKey()).append(":").append(entry.getValue());
+    }
+
+    return sb.toString();
+  }
 }
