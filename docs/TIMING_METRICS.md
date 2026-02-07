@@ -33,7 +33,7 @@ LittleProxy tracks timing data throughout the lifecycle of both client-to-proxy 
 
 ## Individual Timing Metrics
 
-### 1. `http_request_processing_time`
+### 1. `http_request_processing_time_ms`
 
 The total duration of a single HTTP request-response cycle as seen by the proxy.
 
@@ -51,7 +51,7 @@ The total duration of a single HTTP request-response cycle as seen by the proxy.
 ```text
 Request Start                                     Response End
       |                                                |
-      v <----------- http_request_processing_time ----> v
+      v <----------- http_request_processing_time_ms ----> v
       +------------------------------------------------+
       |  Receive  |  Proxy  |  Server  |  Receive |  Send  |
       |  Request  |  Logic  |  Wait    |  Data    |  Data  |
@@ -60,7 +60,7 @@ Request Start                                     Response End
 
 ---
 
-### 2. `tcp_connection_establishment_time`
+### 2. `tcp_connection_establishment_time_ms`
 
 The time taken specifically to establish a network connection to the upstream server.
 
@@ -75,7 +75,7 @@ The time taken specifically to establish a network connection to the upstream se
 ```text
 Connect Call                                      Connected
       |                                                |
-      v <--- tcp_connection_establishment_time ---> v
+      v <--- tcp_connection_establishment_time_ms ---> v
       +---------------------------------------------+
       |           TCP 3-Way Handshake               |
       +---------------------------------------------+
@@ -83,7 +83,7 @@ Connect Call                                      Connected
 
 ---
 
-### 3. `tcp_client_connection_duration`
+### 3. `tcp_client_connection_duration_ms`
 
 The total lifetime of the client's connection to the proxy.
 
@@ -99,7 +99,7 @@ The total lifetime of the client's connection to the proxy.
 ```text
 Client Connect                                  Client Disconnect
       |                                                |
-      v <--------- tcp_client_connection_duration ----> v
+      v <--------- tcp_client_connection_duration_ms ----> v
       +------------------------------------------------+
       | Connect | Request 1 | Idle | Request 2 | Close |
       +------------------------------------------------+
@@ -107,7 +107,7 @@ Client Connect                                  Client Disconnect
 
 ---
 
-### 4. `tcp_server_connection_duration`
+### 4. `tcp_server_connection_duration_ms`
 
 The total lifetime of the proxy's connection to the upstream server.
 
@@ -123,7 +123,7 @@ The total lifetime of the proxy's connection to the upstream server.
 ```text
 Proxy Connect                                   Proxy Disconnect
       |                                                |
-      v <--------- tcp_server_connection_duration ----> v
+      v <--------- tcp_server_connection_duration_ms ----> v
       +------------------------------------------------+
       | Connect | Request 1 | Idle | Request 2 | Close |
       +------------------------------------------------+
@@ -131,7 +131,7 @@ Proxy Connect                                   Proxy Disconnect
 
 ---
 
-### 5. `ssl_handshake_time`
+### 5. `ssl_handshake_time_ms`
 
 The duration of the SSL/TLS handshake between the client and the proxy.
 
@@ -147,7 +147,7 @@ The duration of the SSL/TLS handshake between the client and the proxy.
 ```text
 Handshake Start                                Handshake Success
       |                                                |
-      v <----------- ssl_handshake_time -------------> v
+      v <----------- ssl_handshake_time_ms -------------> v
       +------------------------------------------------+
       | ClientHello | ServerHello | KeyEx | Finished   |
       +------------------------------------------------+
@@ -159,9 +159,9 @@ Handshake Start                                Handshake Success
 
 Understanding how these metrics overlap is crucial for debugging:
 
-1.  **Request vs. Connection**: `http_request_processing_time` is usually a subset of `tcp_client_connection_duration`. However, if the connection is reused for multiple requests, the connection duration will span across multiple request processing times.
-2.  **Server Connect vs. Request**: If the proxy has a pooled connection to the server, `tcp_connection_establishment_time` will be **0** (or not present) for subsequent requests, significantly reducing the `http_request_processing_time`.
-3.  **SSL vs. Request**: `ssl_handshake_time` happens before the first HTTP request on a connection. It is included in `tcp_client_connection_duration` but **not** in `http_request_processing_time`.
+1. **Request vs. Connection**: `http_request_processing_time_ms` is usually a subset of `tcp_client_connection_duration_ms`. However, if the connection is reused for multiple requests, the connection duration will span across multiple request processing times.
+2. **Server Connect vs. Request**: If the proxy has a pooled connection to the server, `tcp_connection_establishment_time_ms` will be **0** (or not present) for subsequent requests, significantly reducing the `http_request_processing_time_ms`.
+3. **SSL vs. Request**: `ssl_handshake_time_ms` happens before the first HTTP request on a connection. It is included in `tcp_client_connection_duration_ms` but **not** in `http_request_processing_time_ms`.
 
 ---
 
@@ -171,34 +171,34 @@ This diagram shows the complete request lifecycle with all timings mapped:
 
 ```text
 EVENT                          TIMING METRIC
--------------------------------------------------------------------------------
-Client Connect                 [tcp_client_connection_duration starts]
-  |
-  |--- TCP Handshake ---       [tcp_connection_establishment_time (Client side)]
-  |
-SSL Handshake Started          [ssl_handshake_time starts]
-  |
-SSL Handshake Finished         [ssl_handshake_time ends]
-  |
-HTTP Request Received          [http_request_processing_time starts]
-  |
-  |--- DNS Resolution ---
-  |
-  |--- Server Connect ---      [tcp_connection_establishment_time starts]
-  |                            [tcp_server_connection_duration starts]
-  |
-  |--- Server Connect OK -     [tcp_connection_establishment_time ends]
-  |
-  |--- Server Request ---
-  |
-  |--- Server Response ---
-  |
-HTTP Response Sent             [http_request_processing_time ends]
-  |
-(Idle / More Requests)
-  |
-Client Disconnect              [tcp_client_connection_duration ends]
-Server Disconnect              [tcp_server_connection_duration ends]
+ -------------------------------------------------------------------------------
+ Client Connect                 [tcp_client_connection_duration_ms starts]
+   |
+   |--- TCP Handshake ---       [tcp_connection_establishment_time_ms (Client side)]
+   |
+ SSL Handshake Started          [ssl_handshake_time_ms starts]
+   |
+ SSL Handshake Finished         [ssl_handshake_time_ms ends]
+   |
+ HTTP Request Received          [http_request_processing_time_ms starts]
+   |
+   |--- DNS Resolution ---
+   |
+   |--- Server Connect ---      [tcp_connection_establishment_time_ms starts]
+   |                            [tcp_server_connection_duration_ms starts]
+   |
+   |--- Server Connect OK -     [tcp_connection_establishment_time_ms ends]
+   |
+   |--- Server Request ---
+   |
+   |--- Server Response ---
+   |
+ HTTP Response Sent             [http_request_processing_time_ms ends]
+   |
+ (Idle / More Requests)
+   |
+ Client Disconnect              [tcp_client_connection_duration_ms ends]
+ Server Disconnect              [tcp_server_connection_duration_ms ends]
 ```
 
 ---
@@ -233,8 +233,8 @@ Timing data is stored in the `FlowContext`. You can access it within your `HttpF
 ```java
 @Override
 public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
-    Long requestTime = flowContext.getTimingData("http_request_processing_time");
-    Long sslTime = flowContext.getTimingData("ssl_handshake_time");
+    Long requestTime = flowContext.getTimingData("http_request_processing_time_ms");
+    Long sslTime = flowContext.getTimingData("ssl_handshake_time_ms");
     
     System.out.println("Request took: " + requestTime + "ms");
     if (sslTime != null) {
@@ -245,7 +245,7 @@ public void responseSentToClient(FlowContext flowContext, HttpResponse httpRespo
 
 ## Best Practices
 
-1.  **Monitor `tcp_connection_establishment_time`**: High values here indicate network congestion between the proxy and the origin server or DNS resolution issues.
-2.  **Compare `http_request_processing_time` with Server Logs**: If the proxy's processing time is significantly higher than the origin server's logged response time, the bottleneck is likely in the proxy's filters or the network between proxy and server.
-3.  **Use Connection Pooling**: Reusing server connections (keeping `tcp_server_connection_duration` high) avoids the overhead of `tcp_connection_establishment_time` for every request.
-4.  **Analyze `ssl_handshake_time`**: If this is high, consider optimizing your SSL/TLS configuration (e.g., enabling session resumption or using faster cipher suites).
+1. **Monitor `tcp_connection_establishment_time_ms`**: High values here indicate network congestion between the proxy and the origin server or DNS resolution issues.
+2. **Compare `http_request_processing_time_ms` with Server Logs**: If the proxy's processing time is significantly higher than the origin server's logged response time, the bottleneck is likely in the proxy's filters or the network between proxy and server.
+3. **Use Connection Pooling**: Reusing server connections (keeping `tcp_server_connection_duration_ms` high) avoids the overhead of `tcp_connection_establishment_time_ms` for every request.
+4. **Analyze `ssl_handshake_time_ms`**: If this is high, consider optimizing your SSL/TLS configuration (e.g., enabling session resumption or using faster cipher suites).

@@ -24,7 +24,7 @@ public class PerformanceAnalyticsConfig {
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
         .addStandardField(StandardField.BYTES)
-        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
 
         // Performance request headers
         .addRequestHeader("Accept-Encoding", "accept_encoding")
@@ -88,7 +88,7 @@ public class PerformanceAnalyticsConfig {
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
         .addStandardField(StandardField.BYTES)
-        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
 
         // CDN-specific headers
         .addRequestHeader("CF-Connecting-IP", "cf_connecting_ip")
@@ -158,7 +158,7 @@ public class PerformanceAnalyticsConfig {
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
         .addStandardField(StandardField.BYTES)
-        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
 
         // Compression headers
         .addRequestHeader("Accept-Encoding", "accept_encoding")

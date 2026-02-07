@@ -198,7 +198,7 @@ class ActivityLoggerTest {
     assertThat(tracker.lastLogMessage).contains("uri:/test");
     assertThat(tracker.lastLogMessage).contains("status:200");
     assertThat(tracker.lastLogMessage).contains("bytes:100");
-    assertThat(tracker.lastLogMessage).contains("duration:");
+    assertThat(tracker.lastLogMessage).contains("http_request_processing_time_ms:");
   }
 
   @Test

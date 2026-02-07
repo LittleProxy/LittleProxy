@@ -136,7 +136,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     long duration = System.currentTimeMillis() - timedRequest.startTime;
 
     // Store timing data in FlowContext
-    flowContext.setTimingData("http_request_processing_time", duration);
+    flowContext.setTimingData("http_request_processing_time_ms", duration);
 
     // DEBUG: Structured formatting for response sent
     logLifecycleEvent(
@@ -209,8 +209,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   private Long getTcpConnectionEstablishmentTime(FlowContext flowContext) {
     // Get from FlowContext timing data
-    Long tcpConnectionStartTime = flowContext.getTimingData("tcp_connection_start_time");
-    Long tcpConnectionEndTime = flowContext.getTimingData("tcp_connection_end_time");
+    Long tcpConnectionStartTime = flowContext.getTimingData("tcp_connection_start_time_ms");
+    Long tcpConnectionEndTime = flowContext.getTimingData("tcp_connection_end_time_ms");
 
     if (tcpConnectionStartTime != null && tcpConnectionEndTime != null) {
       return tcpConnectionEndTime - tcpConnectionStartTime;
@@ -229,7 +229,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   private Long getTcpClientConnectionDuration(FlowContext flowContext) {
     // Get from FlowContext timing data
-    Long tcpClientConnectionDuration = flowContext.getTimingData("tcp_client_connection_duration");
+    Long tcpClientConnectionDuration =
+        flowContext.getTimingData("tcp_client_connection_duration_ms");
     if (tcpClientConnectionDuration != null) {
       return tcpClientConnectionDuration;
     }
@@ -247,7 +248,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   private Long getTcpServerConnectionDuration(FlowContext flowContext) {
     // Get from FlowContext timing data
-    Long tcpServerConnectionDuration = flowContext.getTimingData("tcp_server_connection_duration");
+    Long tcpServerConnectionDuration =
+        flowContext.getTimingData("tcp_server_connection_duration_ms");
     if (tcpServerConnectionDuration != null) {
       return tcpServerConnectionDuration;
     }
@@ -264,7 +266,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   private Long getSslHandshakeTime(FlowContext flowContext) {
     // Get from FlowContext timing data
-    Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time");
+    Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time_ms");
     if (sslHandshakeTime != null) {
       return sslHandshakeTime;
     }
@@ -289,7 +291,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     String flowId = generateFlowId();
 
     // Store timing data in FlowContext
-    flowContext.setTimingData("tcp_connection_start_time", now);
+    flowContext.setTimingData("tcp_connection_start_time_ms", now);
 
     // Track state
     if (clientAddress != null) {
@@ -319,7 +321,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       long duration = state.sslHandshakeEndTime - state.sslHandshakeStartTime;
 
       // Store SSL handshake timing in FlowContext
-      flowContext.setTimingData("ssl_handshake_time", duration);
+      flowContext.setTimingData("ssl_handshake_time_ms", duration);
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(
@@ -350,7 +352,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       long duration = state.disconnectTime - state.connectTime;
 
       // Store client connection duration in FlowContext
-      flowContext.setTimingData("tcp_client_connection_duration", duration);
+      flowContext.setTimingData("tcp_client_connection_duration_ms", duration);
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(
@@ -376,7 +378,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     String flowId = getFlowId(flowContext);
 
     // Store server connection start time in FlowContext
-    flowContext.setTimingData("tcp_server_connection_start_time", now);
+    flowContext.setTimingData("tcp_server_connection_start_time_ms", now);
 
     // Track state
     serverStates.put(flowContext, new ServerState(now, serverAddress));
@@ -400,7 +402,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       long duration = state.disconnectTime - state.connectStartTime;
 
       // Store server connection duration in FlowContext
-      flowContext.setTimingData("tcp_server_connection_duration", duration);
+      flowContext.setTimingData("tcp_server_connection_duration_ms", duration);
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(

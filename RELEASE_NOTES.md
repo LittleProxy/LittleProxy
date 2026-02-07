@@ -5,7 +5,7 @@
     - **ULID-based Flow IDs**: Globally unique, sortable identifiers (e.g., 01KGNMFEFZ84ZAR511NTRAFW13) replacing sequential flow IDs for better distributed tracing
     - **Enhanced ActivityTracker Interface**: New lifecycle methods (serverConnected, serverDisconnected, connectionSaturated, connectionWritable, connectionTimedOut, connectionExceptionCaught) and FlowContext support for richer connection state tracking
     - **Three-Tier Logging Strategy**: Structured TRACE/DEBUG/INFO logging with flow ID correlation across all levels
-    - **Timing Architecture Refactor**: Centralized timing data storage in FlowContext with configurable `--activity_timing_mode OFF|MINIMAL|ALL` CLI option; renamed duration fields for clarity
+     - **Timing Architecture Refactor**: Centralized timing data storage in FlowContext with configurable `--activity_timing_mode OFF|MINIMAL|ALL` CLI option; renamed duration fields for clarity with _ms suffix
     - **Standards-Compliant Formats**: Fixed W3C, Squid, and HAProxy log formats for full specification compliance
     - **Strategy Pattern Formatters**: Refactored log formatting into modular, testable formatter classes supporting CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, and KEYVALUE formats
     - **Advanced Field Configuration**: Builder pattern for custom logging fields, header filtering (prefix/regex matching), sensitive data masking, and pre-configured field sets (SecurityMonitoring, PerformanceAnalytics, APIManagement)
@@ -16,7 +16,7 @@
     - ActivityTracker method signatures changed to accept FlowContext instead of InetSocketAddress
     - LogField.extractValue() signature changed (removed duration parameter, use FlowContext.getTimingData())
     - LogEntryFormatter.format() signature changed (removed durationMs parameter, use FlowContext timing map)
-    - Duration field names updated (e.g., duration_ms → http_request_processing_time)
+     - Duration field names updated (e.g., duration_ms → http_request_processing_time_ms)
     - Custom implementations must update to new API signatures
   - Migration to Log4j2 with async logging support (#684) by Charles Lescot
   - Request Handling Architecture documentation (#690) by Charles Lescot

@@ -22,7 +22,7 @@ public class SecurityMonitoringConfig {
         .addStandardField(StandardField.METHOD)
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
-        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
         .addStandardField(StandardField.USER_AGENT)
         .addStandardField(StandardField.REFERER)
 
@@ -84,7 +84,7 @@ public class SecurityMonitoringConfig {
         .addStandardField(StandardField.METHOD)
         .addStandardField(StandardField.URI)
         .addStandardField(StandardField.STATUS)
-        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME)
+        .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
         .addStandardField(StandardField.USER_AGENT)
         .addStandardField(StandardField.REFERER)
 

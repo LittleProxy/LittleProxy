@@ -47,7 +47,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     }
 
     // Get timing data from flow context
-    String httpRequestMs = getTimingData(context, "http_request_processing_time");
+    String httpRequestMs = getTimingData(context, "http_request_processing_time_ms");
 
     // Build structured log entry: flow_id=... client_ip=... key=value pairs
     sb.append("flow_id=").append(flowId);

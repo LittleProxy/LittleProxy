@@ -31,7 +31,7 @@ public class SquidFormatter extends AbstractLogEntryFormatter {
     String clientIp = getClientIp(context);
 
     // Get timing data from flow context
-    String durationMs = getTimingData(context, "http_request_processing_time");
+    String durationMs = getTimingData(context, "http_request_processing_time_ms");
 
     // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
     // type

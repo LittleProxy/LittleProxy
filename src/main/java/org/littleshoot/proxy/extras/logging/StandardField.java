@@ -21,21 +21,21 @@ public enum StandardField implements LogField {
   URI("uri", "Request URI or full URL"),
   STATUS("status", "HTTP response status code"),
   BYTES("bytes", "Response content length in bytes"),
-  HTTP_REQUEST_PROCESSING_TIME(
-      "http_request_processing_time",
+  HTTP_REQUEST_PROCESSING_TIME_MS(
+      "http_request_processing_time_ms",
       "HTTP request processing duration from receipt to response (milliseconds)"),
   REFERER("referer", "Referer header from the request"),
   USER_AGENT("user_agent", "User-Agent header from the request"),
   PROTOCOL("protocol", "HTTP protocol version"),
-  TCP_CONNECTION_ESTABLISHMENT_TIME(
-      "tcp_connection_establishment_time",
+  TCP_CONNECTION_ESTABLISHMENT_TIME_MS(
+      "tcp_connection_establishment_time_ms",
       "Time to establish TCP connection to server in milliseconds"),
-  TCP_CLIENT_CONNECTION_HTTP_REQUEST_PROCESSING_TIME(
-      "tcp_client_connection_duration",
+  TCP_CLIENT_CONNECTION_DURATION_MS(
+      "tcp_client_connection_duration_ms",
       "Total client TCP connection lifetime from connect to disconnect (includes pre-request time, milliseconds)"),
-  TCP_SERVER_CONNECTION_HTTP_REQUEST_PROCESSING_TIME(
-      "tcp_server_connection_duration", "Total server TCP connection duration in milliseconds"),
-  SSL_HANDSHAKE_TIME("ssl_handshake_time", "SSL handshake duration in milliseconds"),
+  TCP_SERVER_CONNECTION_DURATION_MS(
+      "tcp_server_connection_duration_ms", "Total server TCP connection duration in milliseconds"),
+  SSL_HANDSHAKE_TIME_MS("ssl_handshake_time_ms", "SSL handshake duration in milliseconds"),
   SATURATION_COUNT("saturation_count", "Number of times connection became saturated"),
   EXCEPTION_TYPE("exception_type", "Type of exception if occurred");
 
@@ -83,8 +83,9 @@ public enum StandardField implements LogField {
         String contentLength = response.headers().get("Content-Length");
         return contentLength != null ? contentLength : "-";
 
-      case HTTP_REQUEST_PROCESSING_TIME:
-        Long httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time");
+      case HTTP_REQUEST_PROCESSING_TIME_MS:
+        Long httpRequestProcessingTime =
+            flowContext.getTimingData("http_request_processing_time_ms");
         return httpRequestProcessingTime != null ? String.valueOf(httpRequestProcessingTime) : "-";
 
       case REFERER:
@@ -98,29 +99,29 @@ public enum StandardField implements LogField {
       case PROTOCOL:
         return request.protocolVersion().text();
 
-      case TCP_CONNECTION_ESTABLISHMENT_TIME:
+      case TCP_CONNECTION_ESTABLISHMENT_TIME_MS:
         Long tcpConnectionEstablishmentTime =
-            flowContext.getTimingData("tcp_connection_establishment_time");
+            flowContext.getTimingData("tcp_connection_establishment_time_ms");
         return tcpConnectionEstablishmentTime != null
             ? String.valueOf(tcpConnectionEstablishmentTime)
             : "-";
 
-      case TCP_CLIENT_CONNECTION_HTTP_REQUEST_PROCESSING_TIME:
+      case TCP_CLIENT_CONNECTION_DURATION_MS:
         Long tcpClientConnectionDuration =
-            flowContext.getTimingData("tcp_client_connection_duration");
+            flowContext.getTimingData("tcp_client_connection_duration_ms");
         return tcpClientConnectionDuration != null
             ? String.valueOf(tcpClientConnectionDuration)
             : "-";
 
-      case TCP_SERVER_CONNECTION_HTTP_REQUEST_PROCESSING_TIME:
+      case TCP_SERVER_CONNECTION_DURATION_MS:
         Long tcpServerConnectionDuration =
-            flowContext.getTimingData("tcp_server_connection_duration");
+            flowContext.getTimingData("tcp_server_connection_duration_ms");
         return tcpServerConnectionDuration != null
             ? String.valueOf(tcpServerConnectionDuration)
             : "-";
 
-      case SSL_HANDSHAKE_TIME:
-        Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time");
+      case SSL_HANDSHAKE_TIME_MS:
+        Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time_ms");
         return sslHandshakeTime != null ? String.valueOf(sslHandshakeTime) : "-";
 
       case SATURATION_COUNT:
