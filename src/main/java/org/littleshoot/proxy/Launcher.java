@@ -11,6 +11,7 @@ import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.extras.logging.ActivityLogger;
@@ -76,6 +77,9 @@ public class Launcher {
   private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
   public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
+
+  @Nullable
+  private volatile HttpProxyServer httpProxyServer;
 
   /**
    * Starts the proxy from the command line.
@@ -300,7 +304,7 @@ public class Launcher {
     configureActivityLogging(cmd, bootstrap, options);
 
     LOG.info("About to start...");
-    HttpProxyServer httpProxyServer = bootstrap.start();
+    httpProxyServer = bootstrap.start();
     if (cmd.hasOption(OPTION_SERVER)) {
       Runtime.getRuntime()
           .addShutdownHook(
@@ -314,6 +318,20 @@ public class Launcher {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
       }
+    }
+  }
+
+  public boolean isRunning() {
+    return httpProxyServer != null;
+  }
+
+  public void stop() {
+    HttpProxyServer server = httpProxyServer;
+    if (server != null) {
+      LOG.info("Shutting down...");
+      server.stop();
+      httpProxyServer = null;
+      LOG.info("Shut down.");
     }
   }
 
