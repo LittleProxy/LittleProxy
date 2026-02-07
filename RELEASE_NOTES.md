@@ -17,7 +17,18 @@
     - LogField.extractValue() signature changed (removed duration parameter, use FlowContext.getTimingData())
     - LogEntryFormatter.format() signature changed (removed durationMs parameter, use FlowContext timing map)
     - Duration field names updated (e.g., duration_ms → http_request_processing_time)
-    - Custom implementations must update to new API signatures 
+    - Custom implementations must update to new API signatures
+  - Migration to Log4j2 with async logging support (#684) by Charles Lescot
+  - Request Handling Architecture documentation (#690) by Charles Lescot
+  - Fix proxy authentication bug (#691) by Charles Lescot
+  - Add Spotless code formatting plugin (#682) by Charles Lescot
+  - Fix generated certificates and keystore files at root directory (#680, #681) by Charles Lescot
+  - Fix flaky tests - random free port occupation (#683) by Andrei Solntsev
+  - Fix flaky LauncherTest (#695) by Andrei Solntsev
+  - Bump Netty from 4.2.9.Final to 4.2.10.Final (#694) by dependabot
+  - Bump assertj-core from 3.27.6 to 3.27.7 (#686) by dependabot
+  - Bump maven-compiler-plugin from 3.14.1 to 3.15.0 (#688) by dependabot
+  - Bump spotless-maven-plugin (#685, #687, #692) by dependabot
 
 - 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49?closed=1)
   - Feature/activity tracker logging (#668) by Charles Lescot
