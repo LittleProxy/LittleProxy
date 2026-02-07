@@ -133,16 +133,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
 
     String flowId = timedRequest.flowId;
-    long duration = System.currentTimeMillis() - timedRequest.startTime;
+    long httpRequestProcessingTimeMs = System.currentTimeMillis() - timedRequest.startTime;
 
     // Store timing data in FlowContext
-    flowContext.setTimingData("http_request_processing_time_ms", duration);
+    flowContext.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
 
     // DEBUG: Structured formatting for response sent
     logLifecycleEvent(
         LifecycleEvent.RESPONSE_SENT,
         flowContext,
-        Map.of("status", httpResponse.status().code(), "duration_ms", duration),
+        Map.of("status", httpResponse.status().code(), "http_request_processing_time_ms", httpRequestProcessingTimeMs),
         flowId);
 
     // INFO: Use configured format (KEYVALUE, JSON, etc.)
@@ -318,10 +318,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     if (state != null) {
       state.sslHandshakeEndTime = now;
       state.sslSession = sslSession;
-      long duration = state.sslHandshakeEndTime - state.sslHandshakeStartTime;
+      long sslHandshakeTimeMs = state.sslHandshakeEndTime - state.sslHandshakeStartTime;
 
       // Store SSL handshake timing in FlowContext
-      flowContext.setTimingData("ssl_handshake_time_ms", duration);
+      flowContext.setTimingData("ssl_handshake_time_ms", sslHandshakeTimeMs);
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(
@@ -334,8 +334,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
               sslSession.getProtocol(),
               "cipher_suite",
               sslSession.getCipherSuite(),
-              "duration_ms",
-              duration),
+              "ssl_handshake_time_ms",
+              sslHandshakeTimeMs),
           flowId);
     }
   }
@@ -349,16 +349,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     if (state != null) {
       state.disconnectTime = now;
-      long duration = state.disconnectTime - state.connectTime;
+      long tcpClientConnectionDurationMs = state.disconnectTime - state.connectTime;
 
       // Store client connection duration in FlowContext
-      flowContext.setTimingData("tcp_client_connection_duration_ms", duration);
+      flowContext.setTimingData("tcp_client_connection_duration_ms", tcpClientConnectionDurationMs);
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(
           LifecycleEvent.CLIENT_DISCONNECTED,
           flowContext,
-          Map.of("client_address", clientAddress, "duration_ms", duration, "timestamp", now),
+          Map.of("client_address", clientAddress, "tcp_client_connection_duration_ms", tcpClientConnectionDurationMs, "timestamp", now),
           flowId);
     } else {
       // DEBUG: Still log even if state not found
@@ -399,10 +399,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ServerState state = serverStates.remove(flowContext);
     if (state != null) {
       state.disconnectTime = now;
-      long duration = state.disconnectTime - state.connectStartTime;
+      long tcpServerConnectionDurationMs = state.disconnectTime - state.connectStartTime;
 
       // Store server connection duration in FlowContext
-      flowContext.setTimingData("tcp_server_connection_duration_ms", duration);
+      flowContext.setTimingData("tcp_server_connection_duration_ms", tcpServerConnectionDurationMs);
 
       // DEBUG: Essential operation with structured formatting
       logLifecycleEvent(
@@ -410,7 +410,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
           flowContext,
           Map.of(
               "server_address", serverAddress,
-              "duration_ms", duration,
+              "tcp_server_connection_duration_ms", tcpServerConnectionDurationMs,
               "timestamp", now),
           flowId);
     } else {

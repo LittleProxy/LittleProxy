@@ -26,6 +26,13 @@ public class Launcher {
   public static final int DEFAULT_PORT = 8080;
   private static final Logger LOG = LoggerFactory.getLogger(Launcher.class);
 
+  /** Timing mode for controlling which timing fields are logged. */
+  private enum TimingMode {
+    OFF,
+    MINIMAL,
+    ALL
+  }
+
   private static final String OPTION_DNSSEC = "dnssec";
 
   private static final String OPTION_PORT = "port";
@@ -71,6 +78,7 @@ public class Launcher {
   private static final String OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS = "activity_log_exclude_headers";
   private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
   private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
+  private static final String OPTION_ACTIVITY_TIMING_MODE = "activity_timing_mode";
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
   @Nullable private volatile HttpProxyServer httpProxyServer;
@@ -379,6 +387,39 @@ public class Launcher {
             .addStandardField(StandardField.STATUS);
       }
 
+      // Process timing mode option (default to MINIMAL)
+      TimingMode timingMode = TimingMode.MINIMAL;
+      if (cmd.hasOption(OPTION_ACTIVITY_TIMING_MODE)) {
+        String modeValue = cmd.getOptionValue(OPTION_ACTIVITY_TIMING_MODE);
+        try {
+          timingMode = TimingMode.valueOf(modeValue.toUpperCase());
+        } catch (IllegalArgumentException e) {
+          printHelp(options, "Unknown timing mode: " + modeValue);
+          return;
+        }
+      }
+
+      // Add timing fields based on mode
+      switch (timingMode) {
+        case OFF:
+          // No timing fields added
+          LOG.debug("Timing metrics disabled (mode: OFF)");
+          break;
+        case MINIMAL:
+          builder.addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS);
+          LOG.debug("Adding minimal timing metrics (http_request_processing_time_ms)");
+          break;
+        case ALL:
+          builder
+              .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
+              .addStandardField(StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS)
+              .addStandardField(StandardField.TCP_CLIENT_CONNECTION_DURATION_MS)
+              .addStandardField(StandardField.TCP_SERVER_CONNECTION_DURATION_MS)
+              .addStandardField(StandardField.SSL_HANDSHAKE_TIME_MS);
+          LOG.debug("Adding all timing metrics");
+          break;
+      }
+
       // Process prefix headers
       if (cmd.hasOption(OPTION_ACTIVITY_LOG_PREFIX_HEADERS)) {
         String prefixes = cmd.getOptionValue(OPTION_ACTIVITY_LOG_PREFIX_HEADERS);
@@ -623,6 +664,11 @@ public class Launcher {
         OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
         true,
         "Comma-separated list of regex patterns for headers to exclude from logging");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_TIMING_MODE,
+        true,
+        "Timing field configuration: OFF, MINIMAL, ALL (default: MINIMAL)");
     return options;
   }
 
