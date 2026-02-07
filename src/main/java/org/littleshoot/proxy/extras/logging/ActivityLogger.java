@@ -4,6 +4,7 @@ import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLSession;
@@ -31,6 +32,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   private static final Logger LOG = LoggerFactory.getLogger(ActivityLogger.class);
   public static final String UTC = "UTC";
+  public static final ZoneId UTC_ZONE_ID = ZoneId.of(UTC);
 
   private final LogFormat logFormat;
   private final LogFieldConfiguration fieldConfiguration;
@@ -153,13 +155,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       }
     }
 
-    // DEBUG: Also log formatted entry at debug level if different from INFO
-    if (LOG.isDebugEnabled() && logFormat != LogFormat.KEYVALUE) {
-      String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
-      if (logMessage != null) {
-        logFormattedEntry(flowId, logMessage);
-      }
-    }
   }
 
   /**
@@ -193,93 +188,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   protected String formatLogEntry(
       FlowContext flowContext, TimedRequest timedRequest, HttpResponse httpResponse) {
     // Calculate and store duration in FlowContext
-    long duration = System.currentTimeMillis() - timedRequest.startTime;
-    flowContext.setTimingData("http_request_processing_time_ms", duration);
+    long httpRequestProcessingTimeMs = System.currentTimeMillis() - timedRequest.startTime;
+    flowContext.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
 
     return formatter.format(
         flowContext,
         timedRequest.request,
         httpResponse,
-        java.time.ZonedDateTime.now(java.time.ZoneId.of("UTC")),
+        java.time.ZonedDateTime.now(UTC_ZONE_ID),
         timedRequest.flowId,
         fieldConfiguration);
-  }
-
-  // ==================== TIMING CALCULATION HELPERS ====================
-
-  private Long getTcpConnectionEstablishmentTime(FlowContext flowContext) {
-    // Get from FlowContext timing data
-    Long tcpConnectionStartTime = flowContext.getTimingData("tcp_connection_start_time_ms");
-    Long tcpConnectionEndTime = flowContext.getTimingData("tcp_connection_end_time_ms");
-
-    if (tcpConnectionStartTime != null && tcpConnectionEndTime != null) {
-      return tcpConnectionEndTime - tcpConnectionStartTime;
-    }
-
-    // Fallback to old method for compatibility
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    if (clientAddress != null) {
-      ClientState state = clientStates.get(clientAddress);
-      if (state != null && state.tcpConnectionEndTime > 0) {
-        return state.tcpConnectionEndTime - state.connectTime;
-      }
-    }
-    return null;
-  }
-
-  private Long getTcpClientConnectionDuration(FlowContext flowContext) {
-    // Get from FlowContext timing data
-    Long tcpClientConnectionDuration =
-        flowContext.getTimingData("tcp_client_connection_duration_ms");
-    if (tcpClientConnectionDuration != null) {
-      return tcpClientConnectionDuration;
-    }
-
-    // Fallback to old method for compatibility
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    if (clientAddress != null) {
-      ClientState state = clientStates.get(clientAddress);
-      if (state != null && state.disconnectTime > 0) {
-        return state.disconnectTime - state.connectTime;
-      }
-    }
-    return null;
-  }
-
-  private Long getTcpServerConnectionDuration(FlowContext flowContext) {
-    // Get from FlowContext timing data
-    Long tcpServerConnectionDuration =
-        flowContext.getTimingData("tcp_server_connection_duration_ms");
-    if (tcpServerConnectionDuration != null) {
-      return tcpServerConnectionDuration;
-    }
-
-    // Fallback to old method for compatibility
-    if (flowContext instanceof FullFlowContext) {
-      ServerState state = serverStates.get((FullFlowContext) flowContext);
-      if (state != null && state.disconnectTime > 0) {
-        return state.disconnectTime - state.connectStartTime;
-      }
-    }
-    return null;
-  }
-
-  private Long getSslHandshakeTime(FlowContext flowContext) {
-    // Get from FlowContext timing data
-    Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time_ms");
-    if (sslHandshakeTime != null) {
-      return sslHandshakeTime;
-    }
-
-    // Fallback to old method for compatibility
-    InetSocketAddress clientAddress = flowContext.getClientAddress();
-    if (clientAddress != null) {
-      ClientState state = clientStates.get(clientAddress);
-      if (state != null && state.sslHandshakeEndTime > 0 && state.sslHandshakeStartTime > 0) {
-        return state.sslHandshakeEndTime - state.sslHandshakeStartTime;
-      }
-    }
-    return null;
   }
 
   // ==================== CLIENT LIFECYCLE ====================
