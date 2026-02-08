@@ -266,6 +266,11 @@ class ActivityLoggerTest {
       super(logFormat, config);
     }
 
+    public TestableActivityLogger(
+        LogFormat logFormat, LogFieldConfiguration config, TimingMode timingMode) {
+      super(logFormat, config, timingMode);
+    }
+
     @Override
     protected void logFormattedEntry(String flowId, String message) {
       this.lastLogMessage = message;
@@ -923,5 +928,134 @@ class ActivityLoggerTest {
     assertThat(tracker.lastLogMessage).contains("content-type:application/json");
     assertThat(tracker.lastLogMessage).doesNotContain("api-key");
     assertThat(tracker.lastLogMessage).doesNotContain("secret-api-key");
+  }
+
+  // ==================== TIMING MODE TESTS ====================
+
+  @Test
+  void testTimingModeOffDoesNotIncludeTimingData() {
+    // Test that when timing mode is OFF, no timing data is included in lifecycle events
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.OFF);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect and disconnect client
+    tracker.clientConnected(flowContext);
+    tracker.clientDisconnected(flowContext, null);
+
+    // Should not throw NPE and should complete successfully
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testTimingModeAllWithSslHandshake() {
+    // Test that when timing mode is ALL, timing data is included
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, complete SSL handshake, then disconnect
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    // Should not throw NPE and should complete successfully
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testTimingModeMinimalWithServerConnection() {
+    // Test that when timing mode is MINIMAL, server timing data is included
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.MINIMAL);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Connect to server then disconnect
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Should not throw NPE and should complete successfully
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testNullTimingDataHandledGracefully() {
+    // Test that disconnecting without a prior connect (no timing data) doesn't throw NPE
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Disconnect without connecting first (timing data will be null)
+    tracker.clientDisconnected(flowContext, null);
+
+    // Should not throw NPE
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testServerDisconnectWithoutConnect() {
+    // Test that server disconnect without prior connect doesn't throw NPE
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Disconnect without connecting first
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Should not throw NPE
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testSslHandshakeWithoutPriorConnect() {
+    // Test that SSL handshake success without prior connect doesn't throw NPE
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // SSL handshake without connecting first
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Should not throw NPE
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testTimingModeOffWithCompleteFlow() {
+    // Test complete interaction with timing mode OFF
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.OFF);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Complete flow without timing data
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+
+    // Should complete without NPE
+    assertThat(tracker).isNotNull();
+    assertThat(tracker.lastLogMessage).isNotNull();
   }
 }

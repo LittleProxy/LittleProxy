@@ -134,14 +134,15 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     flowContext.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
 
     // DEBUG: Structured formatting for response sent
+    var responseAttributesBuilder = new java.util.HashMap<String, Object>();
+    responseAttributesBuilder.put("status", httpResponse.status().code());
+    if (timingMode != TimingMode.OFF) {
+      responseAttributesBuilder.put("http_request_processing_time_ms", httpRequestProcessingTimeMs);
+    }
     logLifecycleEvent(
         LifecycleEvent.RESPONSE_SENT,
         flowContext,
-        Map.of(
-            "status",
-            httpResponse.status().code(),
-            "http_request_processing_time_ms",
-            httpRequestProcessingTimeMs),
+        java.util.Map.copyOf(responseAttributesBuilder),
         flowId);
 
     // INFO: Use configured format (KEYVALUE, JSON, etc.)
@@ -244,8 +245,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     attributesBuilder.put("protocol", sslSession.getProtocol());
     attributesBuilder.put("cipher_suite", sslSession.getCipherSuite());
     if (timingMode != TimingMode.OFF) {
-      attributesBuilder.put(
-          "ssl_handshake_time_ms", flowContext.getTimingData("ssl_handshake_time_ms"));
+      Long handshakeTime = flowContext.getTimingData("ssl_handshake_time_ms");
+      if (handshakeTime != null) {
+        attributesBuilder.put("ssl_handshake_time_ms", handshakeTime);
+      }
     }
 
     // DEBUG: Essential operation with structured formatting
@@ -279,9 +282,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     attributesBuilder.put("client_address", clientAddress);
     attributesBuilder.put("timestamp", formatTimestamp(now));
     if (timingMode != TimingMode.OFF) {
-      attributesBuilder.put(
-          "tcp_client_connection_duration_ms",
-          flowContext.getTimingData("tcp_client_connection_duration_ms"));
+      Long duration = flowContext.getTimingData("tcp_client_connection_duration_ms");
+      if (duration != null) {
+        attributesBuilder.put("tcp_client_connection_duration_ms", duration);
+      }
     }
 
     // DEBUG: Essential operation with structured formatting
@@ -337,9 +341,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     attributesBuilder.put("server_address", serverAddress);
     attributesBuilder.put("timestamp", formatTimestamp(now));
     if (timingMode != TimingMode.OFF) {
-      attributesBuilder.put(
-          "tcp_server_connection_duration_ms",
-          flowContext.getTimingData("tcp_server_connection_duration_ms"));
+      Long duration = flowContext.getTimingData("tcp_server_connection_duration_ms");
+      if (duration != null) {
+        attributesBuilder.put("tcp_server_connection_duration_ms", duration);
+      }
     }
 
     // DEBUG: Essential operation with structured formatting
