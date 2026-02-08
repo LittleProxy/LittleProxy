@@ -485,10 +485,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Validate that required fields are present for the selected format
     if (logFormat == LogFormat.CLF) {
       // CLF format requires specific fields
-      LOG.debug("Validating CLF format compliance");
+      LOG.trace("Validating CLF format compliance");
     } else if (logFormat == LogFormat.W3C) {
       // W3C format requires specific fields
-      LOG.debug("Validating W3C format compliance");
+      LOG.trace("Validating W3C format compliance");
     }
   }
 }
