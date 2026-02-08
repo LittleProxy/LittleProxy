@@ -36,6 +36,7 @@ public enum StandardField implements LogField {
   TCP_SERVER_CONNECTION_DURATION_MS(
       "tcp_server_connection_duration_ms", "Total server TCP connection duration in milliseconds"),
   SSL_HANDSHAKE_TIME_MS("ssl_handshake_time_ms", "SSL handshake duration in milliseconds"),
+  DNS_RESOLUTION_TIME_MS("dns_resolution_time_ms", "DNS lookup duration in milliseconds"),
   SATURATION_COUNT("saturation_count", "Number of times connection became saturated"),
   EXCEPTION_TYPE("exception_type", "Type of exception if occurred");
 
@@ -123,6 +124,10 @@ public enum StandardField implements LogField {
       case SSL_HANDSHAKE_TIME_MS:
         Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time_ms");
         return sslHandshakeTime != null ? String.valueOf(sslHandshakeTime) : null;
+
+      case DNS_RESOLUTION_TIME_MS:
+        Long dnsResolutionTime = flowContext.getTimingData("dns_resolution_time_ms");
+        return dnsResolutionTime != null ? String.valueOf(dnsResolutionTime) : null;
 
       case SATURATION_COUNT:
         return "-";

@@ -406,6 +406,7 @@ public class Launcher {
         case ALL:
           builder
               .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
+              .addStandardField(StandardField.DNS_RESOLUTION_TIME_MS)
               .addStandardField(StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS)
               .addStandardField(StandardField.TCP_CLIENT_CONNECTION_DURATION_MS)
               .addStandardField(StandardField.TCP_SERVER_CONNECTION_DURATION_MS)
