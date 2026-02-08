@@ -74,8 +74,8 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("event=").append(event.getEventName());
-    sb.append(" flow_id=").append(flowId);
+    sb.append("flow_id=").append(flowId);
+    sb.append(" event=").append(event.getEventName());
     sb.append(" client_ip=").append(getClientIp(context));
 
     // Add all event-specific attributes

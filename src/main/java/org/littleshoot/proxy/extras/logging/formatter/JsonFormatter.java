@@ -149,8 +149,8 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
-    sb.append("\"event\":\"").append(event.getEventName()).append("\"");
-    sb.append(",\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
+    sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
+    sb.append(",\"event\":\"").append(event.getEventName()).append("\"");
     sb.append(",\"client_ip\":\"").append(escapeJson(getClientIp(context))).append("\"");
 
     // Add all event-specific attributes

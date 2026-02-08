@@ -115,8 +115,8 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("event:").append(event.getEventName());
-    sb.append("\tflow_id:").append(flowId);
+    sb.append("flow_id:").append(flowId);
+    sb.append("\tevent:").append(event.getEventName());
     sb.append("\tclient_ip:").append(getClientIp(context));
 
     // Add all event-specific attributes

@@ -115,8 +115,8 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("\"").append(event.getEventName()).append("\"");
-    sb.append(",\"").append(escapeJson(flowId)).append("\"");
+    sb.append("\"").append(escapeJson(flowId)).append("\"");
+    sb.append(",\"").append(event.getEventName()).append("\"");
     sb.append(",\"").append(escapeJson(getClientIp(context))).append("\"");
 
     // Add all event-specific attributes
