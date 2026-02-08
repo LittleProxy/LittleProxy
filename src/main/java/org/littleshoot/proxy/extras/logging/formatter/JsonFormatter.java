@@ -120,17 +120,20 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else {
-        if (!first) {
-          sb.append(",");
-        }
-        first = false;
-
         String value = field.extractValue(context, request, response);
-        sb.append("\"")
-            .append(field.getName())
-            .append("\":\"")
-            .append(escapeJson(value))
-            .append("\"");
+        // Skip fields with null values (e.g., TCP timing data not yet available)
+        if (value != null) {
+          if (!first) {
+            sb.append(",");
+          }
+          first = false;
+
+          sb.append("\"")
+              .append(field.getName())
+              .append("\":\"")
+              .append(escapeJson(value))
+              .append("\"");
+        }
       }
     }
 

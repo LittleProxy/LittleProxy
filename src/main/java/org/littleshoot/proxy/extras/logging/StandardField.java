@@ -104,25 +104,25 @@ public enum StandardField implements LogField {
             flowContext.getTimingData("tcp_connection_establishment_time_ms");
         return tcpConnectionEstablishmentTime != null
             ? String.valueOf(tcpConnectionEstablishmentTime)
-            : "-";
+            : null;
 
       case TCP_CLIENT_CONNECTION_DURATION_MS:
         Long tcpClientConnectionDuration =
             flowContext.getTimingData("tcp_client_connection_duration_ms");
         return tcpClientConnectionDuration != null
             ? String.valueOf(tcpClientConnectionDuration)
-            : "-";
+            : null;
 
       case TCP_SERVER_CONNECTION_DURATION_MS:
         Long tcpServerConnectionDuration =
             flowContext.getTimingData("tcp_server_connection_duration_ms");
         return tcpServerConnectionDuration != null
             ? String.valueOf(tcpServerConnectionDuration)
-            : "-";
+            : null;
 
       case SSL_HANDSHAKE_TIME_MS:
         Long sslHandshakeTime = flowContext.getTimingData("ssl_handshake_time_ms");
-        return sslHandshakeTime != null ? String.valueOf(sslHandshakeTime) : "-";
+        return sslHandshakeTime != null ? String.valueOf(sslHandshakeTime) : null;
 
       case SATURATION_COUNT:
         return "-";

@@ -93,13 +93,15 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else {
+        String value = field.extractValue(context, request, response);
+        // For CSV, use empty string for null values (maintains column alignment)
+        String csvValue = value != null ? value : "";
         if (!first) {
           sb.append(",");
         }
         first = false;
 
-        String value = field.extractValue(context, request, response);
-        sb.append("\"").append(escapeJson(value)).append("\"");
+        sb.append("\"").append(escapeJson(csvValue)).append("\"");
       }
     }
 

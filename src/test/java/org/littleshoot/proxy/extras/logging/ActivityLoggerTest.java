@@ -1372,4 +1372,122 @@ class ActivityLoggerTest {
     assertThat(durationAfterDisconnect).isNotNull();
     assertThat(durationAfterDisconnect).isGreaterThanOrEqualTo(0L);
   }
+
+  @Test
+  void testTcpFieldsOmittedWhenNotAvailable() {
+    // Test that TCP timing fields are omitted from JSON logs when data is not available
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Ensure timing data returns null (simulating data not yet available)
+    when(flowContext.getTimingData("tcp_server_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_client_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_connection_establishment_time_ms")).thenReturn(null);
+    when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(null);
+
+    // Simulate HTTP request without calling lifecycle methods that set timing data
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // The log message should be generated after responseSentToClient
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("HTTP Log without TCP data: " + logMessage);
+
+    // Verify the log was generated
+    assertThat(logMessage).isNotNull();
+    assertThat(logMessage).startsWith("{");
+
+    // TCP timing fields should NOT be present when data is unavailable
+    assertThat(logMessage).doesNotContain("tcp_server_connection_duration_ms");
+    assertThat(logMessage).doesNotContain("tcp_client_connection_duration_ms");
+    assertThat(logMessage).doesNotContain("tcp_connection_establishment_time_ms");
+    assertThat(logMessage).doesNotContain("ssl_handshake_time_ms");
+
+    // But HTTP fields should be present
+    assertThat(logMessage).contains("\"method\":\"GET\"");
+    assertThat(logMessage).contains("\"status\":\"200\"");
+    assertThat(logMessage).contains("\"client_ip\":\"192.168.1.1\"");
+  }
+
+  @Test
+  void testTcpFieldsPresentWhenAvailable() {
+    // Test that TCP timing fields ARE present when data is available
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Simulate complete flow with all connections closed
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeStarted(flowContext);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    // The log message should be generated after clientDisconnected
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("HTTP Log with TCP data: " + logMessage);
+
+    // Verify the log was generated
+    assertThat(logMessage).isNotNull();
+    assertThat(logMessage).startsWith("{");
+
+    // TCP timing fields SHOULD be present when data is available
+    assertThat(logMessage).contains("tcp_connection_establishment_time_ms");
+    assertThat(logMessage).contains("ssl_handshake_time_ms");
+    assertThat(logMessage).contains("tcp_client_connection_duration_ms");
+
+    // HTTP fields should still be present
+    assertThat(logMessage).contains("\"method\":\"GET\"");
+    assertThat(logMessage).contains("\"status\":\"200\"");
+  }
+
+  @Test
+  void testLtsvFormatOmitsNullFields() {
+    // Test that LTSV format omits fields with null values
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.LTSV, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Ensure timing data returns null (simulating data not yet available)
+    when(flowContext.getTimingData("tcp_server_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_client_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_connection_establishment_time_ms")).thenReturn(null);
+    when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(null);
+
+    // Simulate HTTP request without calling lifecycle methods that set timing data
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("LTSV Log without TCP data: " + logMessage);
+
+    // Verify the log was generated
+    assertThat(logMessage).isNotNull();
+
+    // TCP timing fields should NOT be present
+    assertThat(logMessage).doesNotContain("tcp_server_connection_duration_ms:");
+    assertThat(logMessage).doesNotContain("tcp_client_connection_duration_ms:");
+    assertThat(logMessage).doesNotContain("tcp_connection_establishment_time_ms:");
+    assertThat(logMessage).doesNotContain("ssl_handshake_time_ms:");
+
+    // HTTP fields should be present
+    assertThat(logMessage).contains("method:GET");
+    assertThat(logMessage).contains("status:200");
+  }
 }

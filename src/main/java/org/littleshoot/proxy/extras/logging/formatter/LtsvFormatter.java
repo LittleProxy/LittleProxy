@@ -93,13 +93,16 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
           sb.append(entry.getKey()).append(":").append(entry.getValue());
         }
       } else {
-        if (!first) {
-          sb.append("\t");
-        }
-        first = false;
-
         String value = field.extractValue(context, request, response);
-        sb.append(field.getName()).append(":").append(value);
+        // Skip fields with null values (e.g., TCP timing data not yet available)
+        if (value != null) {
+          if (!first) {
+            sb.append("\t");
+          }
+          first = false;
+
+          sb.append(field.getName()).append(":").append(value);
+        }
       }
     }
 
