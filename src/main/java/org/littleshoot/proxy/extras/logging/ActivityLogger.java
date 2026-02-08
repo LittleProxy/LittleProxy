@@ -233,11 +233,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
 
     // DEBUG: Essential operation with structured formatting
+    var attributes = new java.util.HashMap<String, Object>();
+    attributes.put("timestamp", formatTimestamp(now));
+    if (clientAddress != null) {
+      attributes.put("client_address", clientAddress);
+    }
+
     logLifecycleEvent(
-        LifecycleEvent.CLIENT_CONNECTED,
-        flowContext,
-        Map.of("client_address", clientAddress, "timestamp", formatTimestamp(now)),
-        flowId);
+        LifecycleEvent.CLIENT_CONNECTED, flowContext, java.util.Map.copyOf(attributes), flowId);
   }
 
   @Override

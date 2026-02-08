@@ -135,8 +135,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private final GlobalTrafficShapingHandler globalTrafficShapingHandler;
 
-  /** Cached FlowContext for consistent timing data across all lifecycle events. */
-  @Nullable private volatile FlowContext flowContext;
+  /** Cached FlowContext for consistent timing data across client lifecycle events. */
+  private final FlowContext clientFlowContext;
 
   /** The current HTTP request that this connection is currently servicing. */
   @Nullable private volatile HttpRequest currentRequest;
@@ -150,6 +150,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       ChannelPipeline pipeline,
       GlobalTrafficShapingHandler globalTrafficShapingHandler) {
     super(AWAITING_INITIAL, proxyServer, false);
+    this.clientFlowContext = new FlowContext(this);
 
     initChannelPipeline(pipeline);
 
@@ -1640,23 +1641,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     return ofNullable(channel).map(c -> (InetSocketAddress) c.remoteAddress()).orElse(null);
   }
 
-  private FlowContext flowContext() {
-    FlowContext cached = flowContext;
-    if (cached != null) {
-      // If we have a cached context and now have a server connection, upgrade to FullFlowContext
-      if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
-        cached = flowContextForServerConnection(currentServerConnection);
-        flowContext = cached;
-      }
-      return cached;
-    }
-    // Create new context and cache it
-    if (currentServerConnection != null) {
+  FlowContext flowContext() {
+    FlowContext cached = clientFlowContext;
+    if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
       cached = flowContextForServerConnection(currentServerConnection);
-    } else {
-      cached = new FlowContext(this);
     }
-    flowContext = cached;
     return cached;
   }
 

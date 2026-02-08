@@ -1,6 +1,7 @@
 package org.littleshoot.proxy.extras.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1379,6 +1380,15 @@ class ActivityLoggerTest {
         fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
     assertThat(durationAfterDisconnect).isNotNull();
     assertThat(durationAfterDisconnect).isGreaterThanOrEqualTo(0L);
+  }
+
+  @Test
+  void testClientConnectedHandlesNullClientAddress() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(null);
+
+    assertThatCode(() -> tracker.clientConnected(flowContext)).doesNotThrowAnyException();
   }
 
   @Test
