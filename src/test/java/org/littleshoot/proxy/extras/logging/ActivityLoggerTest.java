@@ -257,6 +257,7 @@ class ActivityLoggerTest {
     String lastLogMessage;
     boolean infoSummaryLogged = false;
     String lastInfoSummary;
+    boolean logFlowTiming;
 
     public TestableActivityLogger(LogFormat logFormat) {
       super(logFormat, null);
@@ -274,11 +275,18 @@ class ActivityLoggerTest {
     @Override
     protected void logFormattedEntry(String flowId, String message) {
       this.lastLogMessage = message;
+      if (logFlowTiming) {
+        System.out.println("[FLOW_TIMING][INFO] flow=" + flowId + " message=" + message);
+      }
     }
 
     @Override
     protected boolean shouldLogInfoEntry() {
       return true; // Always log INFO entries in tests
+    }
+
+    void enableFlowTimingLogging() {
+      this.logFlowTiming = true;
     }
   }
 
@@ -1371,6 +1379,36 @@ class ActivityLoggerTest {
         fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
     assertThat(durationAfterDisconnect).isNotNull();
     assertThat(durationAfterDisconnect).isGreaterThanOrEqualTo(0L);
+  }
+
+  @Test
+  void testFullFlowContextReusedAcrossServerLifecycle() {
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    SSLSession sslSession = mock(SSLSession.class);
+
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    Long tcpServerStart = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    Long tcpServerDuration = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+
+    assertThat(tcpServerStart)
+        .as("Server connection start time should be recorded on connection")
+        .isNotNull();
+    assertThat(tcpServerDuration)
+        .as("Server connection duration should be set when server disconnects")
+        .isNotNull();
   }
 
   @Test

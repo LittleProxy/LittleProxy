@@ -120,6 +120,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /** This is the current server connection that we're using while transferring chunked data. */
   @Nullable private volatile ProxyToServerConnection currentServerConnection;
 
+  private final Map<ProxyToServerConnection, FullFlowContext> serverFlowContexts =
+      new ConcurrentHashMap<>();
+
   /** The current filters to apply to incoming requests/chunks. */
   private volatile HttpFilters currentFilters = NOOP_FILTER;
 
@@ -1642,19 +1645,28 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     if (cached != null) {
       // If we have a cached context and now have a server connection, upgrade to FullFlowContext
       if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
-        cached = new FullFlowContext(this, currentServerConnection);
+        cached = flowContextForServerConnection(currentServerConnection);
         flowContext = cached;
       }
       return cached;
     }
     // Create new context and cache it
     if (currentServerConnection != null) {
-      cached = new FullFlowContext(this, currentServerConnection);
+      cached = flowContextForServerConnection(currentServerConnection);
     } else {
       cached = new FlowContext(this);
     }
     flowContext = cached;
     return cached;
+  }
+
+  FullFlowContext flowContextForServerConnection(ProxyToServerConnection serverConnection) {
+    return serverFlowContexts.computeIfAbsent(
+        serverConnection, sc -> new FullFlowContext(this, sc));
+  }
+
+  void clearFlowContextForServerConnection(ProxyToServerConnection serverConnection) {
+    serverFlowContexts.remove(serverConnection);
   }
 
   public HAProxyMessage getHaProxyMessage() {

@@ -1258,7 +1258,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void bytesRead(int numberOfBytes) {
           FullFlowContext flowContext =
-              new FullFlowContext(clientConnection, ProxyToServerConnection.this);
+              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.bytesReceivedFromServer(flowContext, numberOfBytes);
           }
@@ -1270,7 +1270,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void responseRead(HttpResponse httpResponse) {
           FullFlowContext flowContext =
-              new FullFlowContext(clientConnection, ProxyToServerConnection.this);
+              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.responseReceivedFromServer(flowContext, httpResponse);
           }
@@ -1282,7 +1282,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void bytesWritten(int numberOfBytes) {
           FullFlowContext flowContext =
-              new FullFlowContext(clientConnection, ProxyToServerConnection.this);
+              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.bytesSentToServer(flowContext, numberOfBytes);
           }
@@ -1294,7 +1294,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void requestWriting(HttpRequest httpRequest) {
           FullFlowContext flowContext =
-              new FullFlowContext(clientConnection, ProxyToServerConnection.this);
+              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
           try {
             for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
               tracker.requestSentToServer(flowContext, httpRequest);
@@ -1319,7 +1319,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   private void recordServerConnected() {
     try {
-      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.serverConnected(flowContext, remoteAddress);
       }
@@ -1330,10 +1330,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   private void recordServerDisconnected() {
     try {
-      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.serverDisconnected(flowContext, remoteAddress);
       }
+      clientConnection.clearFlowContextForServerConnection(this);
     } catch (Exception e) {
       LOG.error("Unable to recordServerDisconnected", e);
     }
@@ -1341,7 +1342,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   private void recordConnectionSaturated() {
     try {
-      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.connectionSaturated(flowContext);
       }
@@ -1352,7 +1353,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   private void recordConnectionWritable() {
     try {
-      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.connectionWritable(flowContext);
       }
@@ -1363,7 +1364,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   private void recordConnectionTimedOut() {
     try {
-      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.connectionTimedOut(flowContext);
       }
@@ -1374,7 +1375,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   private void recordConnectionExceptionCaught(Throwable cause) {
     try {
-      FullFlowContext flowContext = new FullFlowContext(clientConnection, this);
+      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.connectionExceptionCaught(flowContext, cause);
       }
