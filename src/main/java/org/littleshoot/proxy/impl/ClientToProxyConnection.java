@@ -150,6 +150,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     if (sslEngineSource != null) {
       LOG.debug("Enabling encryption of traffic from client to proxy");
       SSLEngine sslEngine = sslEngineSource.newSslEngine();
+      recordClientSSLHandshakeStarted();
       encrypt(pipeline, sslEngine, authenticateClients)
           .addListener(
               future -> {
@@ -1548,6 +1549,17 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       }
     } catch (Exception e) {
       LOG.error("Unable to recordClientConnected", e);
+    }
+  }
+
+  private void recordClientSSLHandshakeStarted() {
+    try {
+      FlowContext flowContext = flowContext();
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+        tracker.clientSSLHandshakeStarted(flowContext);
+      }
+    } catch (Exception e) {
+      LOG.error("Unable to recordClientSSLHandshakeStarted", e);
     }
   }
 

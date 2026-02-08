@@ -1058,4 +1058,221 @@ class ActivityLoggerTest {
     assertThat(tracker).isNotNull();
     assertThat(tracker.lastLogMessage).isNotNull();
   }
+
+  @Test
+  void testTcpConnectionEstablishmentTimeSetForSslConnection() {
+    // Test that tcp_connection_establishment_time_ms is set for SSL connections
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, then complete SSL handshake
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Verify the timing data is set in FlowContext
+    Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    assertThat(establishmentTime).isNotNull();
+    assertThat(establishmentTime).isGreaterThanOrEqualTo(0);
+  }
+
+  @Test
+  void testTcpConnectionEstablishmentTimeSetForNonSslConnection() {
+    // Test that tcp_connection_establishment_time_ms is set for non-SSL (HTTP) connections
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, then receive request (no SSL handshake for HTTP)
+    tracker.clientConnected(flowContext);
+    tracker.requestReceivedFromClient(flowContext, request);
+
+    // Verify the timing data is set in FlowContext
+    Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    assertThat(establishmentTime).isNotNull();
+    assertThat(establishmentTime).isGreaterThanOrEqualTo(0);
+  }
+
+  @Test
+  void testSslHandshakeTimingFields() {
+    // Test that ssl_handshake_start_time_ms, ssl_handshake_end_time_ms, and ssl_handshake_time_ms
+    // are set
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, start and complete SSL handshake
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeStarted(flowContext);
+
+    // Verify handshake start time is set
+    Long handshakeStartTime = flowContext.getTimingData("ssl_handshake_start_time_ms");
+    assertThat(handshakeStartTime).isNotNull();
+    assertThat(handshakeStartTime).isGreaterThanOrEqualTo(0);
+
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Verify handshake end time and duration are set
+    Long handshakeEndTime = flowContext.getTimingData("ssl_handshake_end_time_ms");
+    assertThat(handshakeEndTime).isNotNull();
+    assertThat(handshakeEndTime).isGreaterThanOrEqualTo(handshakeStartTime);
+
+    // Duration might be 0 due to millisecond precision, but should be set
+    Long handshakeDuration = flowContext.getTimingData("ssl_handshake_time_ms");
+    assertThat(handshakeDuration).isNotNull();
+    assertThat(handshakeDuration).isGreaterThanOrEqualTo(0L);
+  }
+
+  @Test
+  void testTcpClientConnectionDuration() {
+    // Test that tcp_client_connection_duration_ms is set on disconnect
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect then disconnect client
+    tracker.clientConnected(flowContext);
+
+    tracker.clientDisconnected(flowContext, null);
+
+    // Duration should be set (may be 0 due to millisecond precision)
+    Long duration = flowContext.getTimingData("tcp_client_connection_duration_ms");
+    assertThat(duration).isNotNull();
+    assertThat(duration).isGreaterThanOrEqualTo(0L);
+
+    // Verify start and end times are also set
+    Long startTime = flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    Long endTime = flowContext.getTimingData("tcp_client_connection_end_time_ms");
+    assertThat(startTime).isNotNull();
+    assertThat(endTime).isNotNull();
+    assertThat(endTime).isGreaterThanOrEqualTo(startTime);
+  }
+
+  @Test
+  void testTcpServerConnectionDuration() {
+    // Test that tcp_server_connection_duration_ms is set on server disconnect
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Connect to server then disconnect
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Duration should be set (may be 0 due to millisecond precision)
+    Long duration = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    assertThat(duration).isNotNull();
+    assertThat(duration).isGreaterThanOrEqualTo(0L);
+
+    // Verify start and end times are also set
+    Long startTime = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    Long endTime = fullFlowContext.getTimingData("tcp_server_connection_end_time_ms");
+    assertThat(startTime).isNotNull();
+    assertThat(endTime).isNotNull();
+    assertThat(endTime).isGreaterThanOrEqualTo(startTime);
+  }
+
+  @Test
+  void testAllTimingFieldsInCompleteSslFlow() {
+    // Test all timing fields are properly set in a complete SSL flow
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Client connection
+    tracker.clientConnected(flowContext);
+    assertThat(flowContext.getTimingData("tcp_client_connection_start_time_ms")).isNotNull();
+
+    // SSL handshake
+    tracker.clientSSLHandshakeStarted(flowContext);
+    assertThat(flowContext.getTimingData("ssl_handshake_start_time_ms")).isNotNull();
+
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+    assertThat(flowContext.getTimingData("ssl_handshake_end_time_ms")).isNotNull();
+    assertThat(flowContext.getTimingData("ssl_handshake_time_ms")).isNotNull();
+    assertThat(flowContext.getTimingData("tcp_connection_establishment_time_ms")).isNotNull();
+
+    // Server connection
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_start_time_ms")).isNotNull();
+
+    // Request/response
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    assertThat(fullFlowContext.getTimingData("request_start_time")).isNotNull();
+
+    tracker.responseSentToClient(fullFlowContext, response);
+    assertThat(fullFlowContext.getTimingData("http_request_processing_time_ms")).isNotNull();
+
+    // Server disconnect
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_end_time_ms")).isNotNull();
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_duration_ms")).isNotNull();
+
+    // Client disconnect
+    tracker.clientDisconnected(flowContext, sslSession);
+    assertThat(flowContext.getTimingData("tcp_client_connection_end_time_ms")).isNotNull();
+    assertThat(flowContext.getTimingData("tcp_client_connection_duration_ms")).isNotNull();
+  }
+
+  @Test
+  void testAllTimingFieldsInCompleteNonSslFlow() {
+    // Test all timing fields are properly set in a complete non-SSL (HTTP) flow
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Client connection
+    tracker.clientConnected(flowContext);
+    assertThat(flowContext.getTimingData("tcp_client_connection_start_time_ms")).isNotNull();
+
+    // For non-SSL, request received triggers establishment time calculation
+    tracker.requestReceivedFromClient(flowContext, request);
+    assertThat(flowContext.getTimingData("request_start_time")).isNotNull();
+    assertThat(flowContext.getTimingData("tcp_connection_establishment_time_ms")).isNotNull();
+
+    // For non-SSL flows, SSL handshake fields are not set (no assertion needed)
+
+    // Server connection
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_start_time_ms")).isNotNull();
+
+    tracker.responseSentToClient(fullFlowContext, response);
+    assertThat(fullFlowContext.getTimingData("http_request_processing_time_ms")).isNotNull();
+
+    // Server disconnect
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_duration_ms")).isNotNull();
+
+    // Client disconnect
+    tracker.clientDisconnected(flowContext, null);
+    assertThat(flowContext.getTimingData("tcp_client_connection_duration_ms")).isNotNull();
+  }
 }

@@ -104,19 +104,35 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   @Override
   public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
     String flowId = generateFlowId();
+    long now = System.currentTimeMillis();
 
     // Store request start time in FlowContext
-    flowContext.setTimingData("request_start_time", System.currentTimeMillis());
-    requestMap.put(flowContext, new TimedRequest(httpRequest, System.currentTimeMillis(), flowId));
+    flowContext.setTimingData("request_start_time", now);
+    requestMap.put(flowContext, new TimedRequest(httpRequest, now, flowId));
+
+    // For non-SSL connections, set tcp_connection_establishment_time_ms if not already set
+    // (For SSL connections, it's set in clientSSLHandshakeSucceeded)
+    if (flowContext.getTimingData("tcp_connection_establishment_time_ms") == null) {
+      Long clientConnectionStartTime =
+          flowContext.getTimingData("tcp_client_connection_start_time_ms");
+      if (clientConnectionStartTime != null) {
+        long tcpConnectionEstablishmentTimeMs = now - clientConnectionStartTime;
+        flowContext.setTimingData(
+            "tcp_connection_establishment_time_ms", tcpConnectionEstablishmentTimeMs);
+      }
+    }
 
     // DEBUG: Structured formatting for request received
+    var requestAttributes = new java.util.HashMap<String, Object>();
+    requestAttributes.put("method", httpRequest.method());
+    requestAttributes.put("uri", httpRequest.uri());
+    if (flowContext.getClientAddress() != null) {
+      requestAttributes.put("client_address", flowContext.getClientAddress());
+    }
     logLifecycleEvent(
         LifecycleEvent.REQUEST_RECEIVED,
         flowContext,
-        Map.of(
-            "method", httpRequest.method(),
-            "uri", httpRequest.uri(),
-            "client_address", flowContext.getClientAddress()),
+        java.util.Map.copyOf(requestAttributes),
         flowId);
   }
 
@@ -223,6 +239,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
+  public void clientSSLHandshakeStarted(FlowContext flowContext) {
+    long now = System.currentTimeMillis();
+
+    // Store SSL handshake start time in FlowContext
+    flowContext.setTimingData("ssl_handshake_start_time_ms", now);
+  }
+
+  @Override
   public void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession) {
     long now = System.currentTimeMillis();
     InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
@@ -232,11 +256,20 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Store SSL handshake end time in FlowContext
     flowContext.setTimingData("ssl_handshake_end_time_ms", now);
 
-    // Calculate duration if start time exists
+    // Calculate SSL handshake duration
     Long sslHandshakeStartTime = flowContext.getTimingData("ssl_handshake_start_time_ms");
     if (sslHandshakeStartTime != null) {
       long sslHandshakeTimeMs = now - sslHandshakeStartTime;
       flowContext.setTimingData("ssl_handshake_time_ms", sslHandshakeTimeMs);
+    }
+
+    // Calculate TCP connection establishment time (from client connect to SSL handshake complete)
+    Long clientConnectionStartTime =
+        flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    if (clientConnectionStartTime != null) {
+      long tcpConnectionEstablishmentTimeMs = now - clientConnectionStartTime;
+      flowContext.setTimingData(
+          "tcp_connection_establishment_time_ms", tcpConnectionEstablishmentTimeMs);
     }
 
     // Build attributes map based on timing mode

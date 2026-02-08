@@ -6,6 +6,9 @@
     - **Enhanced ActivityTracker Interface**: New lifecycle methods (serverConnected, serverDisconnected, connectionSaturated, connectionWritable, connectionTimedOut, connectionExceptionCaught) and FlowContext support for richer connection state tracking
     - **Three-Tier Logging Strategy**: Structured TRACE/DEBUG/INFO logging with flow ID correlation across all levels
      - **Timing Architecture Refactor**: Centralized timing data storage in FlowContext with configurable `--activity_timing_mode OFF|MINIMAL|ALL` CLI option; renamed duration fields for clarity with _ms suffix
+     - **SSL Handshake Timing**: Added `clientSSLHandshakeStarted()` method to ActivityTracker interface for accurate SSL handshake duration measurement
+     - **Timing Field Fixes**: Fixed all timing metrics (ssl_handshake_time_ms, tcp_connection_establishment_time_ms, tcp_client_connection_duration_ms, tcp_server_connection_duration_ms) to be properly populated
+     - **Timing Mode Implementation**: Fully implemented `--activity_timing_mode` CLI option with proper field filtering in both INFO logs and DEBUG lifecycle events
     - **Standards-Compliant Formats**: Fixed W3C, Squid, and HAProxy log formats for full specification compliance
     - **Strategy Pattern Formatters**: Refactored log formatting into modular, testable formatter classes supporting CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, and KEYVALUE formats
     - **Advanced Field Configuration**: Builder pattern for custom logging fields, header filtering (prefix/regex matching), sensitive data masking, and pre-configured field sets (SecurityMonitoring, PerformanceAnalytics, APIManagement)
@@ -14,9 +17,10 @@
   - Breaking Changes (#689) by Charles Lescot
     - Package relocation: ActivityLogger moved to org.littleshoot.proxy.extras.logging
     - ActivityTracker method signatures changed to accept FlowContext instead of InetSocketAddress
+    - ActivityTracker new method: clientSSLHandshakeStarted(FlowContext) must be implemented or extend ActivityTrackerAdapter
     - LogField.extractValue() signature changed (removed duration parameter, use FlowContext.getTimingData())
     - LogEntryFormatter.format() signature changed (removed durationMs parameter, use FlowContext timing map)
-     - Duration field names updated (e.g., duration_ms → http_request_processing_time_ms)
+    - Duration field names updated (e.g., duration_ms → http_request_processing_time_ms)
     - Custom implementations must update to new API signatures
   - Migration to Log4j2 with async logging support (#684) by Charles Lescot
   - Request Handling Architecture documentation (#690) by Charles Lescot

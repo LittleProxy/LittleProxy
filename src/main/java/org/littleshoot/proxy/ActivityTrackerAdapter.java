@@ -39,6 +39,9 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void clientConnected(FlowContext flowContext) {}
 
   @Override
+  public void clientSSLHandshakeStarted(FlowContext flowContext) {}
+
+  @Override
   public void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession) {}
 
   @Override

@@ -15,6 +15,9 @@ public interface ActivityTracker {
   /** Record that a client connected. */
   void clientConnected(FlowContext flowContext);
 
+  /** Record that a client's SSL handshake started. */
+  void clientSSLHandshakeStarted(FlowContext flowContext);
+
   /** Record that a client's SSL handshake completed. */
   void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession);
 
