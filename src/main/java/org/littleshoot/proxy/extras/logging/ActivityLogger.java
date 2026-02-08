@@ -37,6 +37,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private final LogFormat logFormat;
   private final LogFieldConfiguration fieldConfiguration;
   private final LogEntryFormatter formatter;
+  private final TimingMode timingMode;
 
   /** Tracks request timing information. */
   private static class TimedRequest {
@@ -51,36 +52,22 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
   }
 
-  /** Tracks client connection state and metrics. */
+  /** Tracks flow ID for client connections. */
   private static class ClientState {
-    final long connectTime;
-    long tcpConnectionStartTime;
-    long tcpConnectionEndTime;
-    long sslHandshakeStartTime;
-    long sslHandshakeEndTime;
-    long disconnectTime;
-    SSLSession sslSession;
-    int saturationCount;
-    int exceptionCount;
-    String lastExceptionType;
     final String flowId;
 
-    ClientState(long connectTime, String flowId) {
-      this.connectTime = connectTime;
+    ClientState(String flowId) {
       this.flowId = flowId;
     }
   }
 
-  /** Tracks server connection state and metrics. */
+  /** Tracks flow ID for server connections. */
   private static class ServerState {
-    final long connectStartTime;
-    long connectEndTime;
-    long disconnectTime;
-    InetSocketAddress remoteAddress;
-    int saturationCount;
+    final String flowId;
+    final InetSocketAddress remoteAddress;
 
-    ServerState(long connectStartTime, InetSocketAddress remoteAddress) {
-      this.connectStartTime = connectStartTime;
+    ServerState(String flowId, InetSocketAddress remoteAddress) {
+      this.flowId = flowId;
       this.remoteAddress = remoteAddress;
     }
   }
@@ -90,10 +77,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private final Map<FullFlowContext, ServerState> serverStates = new ConcurrentHashMap<>();
 
   public ActivityLogger(LogFormat logFormat, LogFieldConfiguration fieldConfiguration) {
+    this(logFormat, fieldConfiguration, TimingMode.MINIMAL);
+  }
+
+  public ActivityLogger(
+      LogFormat logFormat, LogFieldConfiguration fieldConfiguration, TimingMode timingMode) {
     this.logFormat = logFormat;
     this.fieldConfiguration =
         fieldConfiguration != null ? fieldConfiguration : LogFieldConfiguration.defaultConfig();
     this.formatter = LogEntryFormatterFactory.getFormatter(logFormat);
+    this.timingMode = timingMode != null ? timingMode : TimingMode.MINIMAL;
     validateStandardsCompliance();
   }
 
@@ -212,12 +205,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     String flowId = generateFlowId();
 
     // Store timing data in FlowContext
-    flowContext.setTimingData("tcp_connection_start_time_ms", now);
+    flowContext.setTimingData("tcp_client_connection_start_time_ms", now);
 
     // Track state
     if (clientAddress != null) {
-      ClientState state = new ClientState(now, flowId);
-      state.tcpConnectionStartTime = now;
+      ClientState state = new ClientState(flowId);
       clientStates.put(clientAddress, state);
     }
 
@@ -236,29 +228,32 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
-    if (state != null) {
-      state.sslHandshakeEndTime = now;
-      state.sslSession = sslSession;
-      long sslHandshakeTimeMs = state.sslHandshakeEndTime - state.sslHandshakeStartTime;
+    // Store SSL handshake end time in FlowContext
+    flowContext.setTimingData("ssl_handshake_end_time_ms", now);
 
-      // Store SSL handshake timing in FlowContext
+    // Calculate duration if start time exists
+    Long sslHandshakeStartTime = flowContext.getTimingData("ssl_handshake_start_time_ms");
+    if (sslHandshakeStartTime != null) {
+      long sslHandshakeTimeMs = now - sslHandshakeStartTime;
       flowContext.setTimingData("ssl_handshake_time_ms", sslHandshakeTimeMs);
-
-      // DEBUG: Essential operation with structured formatting
-      logLifecycleEvent(
-          LifecycleEvent.CLIENT_SSL_HANDSHAKE_SUCCEEDED,
-          flowContext,
-          Map.of(
-              "client_address",
-              clientAddress,
-              "protocol",
-              sslSession.getProtocol(),
-              "cipher_suite",
-              sslSession.getCipherSuite(),
-              "ssl_handshake_time_ms",
-              sslHandshakeTimeMs),
-          flowId);
     }
+
+    // Build attributes map based on timing mode
+    var attributesBuilder = new java.util.HashMap<String, Object>();
+    attributesBuilder.put("client_address", clientAddress);
+    attributesBuilder.put("protocol", sslSession.getProtocol());
+    attributesBuilder.put("cipher_suite", sslSession.getCipherSuite());
+    if (timingMode != TimingMode.OFF) {
+      attributesBuilder.put(
+          "ssl_handshake_time_ms", flowContext.getTimingData("ssl_handshake_time_ms"));
+    }
+
+    // DEBUG: Essential operation with structured formatting
+    logLifecycleEvent(
+        LifecycleEvent.CLIENT_SSL_HANDSHAKE_SUCCEEDED,
+        flowContext,
+        java.util.Map.copyOf(attributesBuilder),
+        flowId);
   }
 
   @Override
@@ -268,39 +263,33 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.remove(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
-    if (state != null) {
-      state.disconnectTime = now;
-      long tcpClientConnectionDurationMs = state.disconnectTime - state.connectTime;
+    // Store client connection end time in FlowContext
+    flowContext.setTimingData("tcp_client_connection_end_time_ms", now);
 
-      // Store client connection duration in FlowContext
+    // Calculate duration if start time exists
+    Long clientConnectionStartTime =
+        flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    if (clientConnectionStartTime != null) {
+      long tcpClientConnectionDurationMs = now - clientConnectionStartTime;
       flowContext.setTimingData("tcp_client_connection_duration_ms", tcpClientConnectionDurationMs);
-
-      // DEBUG: Essential operation with structured formatting
-      logLifecycleEvent(
-          LifecycleEvent.CLIENT_DISCONNECTED,
-          flowContext,
-          Map.of(
-              "client_address",
-              clientAddress,
-              "tcp_client_connection_duration_ms",
-              tcpClientConnectionDurationMs,
-              "timestamp",
-              formatTimestamp(now)),
-          flowId);
-    } else {
-      // DEBUG: Still log even if state not found
-      logLifecycleEvent(
-          LifecycleEvent.CLIENT_DISCONNECTED,
-          flowContext,
-          Map.of(
-              "client_address",
-              clientAddress,
-              "state_found",
-              false,
-              "timestamp",
-              formatTimestamp(now)),
-          flowId);
     }
+
+    // Build attributes map based on timing mode
+    var attributesBuilder = new java.util.HashMap<String, Object>();
+    attributesBuilder.put("client_address", clientAddress);
+    attributesBuilder.put("timestamp", formatTimestamp(now));
+    if (timingMode != TimingMode.OFF) {
+      attributesBuilder.put(
+          "tcp_client_connection_duration_ms",
+          flowContext.getTimingData("tcp_client_connection_duration_ms"));
+    }
+
+    // DEBUG: Essential operation with structured formatting
+    logLifecycleEvent(
+        LifecycleEvent.CLIENT_DISCONNECTED,
+        flowContext,
+        java.util.Map.copyOf(attributesBuilder),
+        flowId);
   }
 
   // ==================== SERVER LIFECYCLE ====================
@@ -314,7 +303,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     flowContext.setTimingData("tcp_server_connection_start_time_ms", now);
 
     // Track state
-    serverStates.put(flowContext, new ServerState(now, serverAddress));
+    serverStates.put(flowContext, new ServerState(flowId, serverAddress));
 
     // DEBUG: Essential operation with structured formatting
     logLifecycleEvent(
@@ -329,37 +318,36 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     long now = System.currentTimeMillis();
     String flowId = getFlowId(flowContext);
 
-    ServerState state = serverStates.remove(flowContext);
-    if (state != null) {
-      state.disconnectTime = now;
-      long tcpServerConnectionDurationMs = state.disconnectTime - state.connectStartTime;
+    // Store server connection end time in FlowContext
+    flowContext.setTimingData("tcp_server_connection_end_time_ms", now);
 
-      // Store server connection duration in FlowContext
+    // Calculate duration if start time exists
+    Long serverConnectionStartTime =
+        flowContext.getTimingData("tcp_server_connection_start_time_ms");
+    if (serverConnectionStartTime != null) {
+      long tcpServerConnectionDurationMs = now - serverConnectionStartTime;
       flowContext.setTimingData("tcp_server_connection_duration_ms", tcpServerConnectionDurationMs);
-
-      // DEBUG: Essential operation with structured formatting
-      logLifecycleEvent(
-          LifecycleEvent.SERVER_DISCONNECTED,
-          flowContext,
-          Map.of(
-              "server_address", serverAddress,
-              "tcp_server_connection_duration_ms", tcpServerConnectionDurationMs,
-              "timestamp", formatTimestamp(now)),
-          flowId);
-    } else {
-      // DEBUG: Still log even if state not found
-      logLifecycleEvent(
-          LifecycleEvent.SERVER_DISCONNECTED,
-          flowContext,
-          Map.of(
-              "server_address",
-              serverAddress,
-              "state_found",
-              false,
-              "timestamp",
-              formatTimestamp(now)),
-          flowId);
     }
+
+    // Remove server state tracking
+    serverStates.remove(flowContext);
+
+    // Build attributes map based on timing mode
+    var attributesBuilder = new java.util.HashMap<String, Object>();
+    attributesBuilder.put("server_address", serverAddress);
+    attributesBuilder.put("timestamp", formatTimestamp(now));
+    if (timingMode != TimingMode.OFF) {
+      attributesBuilder.put(
+          "tcp_server_connection_duration_ms",
+          flowContext.getTimingData("tcp_server_connection_duration_ms"));
+    }
+
+    // DEBUG: Essential operation with structured formatting
+    logLifecycleEvent(
+        LifecycleEvent.SERVER_DISCONNECTED,
+        flowContext,
+        java.util.Map.copyOf(attributesBuilder),
+        flowId);
   }
 
   // ==================== HELPER METHODS ====================
@@ -409,18 +397,15 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
-    if (state != null) {
-      state.saturationCount++;
-    }
+    // Increment saturation count in FlowContext
+    Long currentCount = flowContext.getTimingData("client_saturation_count");
+    long newCount = (currentCount != null ? currentCount : 0) + 1;
+    flowContext.setTimingData("client_saturation_count", newCount);
 
     logLifecycleEvent(
         LifecycleEvent.CONNECTION_SATURATED,
         flowContext,
-        Map.of(
-            "client_address",
-            clientAddress,
-            "saturation_count",
-            state != null ? state.saturationCount : 0),
+        Map.of("client_address", clientAddress, "saturation_count", newCount),
         flowId);
   }
 
@@ -456,18 +441,21 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
-    if (state != null) {
-      state.exceptionCount++;
-      state.lastExceptionType = cause != null ? cause.getClass().getSimpleName() : "Unknown";
-    }
+    // Increment exception count in FlowContext
+    Long currentCount = flowContext.getTimingData("client_exception_count");
+    long newCount = (currentCount != null ? currentCount : 0) + 1;
+    flowContext.setTimingData("client_exception_count", newCount);
+
+    // Get exception type for logging
+    String exceptionType = cause != null ? cause.getClass().getSimpleName() : "Unknown";
 
     logLifecycleEvent(
         LifecycleEvent.CONNECTION_EXCEPTION_CAUGHT,
         flowContext,
         Map.of(
             "client_address", clientAddress,
-            "exception_type", state != null ? state.lastExceptionType : "Unknown",
-            "exception_count", state != null ? state.exceptionCount : 0),
+            "exception_type", exceptionType,
+            "exception_count", newCount),
         flowId);
   }
 

@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.extras.logging.*;
+import org.littleshoot.proxy.extras.logging.TimingMode;
 import org.littleshoot.proxy.impl.ProxyUtils;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.slf4j.Logger;
@@ -25,13 +26,6 @@ public class Launcher {
 
   public static final int DEFAULT_PORT = 8080;
   private static final Logger LOG = LoggerFactory.getLogger(Launcher.class);
-
-  /** Timing mode for controlling which timing fields are logged. */
-  private enum TimingMode {
-    OFF,
-    MINIMAL,
-    ALL
-  }
 
   private static final String OPTION_DNSSEC = "dnssec";
 
@@ -356,6 +350,7 @@ public class Launcher {
     }
 
     LogFieldConfiguration fieldConfig = null;
+    TimingMode timingMode = TimingMode.MINIMAL;
 
     // Try to load configuration from file first
     if (cmd.hasOption(OPTION_ACTIVITY_LOG_FIELD_CONFIG)) {
@@ -366,6 +361,17 @@ public class Launcher {
       } catch (IOException e) {
         LOG.error("Failed to load logging configuration from {}: {}", configPath, e.getMessage());
         printHelp(options, "Failed to load logging configuration: " + e.getMessage());
+        return;
+      }
+    }
+
+    // Process timing mode option (default to MINIMAL)
+    if (cmd.hasOption(OPTION_ACTIVITY_TIMING_MODE)) {
+      String modeValue = cmd.getOptionValue(OPTION_ACTIVITY_TIMING_MODE);
+      try {
+        timingMode = TimingMode.valueOf(modeValue.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        printHelp(options, "Unknown timing mode: " + modeValue);
         return;
       }
     }
@@ -385,18 +391,6 @@ public class Launcher {
             .addStandardField(StandardField.METHOD)
             .addStandardField(StandardField.URI)
             .addStandardField(StandardField.STATUS);
-      }
-
-      // Process timing mode option (default to MINIMAL)
-      TimingMode timingMode = TimingMode.MINIMAL;
-      if (cmd.hasOption(OPTION_ACTIVITY_TIMING_MODE)) {
-        String modeValue = cmd.getOptionValue(OPTION_ACTIVITY_TIMING_MODE);
-        try {
-          timingMode = TimingMode.valueOf(modeValue.toUpperCase());
-        } catch (IllegalArgumentException e) {
-          printHelp(options, "Unknown timing mode: " + modeValue);
-          return;
-        }
       }
 
       // Add timing fields based on mode
@@ -459,8 +453,11 @@ public class Launcher {
       fieldConfig = builder.build();
     }
 
-    bootstrap.plusActivityTracker(new ActivityLogger(logFormat, fieldConfig));
-    LOG.info("Using activity log format: {} with custom field configuration", logFormat);
+    bootstrap.plusActivityTracker(new ActivityLogger(logFormat, fieldConfig, timingMode));
+    LOG.info(
+        "Using activity log format: {} with custom field configuration and timing mode: {}",
+        logFormat,
+        timingMode);
   }
 
   /**
