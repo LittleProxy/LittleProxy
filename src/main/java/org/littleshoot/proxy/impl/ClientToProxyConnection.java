@@ -132,6 +132,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private final GlobalTrafficShapingHandler globalTrafficShapingHandler;
 
+  /** Cached FlowContext for consistent timing data across all lifecycle events. */
+  @Nullable private volatile FlowContext flowContext;
+
   /** The current HTTP request that this connection is currently servicing. */
   @Nullable private volatile HttpRequest currentRequest;
 
@@ -1635,11 +1638,23 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private FlowContext flowContext() {
-    if (currentServerConnection != null) {
-      return new FullFlowContext(this, currentServerConnection);
-    } else {
-      return new FlowContext(this);
+    FlowContext cached = flowContext;
+    if (cached != null) {
+      // If we have a cached context and now have a server connection, upgrade to FullFlowContext
+      if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
+        cached = new FullFlowContext(this, currentServerConnection);
+        flowContext = cached;
+      }
+      return cached;
     }
+    // Create new context and cache it
+    if (currentServerConnection != null) {
+      cached = new FullFlowContext(this, currentServerConnection);
+    } else {
+      cached = new FlowContext(this);
+    }
+    flowContext = cached;
+    return cached;
   }
 
   public HAProxyMessage getHaProxyMessage() {

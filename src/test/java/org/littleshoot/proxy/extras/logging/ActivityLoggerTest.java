@@ -1203,38 +1203,92 @@ class ActivityLoggerTest {
     when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
 
     // Client connection
+    System.out.println("[TEST-TRACE] Step 1: clientConnected");
     tracker.clientConnected(flowContext);
-    assertThat(flowContext.getTimingData("tcp_client_connection_start_time_ms")).isNotNull();
+    Long clientStartTime = flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientConnected: tcp_client_connection_start_time_ms="
+            + clientStartTime);
+    assertThat(clientStartTime).isNotNull();
 
     // SSL handshake
+    System.out.println("[TEST-TRACE] Step 2: clientSSLHandshakeStarted");
     tracker.clientSSLHandshakeStarted(flowContext);
-    assertThat(flowContext.getTimingData("ssl_handshake_start_time_ms")).isNotNull();
+    Long sslStartTime = flowContext.getTimingData("ssl_handshake_start_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientSSLHandshakeStarted: ssl_handshake_start_time_ms="
+            + sslStartTime);
+    assertThat(sslStartTime).isNotNull();
 
+    System.out.println("[TEST-TRACE] Step 3: clientSSLHandshakeSucceeded");
     tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
-    assertThat(flowContext.getTimingData("ssl_handshake_end_time_ms")).isNotNull();
-    assertThat(flowContext.getTimingData("ssl_handshake_time_ms")).isNotNull();
-    assertThat(flowContext.getTimingData("tcp_connection_establishment_time_ms")).isNotNull();
+    Long sslEndTime = flowContext.getTimingData("ssl_handshake_end_time_ms");
+    Long sslDuration = flowContext.getTimingData("ssl_handshake_time_ms");
+    Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientSSLHandshakeSucceeded: ssl_handshake_end_time_ms="
+            + sslEndTime
+            + ", ssl_handshake_time_ms="
+            + sslDuration
+            + ", tcp_connection_establishment_time_ms="
+            + establishmentTime);
+    assertThat(sslEndTime).isNotNull();
+    assertThat(sslDuration).isNotNull();
+    assertThat(establishmentTime).isNotNull();
 
     // Server connection
+    System.out.println("[TEST-TRACE] Step 4: serverConnected");
     tracker.serverConnected(fullFlowContext, serverAddress);
-    assertThat(fullFlowContext.getTimingData("tcp_server_connection_start_time_ms")).isNotNull();
+    Long serverStartTime = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After serverConnected: tcp_server_connection_start_time_ms="
+            + serverStartTime);
+    assertThat(serverStartTime).isNotNull();
 
     // Request/response
+    System.out.println("[TEST-TRACE] Step 5: requestReceivedFromClient");
     tracker.requestReceivedFromClient(fullFlowContext, request);
-    assertThat(fullFlowContext.getTimingData("request_start_time")).isNotNull();
+    Long requestStartTime = fullFlowContext.getTimingData("request_start_time");
+    System.out.println(
+        "[TEST-TRACE] After requestReceivedFromClient: request_start_time=" + requestStartTime);
+    assertThat(requestStartTime).isNotNull();
 
+    System.out.println("[TEST-TRACE] Step 6: responseSentToClient (generates INFO log)");
     tracker.responseSentToClient(fullFlowContext, response);
-    assertThat(fullFlowContext.getTimingData("http_request_processing_time_ms")).isNotNull();
+    Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After responseSentToClient: http_request_processing_time_ms="
+            + processingTime);
+    System.out.println(
+        "[TEST-TRACE] At INFO log time: tcp_connection_establishment_time_ms="
+            + fullFlowContext.getTimingData("tcp_connection_establishment_time_ms"));
+    assertThat(processingTime).isNotNull();
 
     // Server disconnect
+    System.out.println("[TEST-TRACE] Step 7: serverDisconnected");
     tracker.serverDisconnected(fullFlowContext, serverAddress);
-    assertThat(fullFlowContext.getTimingData("tcp_server_connection_end_time_ms")).isNotNull();
-    assertThat(fullFlowContext.getTimingData("tcp_server_connection_duration_ms")).isNotNull();
+    Long serverEndTime = fullFlowContext.getTimingData("tcp_server_connection_end_time_ms");
+    Long serverDuration = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    System.out.println(
+        "[TEST-TRACE] After serverDisconnected: tcp_server_connection_end_time_ms="
+            + serverEndTime
+            + ", tcp_server_connection_duration_ms="
+            + serverDuration);
+    assertThat(serverEndTime).isNotNull();
+    assertThat(serverDuration).isNotNull();
 
     // Client disconnect
+    System.out.println("[TEST-TRACE] Step 8: clientDisconnected");
     tracker.clientDisconnected(flowContext, sslSession);
-    assertThat(flowContext.getTimingData("tcp_client_connection_end_time_ms")).isNotNull();
-    assertThat(flowContext.getTimingData("tcp_client_connection_duration_ms")).isNotNull();
+    Long clientEndTime = flowContext.getTimingData("tcp_client_connection_end_time_ms");
+    Long clientDuration = flowContext.getTimingData("tcp_client_connection_duration_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientDisconnected: tcp_client_connection_end_time_ms="
+            + clientEndTime
+            + ", tcp_client_connection_duration_ms="
+            + clientDuration);
+    assertThat(clientEndTime).isNotNull();
+    assertThat(clientDuration).isNotNull();
   }
 
   @Test
@@ -1274,5 +1328,48 @@ class ActivityLoggerTest {
     // Client disconnect
     tracker.clientDisconnected(flowContext, null);
     assertThat(flowContext.getTimingData("tcp_client_connection_duration_ms")).isNotNull();
+  }
+
+  @Test
+  void testServerConnectionDurationTimingIssue() {
+    // Demonstrate the issue: server connection duration is not available at INFO log time
+    // because the server disconnects AFTER the response is sent (in a different request/response
+    // cycle)
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    setupMocks();
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Server connects
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    Long startTime = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    assertThat(startTime).isNotNull();
+
+    // At this point, duration should not be set (server still connected)
+    // Note: mock returns null for unset keys, but we need to verify the actual behavior
+    Long durationBeforeDisconnect =
+        fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    System.out.println("Duration before disconnect: " + durationBeforeDisconnect);
+    // The duration is null at this point (server still connected)
+
+    // Request/response happens while server is connected
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // Duration still not available (server still connected for keep-alive)
+    Long durationAfterResponse = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    System.out.println("Duration after response: " + durationAfterResponse);
+
+    // Server disconnects (maybe minutes later for keep-alive connections)
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // NOW duration is available
+    Long durationAfterDisconnect =
+        fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    assertThat(durationAfterDisconnect).isNotNull();
+    assertThat(durationAfterDisconnect).isGreaterThanOrEqualTo(0L);
   }
 }

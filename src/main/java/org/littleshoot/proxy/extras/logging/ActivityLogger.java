@@ -112,7 +112,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // For non-SSL connections, set tcp_connection_establishment_time_ms if not already set
     // (For SSL connections, it's set in clientSSLHandshakeSucceeded)
-    if (flowContext.getTimingData("tcp_connection_establishment_time_ms") == null) {
+    Long existingEstablishmentTime =
+        flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    if (existingEstablishmentTime == null) {
       Long clientConnectionStartTime =
           flowContext.getTimingData("tcp_client_connection_start_time_ms");
       if (clientConnectionStartTime != null) {
