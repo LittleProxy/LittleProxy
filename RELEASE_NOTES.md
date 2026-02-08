@@ -7,7 +7,8 @@
     - **Three-Tier Logging Strategy**: Structured TRACE/DEBUG/INFO logging with flow ID correlation across all levels
      - **Timing Architecture Refactor**: Centralized timing data storage in FlowContext with configurable `--activity_timing_mode OFF|MINIMAL|ALL` CLI option; renamed duration fields for clarity with _ms suffix
      - **SSL Handshake Timing**: Added `clientSSLHandshakeStarted()` method to ActivityTracker interface for accurate SSL handshake duration measurement
-     - **Timing Field Fixes**: Fixed all timing metrics (ssl_handshake_time_ms, tcp_connection_establishment_time_ms, tcp_client_connection_duration_ms, tcp_server_connection_duration_ms) to be properly populated
+      - **Timing Field Fixes**: Fixed all timing metrics (ssl_handshake_time_ms, tcp_connection_establishment_time_ms, tcp_client_connection_duration_ms, tcp_server_connection_duration_ms) to be properly populated
+      - **Lifecycle Event Timing Enrichment**: Lifecycle DEBUG logs now expose connection age, request spacing, and latency metrics (e.g., server connect latency, time since previous request) when `--activity_timing_mode ALL` is enabled
      - **Timing Mode Implementation**: Fully implemented `--activity_timing_mode` CLI option with proper field filtering in both INFO logs and DEBUG lifecycle events
     - **Standards-Compliant Formats**: Fixed W3C, Squid, and HAProxy log formats for full specification compliance
     - **Strategy Pattern Formatters**: Refactored log formatting into modular, testable formatter classes supporting CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, and KEYVALUE formats

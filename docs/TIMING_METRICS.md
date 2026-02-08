@@ -6,6 +6,16 @@ This document provides a comprehensive overview of the timing metrics available 
 
 LittleProxy tracks timing data throughout the lifecycle of both client-to-proxy and proxy-to-server interactions. These metrics are stored in the `FlowContext` and can be accessed programmatically or included in logs.
 
+When running with `--activity_log_level DEBUG` (or higher) and `--activity_timing_mode ALL`, lifecycle events (`client_connected`, `request_received`, `server_connected`, `client_disconnected`, etc.) automatically include relevant timing attributes. Examples:
+
+- `connection_age_ms`: age of the client connection at the moment of the event.
+- `time_since_previous_request_ms`: time between consecutive requests on the same connection.
+- `time_since_server_connect_ms`: elapsed time since the proxy connected to the upstream server.
+- `server_connect_latency_ms`: how long it took from client connect to successful server connect.
+- `tcp_client_connection_duration_ms` / `tcp_server_connection_duration_ms`: total lifetime of TCP connections at disconnect time.
+
+These lifecycle timing fields are emitted automatically when timing mode is enabled; no additional configuration is required.
+
 ### Request Lifecycle Flow
 
 ```text

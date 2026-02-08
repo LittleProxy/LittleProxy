@@ -131,6 +131,18 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     if (flowContext.getClientAddress() != null) {
       requestAttributes.put("client_address", flowContext.getClientAddress());
     }
+    if (timingMode != TimingMode.OFF) {
+      addClientTimingAttributes(requestAttributes, flowContext, now, false);
+      Long lastRequest = flowContext.getTimingData("last_request_start_time_ms");
+      if (lastRequest != null) {
+        requestAttributes.put("time_since_previous_request_ms", now - lastRequest);
+      }
+      Long serverStart = flowContext.getTimingData("tcp_server_connection_start_time_ms");
+      if (serverStart != null) {
+        requestAttributes.put("time_since_server_connect_ms", now - serverStart);
+      }
+    }
+    flowContext.setTimingData("last_request_start_time_ms", now);
     logLifecycleEvent(
         LifecycleEvent.REQUEST_RECEIVED,
         flowContext,
@@ -238,6 +250,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     if (clientAddress != null) {
       attributes.put("client_address", clientAddress);
     }
+    if (timingMode != TimingMode.OFF) {
+      addClientTimingAttributes(attributes, flowContext, now, true);
+    }
 
     logLifecycleEvent(
         LifecycleEvent.CLIENT_CONNECTED, flowContext, java.util.Map.copyOf(attributes), flowId);
@@ -320,6 +335,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     attributesBuilder.put("client_address", clientAddress);
     attributesBuilder.put("timestamp", formatTimestamp(now));
     if (timingMode != TimingMode.OFF) {
+      addClientTimingAttributes(attributesBuilder, flowContext, now, false);
       Long duration = flowContext.getTimingData("tcp_client_connection_duration_ms");
       if (duration != null) {
         attributesBuilder.put("tcp_client_connection_duration_ms", duration);
@@ -351,7 +367,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     logLifecycleEvent(
         LifecycleEvent.SERVER_CONNECTED,
         flowContext,
-        Map.of("server_address", serverAddress, "timestamp", formatTimestamp(now)),
+        buildServerEventAttributes(serverAddress, now, flowContext, false),
         flowId);
   }
 
@@ -374,23 +390,64 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Remove server state tracking
     serverStates.remove(flowContext);
 
-    // Build attributes map based on timing mode
-    var attributesBuilder = new java.util.HashMap<String, Object>();
-    attributesBuilder.put("server_address", serverAddress);
-    attributesBuilder.put("timestamp", formatTimestamp(now));
-    if (timingMode != TimingMode.OFF) {
-      Long duration = flowContext.getTimingData("tcp_server_connection_duration_ms");
-      if (duration != null) {
-        attributesBuilder.put("tcp_server_connection_duration_ms", duration);
-      }
-    }
-
     // DEBUG: Essential operation with structured formatting
     logLifecycleEvent(
         LifecycleEvent.SERVER_DISCONNECTED,
         flowContext,
-        java.util.Map.copyOf(attributesBuilder),
+        buildServerEventAttributes(serverAddress, now, flowContext, true),
         flowId);
+  }
+
+  private Map<String, Object> buildServerEventAttributes(
+      InetSocketAddress serverAddress, long now, FlowContext flowContext, boolean includeTimings) {
+    var attributes = new java.util.HashMap<String, Object>();
+    attributes.put("server_address", serverAddress);
+    attributes.put("timestamp", formatTimestamp(now));
+    if (timingMode != TimingMode.OFF) {
+      if (includeTimings) {
+        Long duration = flowContext.getTimingData("tcp_server_connection_duration_ms");
+        if (duration != null) {
+          attributes.put("tcp_server_connection_duration_ms", duration);
+        }
+        Long serverStart = flowContext.getTimingData("tcp_server_connection_start_time_ms");
+        if (serverStart != null) {
+          attributes.put("time_since_server_connect_ms", now - serverStart);
+        }
+      }
+      Long requestStart = flowContext.getTimingData("request_start_time");
+      if (requestStart == null) {
+        requestStart = flowContext.getTimingData("last_request_start_time_ms");
+      }
+      if (requestStart != null) {
+        attributes.put("time_since_client_request_ms", now - requestStart);
+      }
+      Long clientStart = flowContext.getTimingData("tcp_client_connection_start_time_ms");
+      if (clientStart != null) {
+        attributes.put("server_connect_latency_ms", now - clientStart);
+      }
+    }
+    return java.util.Map.copyOf(attributes);
+  }
+
+  private void addClientTimingAttributes(
+      java.util.Map<String, Object> attributes,
+      FlowContext flowContext,
+      long now,
+      boolean includeStartOnly) {
+    Long clientStart = flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    if (clientStart != null) {
+      attributes.put("connection_age_ms", now - clientStart);
+    }
+    if (!includeStartOnly) {
+      Long lastRequestTime = flowContext.getTimingData("last_request_start_time_ms");
+      if (lastRequestTime != null) {
+        attributes.put("time_since_last_request_ms", now - lastRequestTime);
+      }
+      Long establishment = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+      if (establishment != null) {
+        attributes.put("tcp_connection_establishment_time_ms", establishment);
+      }
+    }
   }
 
   // ==================== HELPER METHODS ====================
