@@ -14,7 +14,7 @@ When running with `--activity_log_level DEBUG` (or higher) and `--activity_timin
 - `server_connect_latency_ms`: how long it took from client connect to successful server connect.
 - `tcp_client_connection_duration_ms` / `tcp_server_connection_duration_ms`: total lifetime of TCP connections at disconnect time.
 
-These lifecycle timing fields are emitted automatically when timing mode is enabled; no additional configuration is required.
+These lifecycle timing fields are emitted automatically when timing mode is enabled; no additional configuration is required. DNS resolution now records `dns_resolution_start_time_ms`, `dns_resolution_end_time_ms`, and `dns_resolution_time_ms` (exposed in `server_connected` logs when timing mode is set to ALL) so you can see how long upstream lookups take.
 
 ### Request Lifecycle Flow
 

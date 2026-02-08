@@ -82,6 +82,7 @@ import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.ChainedProxyAdapter;
 import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.ChainedProxyType;
+import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.MitmManager;
@@ -1045,11 +1046,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     setupConnectionParameters();
   }
 
-  /**
-   * Set up our connection parameters based on server address and chained proxies.
-   *
-   * @throws UnknownHostException when unable to resolve the hostname to an IP address
-   */
   private void setupConnectionParameters() throws UnknownHostException {
     if (chainedProxy != null && chainedProxy != ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION) {
       transportProtocol = chainedProxy.getTransportProtocol();
@@ -1066,6 +1062,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       password = null;
 
       // Report DNS resolution to HttpFilters
+      long dnsStartTime = System.currentTimeMillis();
+      clientConnection.flowContext().setTimingData("dns_resolution_start_time_ms", dnsStartTime);
+      clientConnection
+          .flowContextForServerConnection(this)
+          .setTimingData("dns_resolution_start_time_ms", dnsStartTime);
       remoteAddress = currentFilters.proxyToServerResolutionStarted(serverHostAndPort);
 
       // save the hostname and port of the unresolved address in hostAndPort, in case name
@@ -1095,6 +1096,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
 
       currentFilters.proxyToServerResolutionSucceeded(serverHostAndPort, remoteAddress);
+      long dnsEndTime = System.currentTimeMillis();
+      FlowContext clientFlowContext = clientConnection.flowContext();
+      FlowContext serverFlowContext = clientConnection.flowContextForServerConnection(this);
+      clientFlowContext.setTimingData("dns_resolution_end_time_ms", dnsEndTime);
+      serverFlowContext.setTimingData("dns_resolution_end_time_ms", dnsEndTime);
+
+      Long startTime = clientFlowContext.getTimingData("dns_resolution_start_time_ms");
+      if (startTime != null) {
+        long duration = dnsEndTime - startTime;
+        clientFlowContext.setTimingData("dns_resolution_time_ms", duration);
+        serverFlowContext.setTimingData("dns_resolution_time_ms", duration);
+      }
 
       localAddress = proxyServer.getLocalAddress();
     }

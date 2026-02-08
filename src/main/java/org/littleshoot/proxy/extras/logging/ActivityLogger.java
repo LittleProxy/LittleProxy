@@ -414,6 +414,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
           attributes.put("time_since_server_connect_ms", now - serverStart);
         }
       }
+      Long dnsDuration = flowContext.getTimingData("dns_resolution_time_ms");
+      if (dnsDuration != null) {
+        attributes.put("dns_resolution_time_ms", dnsDuration);
+      }
       Long requestStart = flowContext.getTimingData("request_start_time");
       if (requestStart == null) {
         requestStart = flowContext.getTimingData("last_request_start_time_ms");
