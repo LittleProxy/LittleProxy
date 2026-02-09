@@ -9,9 +9,12 @@ import java.util.List;
 public class LoggingConfiguration {
 
   private List<String> standardFields;
-  private List<PrefixHeaderConfig> prefixHeaders;
-  private List<RegexHeaderConfig> regexHeaders;
-  private List<ExcludeHeaderConfig> excludeHeaders;
+  private List<PrefixHeaderConfig> requestPrefixHeaders;
+  private List<RegexHeaderConfig> requestRegexHeaders;
+  private List<ExcludeHeaderConfig> requestExcludeHeaders;
+  private List<PrefixHeaderConfig> responsePrefixHeaders;
+  private List<RegexHeaderConfig> responseRegexHeaders;
+  private List<ExcludeHeaderConfig> responseExcludeHeaders;
   private List<String> computedFields;
   private List<SingleHeaderConfig> singleHeaders;
 
@@ -23,28 +26,52 @@ public class LoggingConfiguration {
     this.standardFields = standardFields;
   }
 
-  public List<PrefixHeaderConfig> getPrefixHeaders() {
-    return prefixHeaders;
+  public List<PrefixHeaderConfig> getRequestPrefixHeaders() {
+    return requestPrefixHeaders;
   }
 
-  public void setPrefixHeaders(List<PrefixHeaderConfig> prefixHeaders) {
-    this.prefixHeaders = prefixHeaders;
+  public void setRequestPrefixHeaders(List<PrefixHeaderConfig> requestPrefixHeaders) {
+    this.requestPrefixHeaders = requestPrefixHeaders;
   }
 
-  public List<RegexHeaderConfig> getRegexHeaders() {
-    return regexHeaders;
+  public List<PrefixHeaderConfig> getResponsePrefixHeaders() {
+    return responsePrefixHeaders;
   }
 
-  public void setRegexHeaders(List<RegexHeaderConfig> regexHeaders) {
-    this.regexHeaders = regexHeaders;
+  public void setResponsePrefixHeaders(List<PrefixHeaderConfig> responsePrefixHeaders) {
+    this.responsePrefixHeaders = responsePrefixHeaders;
   }
 
-  public List<ExcludeHeaderConfig> getExcludeHeaders() {
-    return excludeHeaders;
+  public List<RegexHeaderConfig> getRequestRegexHeaders() {
+    return requestRegexHeaders;
   }
 
-  public void setExcludeHeaders(List<ExcludeHeaderConfig> excludeHeaders) {
-    this.excludeHeaders = excludeHeaders;
+  public void setRequestRegexHeaders(List<RegexHeaderConfig> requestRegexHeaders) {
+    this.requestRegexHeaders = requestRegexHeaders;
+  }
+
+  public List<RegexHeaderConfig> getResponseRegexHeaders() {
+    return responseRegexHeaders;
+  }
+
+  public void setResponseRegexHeaders(List<RegexHeaderConfig> responseRegexHeaders) {
+    this.responseRegexHeaders = responseRegexHeaders;
+  }
+
+  public List<ExcludeHeaderConfig> getRequestExcludeHeaders() {
+    return requestExcludeHeaders;
+  }
+
+  public void setRequestExcludeHeaders(List<ExcludeHeaderConfig> requestExcludeHeaders) {
+    this.requestExcludeHeaders = requestExcludeHeaders;
+  }
+
+  public List<ExcludeHeaderConfig> getResponseExcludeHeaders() {
+    return responseExcludeHeaders;
+  }
+
+  public void setResponseExcludeHeaders(List<ExcludeHeaderConfig> responseExcludeHeaders) {
+    this.responseExcludeHeaders = responseExcludeHeaders;
   }
 
   public List<String> getComputedFields() {

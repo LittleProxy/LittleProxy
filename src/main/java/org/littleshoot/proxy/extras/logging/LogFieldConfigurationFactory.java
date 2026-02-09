@@ -55,9 +55,10 @@ public class LogFieldConfigurationFactory {
       }
     }
 
-    // Add prefix headers
-    if (config.getPrefixHeaders() != null) {
-      for (LoggingConfiguration.PrefixHeaderConfig prefixConfig : config.getPrefixHeaders()) {
+    // Add request prefix headers
+    if (config.getRequestPrefixHeaders() != null) {
+      for (LoggingConfiguration.PrefixHeaderConfig prefixConfig :
+          config.getRequestPrefixHeaders()) {
         String prefix = prefixConfig.getPrefix();
         Function<String, String> fieldNameTransformer =
             getFieldNameTransformer(prefixConfig.getFieldNameTransformer());
@@ -71,13 +72,34 @@ public class LogFieldConfigurationFactory {
         } else {
           builder.addRequestHeadersWithPrefix(prefix);
         }
-        LOG.debug("Added prefix header matcher: {}", prefix);
+        LOG.debug("Added request prefix header matcher: {}", prefix);
       }
     }
 
-    // Add regex headers
-    if (config.getRegexHeaders() != null) {
-      for (LoggingConfiguration.RegexHeaderConfig regexConfig : config.getRegexHeaders()) {
+    // Add response prefix headers
+    if (config.getResponsePrefixHeaders() != null) {
+      for (LoggingConfiguration.PrefixHeaderConfig prefixConfig :
+          config.getResponsePrefixHeaders()) {
+        String prefix = prefixConfig.getPrefix();
+        Function<String, String> fieldNameTransformer =
+            getFieldNameTransformer(prefixConfig.getFieldNameTransformer());
+        Function<String, String> valueTransformer =
+            getValueTransformer(prefixConfig.getValueTransformer());
+
+        if (valueTransformer != null) {
+          builder.addResponseHeadersWithPrefix(prefix, fieldNameTransformer, valueTransformer);
+        } else if (fieldNameTransformer != null) {
+          builder.addResponseHeadersWithPrefix(prefix, fieldNameTransformer);
+        } else {
+          builder.addResponseHeadersWithPrefix(prefix);
+        }
+        LOG.debug("Added response prefix header matcher: {}", prefix);
+      }
+    }
+
+    // Add request regex headers
+    if (config.getRequestRegexHeaders() != null) {
+      for (LoggingConfiguration.RegexHeaderConfig regexConfig : config.getRequestRegexHeaders()) {
         String pattern = regexConfig.getPattern();
         Function<String, String> fieldNameTransformer =
             getFieldNameTransformer(regexConfig.getFieldNameTransformer());
@@ -91,13 +113,34 @@ public class LogFieldConfigurationFactory {
         } else {
           builder.addRequestHeadersMatching(pattern);
         }
-        LOG.debug("Added regex header matcher: {}", pattern);
+        LOG.debug("Added request regex header matcher: {}", pattern);
       }
     }
 
-    // Add exclude headers
-    if (config.getExcludeHeaders() != null) {
-      for (LoggingConfiguration.ExcludeHeaderConfig excludeConfig : config.getExcludeHeaders()) {
+    // Add response regex headers
+    if (config.getResponseRegexHeaders() != null) {
+      for (LoggingConfiguration.RegexHeaderConfig regexConfig : config.getResponseRegexHeaders()) {
+        String pattern = regexConfig.getPattern();
+        Function<String, String> fieldNameTransformer =
+            getFieldNameTransformer(regexConfig.getFieldNameTransformer());
+        Function<String, String> valueTransformer =
+            getValueTransformer(regexConfig.getValueTransformer());
+
+        if (valueTransformer != null) {
+          builder.addResponseHeadersMatching(pattern, fieldNameTransformer, valueTransformer);
+        } else if (fieldNameTransformer != null) {
+          builder.addResponseHeadersMatching(pattern, fieldNameTransformer);
+        } else {
+          builder.addResponseHeadersMatching(pattern);
+        }
+        LOG.debug("Added response regex header matcher: {}", pattern);
+      }
+    }
+
+    // Add request exclude headers
+    if (config.getRequestExcludeHeaders() != null) {
+      for (LoggingConfiguration.ExcludeHeaderConfig excludeConfig :
+          config.getRequestExcludeHeaders()) {
         String pattern = excludeConfig.getPattern();
         Function<String, String> fieldNameTransformer =
             getFieldNameTransformer(excludeConfig.getFieldNameTransformer());
@@ -109,7 +152,26 @@ public class LogFieldConfigurationFactory {
         } else {
           builder.excludeRequestHeadersMatching(pattern);
         }
-        LOG.debug("Added exclude header matcher: {}", pattern);
+        LOG.debug("Added request exclude header matcher: {}", pattern);
+      }
+    }
+
+    // Add response exclude headers
+    if (config.getResponseExcludeHeaders() != null) {
+      for (LoggingConfiguration.ExcludeHeaderConfig excludeConfig :
+          config.getResponseExcludeHeaders()) {
+        String pattern = excludeConfig.getPattern();
+        Function<String, String> fieldNameTransformer =
+            getFieldNameTransformer(excludeConfig.getFieldNameTransformer());
+        Function<String, String> valueTransformer =
+            getValueTransformer(excludeConfig.getValueTransformer());
+
+        if (fieldNameTransformer != null && valueTransformer != null) {
+          builder.excludeResponseHeadersMatching(pattern, fieldNameTransformer, valueTransformer);
+        } else {
+          builder.excludeResponseHeadersMatching(pattern);
+        }
+        LOG.debug("Added response exclude header matcher: {}", pattern);
       }
     }
 

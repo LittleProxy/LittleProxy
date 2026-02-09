@@ -67,9 +67,18 @@ public class Launcher {
   private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
   private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
   private static final String OPTION_ACTIVITY_LOG_FIELD_CONFIG = "activity_log_field_config";
-  private static final String OPTION_ACTIVITY_LOG_PREFIX_HEADERS = "activity_log_prefix_headers";
-  private static final String OPTION_ACTIVITY_LOG_REGEX_HEADERS = "activity_log_regex_headers";
-  private static final String OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS = "activity_log_exclude_headers";
+  private static final String OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS =
+      "activity_log_request_prefix_headers";
+  private static final String OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS =
+      "activity_log_request_regex_headers";
+  private static final String OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS =
+      "activity_log_request_exclude_headers";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS =
+      "activity_log_response_prefix_headers";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS =
+      "activity_log_response_regex_headers";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS =
+      "activity_log_response_exclude_headers";
   private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
   private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
   private static final String OPTION_ACTIVITY_TIMING_MODE = "activity_timing_mode";
@@ -415,41 +424,41 @@ public class Launcher {
           break;
       }
 
-      // Process prefix headers
-      if (cmd.hasOption(OPTION_ACTIVITY_LOG_PREFIX_HEADERS)) {
-        String prefixes = cmd.getOptionValue(OPTION_ACTIVITY_LOG_PREFIX_HEADERS);
-        for (String prefix : prefixes.split(",")) {
-          prefix = prefix.trim();
-          if (!prefix.isEmpty()) {
-            builder.addRequestHeadersWithPrefix(prefix);
-            LOG.debug("Added prefix header matcher: {}", prefix);
-          }
-        }
-      }
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS,
+          builder::addRequestHeadersWithPrefix,
+          "request prefix header matcher");
 
-      // Process regex headers
-      if (cmd.hasOption(OPTION_ACTIVITY_LOG_REGEX_HEADERS)) {
-        String patterns = cmd.getOptionValue(OPTION_ACTIVITY_LOG_REGEX_HEADERS);
-        for (String pattern : patterns.split(",")) {
-          pattern = pattern.trim();
-          if (!pattern.isEmpty()) {
-            builder.addRequestHeadersMatching(pattern);
-            LOG.debug("Added regex header matcher: {}", pattern);
-          }
-        }
-      }
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS,
+          builder::addRequestHeadersMatching,
+          "request regex header matcher");
 
-      // Process exclude headers
-      if (cmd.hasOption(OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS)) {
-        String patterns = cmd.getOptionValue(OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS);
-        for (String pattern : patterns.split(",")) {
-          pattern = pattern.trim();
-          if (!pattern.isEmpty()) {
-            builder.excludeRequestHeadersMatching(pattern);
-            LOG.debug("Added exclude header matcher: {}", pattern);
-          }
-        }
-      }
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS,
+          builder::excludeRequestHeadersMatching,
+          "request exclude header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS,
+          builder::addResponseHeadersWithPrefix,
+          "response prefix header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS,
+          builder::addResponseHeadersMatching,
+          "response regex header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS,
+          builder::excludeResponseHeadersMatching,
+          "response exclude header matcher");
 
       fieldConfig = builder.build();
     }
@@ -468,10 +477,34 @@ public class Launcher {
    * @return true if any logging-related CLI options are present
    */
   private boolean hasCliLoggingOptions(CommandLine cmd) {
-    return cmd.hasOption(OPTION_ACTIVITY_LOG_PREFIX_HEADERS)
-        || cmd.hasOption(OPTION_ACTIVITY_LOG_REGEX_HEADERS)
-        || cmd.hasOption(OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS)
+    return cmd.hasOption(OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS)
         || cmd.hasOption(OPTION_ACTIVITY_LOG_MASK_SENSITIVE);
+  }
+
+  private void configureHeaderOption(
+      CommandLine cmd,
+      String optionName,
+      java.util.function.Consumer<String> action,
+      String logDescription) {
+    if (!cmd.hasOption(optionName)) {
+      return;
+    }
+    String values = cmd.getOptionValue(optionName);
+    if (values == null) {
+      return;
+    }
+    for (String token : values.split(",")) {
+      String value = token.trim();
+      if (!value.isEmpty()) {
+        action.accept(value);
+        LOG.debug("Added {}: {}", logDescription, value);
+      }
+    }
   }
 
   @SuppressWarnings("java:S106")
@@ -599,19 +632,34 @@ public class Launcher {
         "Path to JSON configuration file for logging fields");
     options.addOption(
         null,
-        OPTION_ACTIVITY_LOG_PREFIX_HEADERS,
+        OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS,
         true,
-        "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
+        "Comma-separated list of request header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
     options.addOption(
         null,
-        OPTION_ACTIVITY_LOG_REGEX_HEADERS,
+        OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS,
         true,
-        "Comma-separated list of regex patterns for headers to log");
+        "Comma-separated list of regex patterns for request headers to log");
     options.addOption(
         null,
-        OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
+        OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS,
         true,
-        "Comma-separated list of regex patterns for headers to exclude from logging");
+        "Comma-separated list of regex patterns for request headers to exclude from logging");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS,
+        true,
+        "Comma-separated list of response header prefixes to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for response headers to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for response headers to exclude");
     options.addOption(
         null,
         OPTION_ACTIVITY_LOG_MASK_SENSITIVE,
@@ -647,21 +695,6 @@ public class Launcher {
         OPTION_ACTIVITY_LOG_FIELD_CONFIG,
         true,
         "Path to JSON configuration file for logging fields");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_PREFIX_HEADERS,
-        true,
-        "Comma-separated list of header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_REGEX_HEADERS,
-        true,
-        "Comma-separated list of regex patterns for headers to log");
-    options.addOption(
-        null,
-        OPTION_ACTIVITY_LOG_EXCLUDE_HEADERS,
-        true,
-        "Comma-separated list of regex patterns for headers to exclude from logging");
     options.addOption(
         null,
         OPTION_ACTIVITY_TIMING_MODE,

@@ -371,23 +371,6 @@ public class LogFieldConfiguration {
     }
 
     /**
-     * Excludes response headers matching a regex pattern with custom transformers.
-     *
-     * @param excludePattern the regex pattern for headers to exclude
-     * @param fieldNameTransformer function to transform header names to field names
-     * @param valueTransformer function to transform header values
-     * @return this builder for chaining
-     */
-    public Builder excludeResponseHeadersMatching(
-        String excludePattern,
-        java.util.function.Function<String, String> fieldNameTransformer,
-        java.util.function.Function<String, String> valueTransformer) {
-      fields.add(
-          new ExcludeResponseHeaderField(excludePattern, fieldNameTransformer, valueTransformer));
-      return this;
-    }
-
-    /**
      * Adds a computed field.
      *
      * @param field the computed field to add
