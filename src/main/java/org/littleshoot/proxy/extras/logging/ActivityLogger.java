@@ -342,7 +342,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // Build attributes map based on timing mode
     var attributesBuilder = new java.util.HashMap<String, Object>();
-    attributesBuilder.put("client_address", clientAddress);
+    if (clientAddress != null) {
+      attributesBuilder.put("client_address", clientAddress);
+    }
     attributesBuilder.put("protocol", sslSession.getProtocol());
     attributesBuilder.put("cipher_suite", sslSession.getCipherSuite());
     if (timingMode != TimingMode.OFF) {
@@ -380,7 +382,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     // Build attributes map based on timing mode
     var attributesBuilder = new java.util.HashMap<String, Object>();
-    attributesBuilder.put("client_address", clientAddress);
+    if (clientAddress != null) {
+      attributesBuilder.put("client_address", clientAddress);
+    }
     attributesBuilder.put("timestamp", formatTimestamp(now));
     if (timingMode != TimingMode.OFF) {
       addClientTimingAttributes(attributesBuilder, flowContext, now, false);
@@ -449,7 +453,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private Map<String, Object> buildServerEventAttributes(
       InetSocketAddress serverAddress, long now, FlowContext flowContext, boolean includeTimings) {
     var attributes = new java.util.HashMap<String, Object>();
-    attributes.put("server_address", serverAddress);
+    if (serverAddress != null) {
+      attributes.put("server_address", serverAddress);
+    }
     attributes.put("timestamp", formatTimestamp(now));
     if (timingMode != TimingMode.OFF) {
       if (includeTimings) {

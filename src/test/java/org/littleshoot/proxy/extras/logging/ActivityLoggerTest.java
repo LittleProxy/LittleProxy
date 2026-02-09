@@ -1044,6 +1044,54 @@ class ActivityLoggerTest {
   }
 
   @Test
+  void testClientDisconnectedWithNullClientAddress() {
+    // Test that clientDisconnected handles null client address gracefully
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+
+    when(flowContext.getClientAddress()).thenReturn(null);
+    when(flowContext.getTimingData(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+
+    // Should not throw NPE when client address is null
+    tracker.clientDisconnected(flowContext, null);
+
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testClientSSLHandshakeSucceededWithNullClientAddress() {
+    // Test that clientSSLHandshakeSucceeded handles null client address gracefully
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(null);
+
+    // Should not throw NPE when client address is null
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testServerDisconnectedWithNullServerAddress() {
+    // Test that serverDisconnected handles null server address gracefully
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+
+    when(fullFlowContext.getClientAddress()).thenReturn(null);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("server:443");
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+
+    // Should not throw NPE when server address is null
+    tracker.serverDisconnected(fullFlowContext, null);
+
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
   void testTimingModeOffWithCompleteFlow() {
     // Test complete interaction with timing mode OFF
     TestableActivityLogger tracker =
