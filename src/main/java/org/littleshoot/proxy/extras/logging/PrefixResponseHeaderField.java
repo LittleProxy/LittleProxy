@@ -25,7 +25,7 @@ public class PrefixResponseHeaderField implements LogField {
    * @param prefix the prefix to match (e.g., "X-RateLimit-")
    */
   public PrefixResponseHeaderField(String prefix) {
-    this(prefix, name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"), value -> value);
+    this(prefix, PrefixResponseHeaderField::defaultFieldName, value -> value);
   }
 
   /**
@@ -54,7 +54,7 @@ public class PrefixResponseHeaderField implements LogField {
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
-            : name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_");
+            : PrefixResponseHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
     this.description = "Response headers matching prefix: " + prefix;
   }
@@ -112,6 +112,10 @@ public class PrefixResponseHeaderField implements LogField {
 
   public String getPrefix() {
     return prefix;
+  }
+
+  private static String defaultFieldName(String headerName) {
+    return "res_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override

@@ -28,7 +28,7 @@ public class ExcludeRequestHeaderField implements LogField {
    * @param excludePattern the regex pattern for headers to exclude (e.g., "Authorization|Cookie")
    */
   public ExcludeRequestHeaderField(Pattern excludePattern) {
-    this(excludePattern, name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"), value -> value);
+    this(excludePattern, ExcludeRequestHeaderField::defaultFieldName, value -> value);
   }
 
   /**
@@ -46,7 +46,7 @@ public class ExcludeRequestHeaderField implements LogField {
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
-            : name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_");
+            : ExcludeRequestHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
     this.description = "Request headers excluding pattern: " + excludePattern.pattern();
   }
@@ -112,6 +112,10 @@ public class ExcludeRequestHeaderField implements LogField {
 
   public Pattern getExcludePattern() {
     return excludePattern;
+  }
+
+  private static String defaultFieldName(String headerName) {
+    return "req_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override

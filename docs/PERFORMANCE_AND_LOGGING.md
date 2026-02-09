@@ -760,20 +760,24 @@ builder.excludeRequestHeadersMatching("Authorization|Cookie|X-API-Key");
 
 **Basic inline options:**
 ```bash
-# Log headers by prefix
-./run.bash --activity_log_format JSON --activity_log_prefix_headers "X-Custom-,X-Trace-"
+# Log request headers by prefix
+./run.bash --activity_log_format JSON --activity_log_request_prefix_headers "X-Custom-,X-Trace-"
 
-# Log headers by regex
-./run.bash --activity_log_format JSON --activity_log_regex_headers "X-.*-Id"
+# Log request headers by regex
+./run.bash --activity_log_format JSON --activity_log_request_regex_headers "X-.*-Id"
 
-# Exclude sensitive headers
-./run.bash --activity_log_format JSON --activity_log_exclude_headers "Authorization,Cookie"
+# Exclude sensitive request headers
+./run.bash --activity_log_format JSON --activity_log_request_exclude_headers "Authorization,Cookie"
+
+# Log response headers by prefix
+./run.bash --activity_log_format JSON --activity_log_response_prefix_headers "X-RateLimit-"
 
 # Combined
 ./run.bash --activity_log_format JSON \
-  --activity_log_prefix_headers "X-Custom-" \
-  --activity_log_regex_headers "X-.*-Id" \
-  --activity_log_exclude_headers "Authorization,Cookie"
+  --activity_log_request_prefix_headers "X-Custom-" \
+  --activity_log_request_regex_headers "X-.*-Id" \
+  --activity_log_request_exclude_headers "Authorization,Cookie" \
+  --activity_log_response_prefix_headers "X-RateLimit-"
 ```
 
 **File-based configuration:**
@@ -855,8 +859,8 @@ The `--activity_log_level` option sets a system property that is referenced by t
 # JSON with custom field configuration via CLI
 ./run.bash --server --config ./config/littleproxy.properties \
   --port 9092 --activity_log_format JSON \
-  --activity_log_prefix_headers "X-Custom-,X-Trace-" \
-  --activity_log_exclude_headers "Authorization,Cookie"
+  --activity_log_request_prefix_headers "X-Custom-,X-Trace-" \
+  --activity_log_request_exclude_headers "Authorization,Cookie"
 
 # JSON with configuration file (recommended for complex setups)
 ./run.bash --server --config ./config/littleproxy.properties \

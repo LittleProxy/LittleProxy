@@ -27,7 +27,7 @@ public class RegexRequestHeaderField implements LogField {
    * @param pattern the regex pattern to match (e.g., Pattern.compile("X-.*-Id"))
    */
   public RegexRequestHeaderField(Pattern pattern) {
-    this(pattern, name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"), value -> value);
+    this(pattern, RegexRequestHeaderField::defaultFieldName, value -> value);
   }
 
   /**
@@ -55,7 +55,7 @@ public class RegexRequestHeaderField implements LogField {
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
-            : name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_");
+            : RegexRequestHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
     this.description = "Request headers matching pattern: " + pattern.pattern();
   }
@@ -149,6 +149,10 @@ public class RegexRequestHeaderField implements LogField {
 
   public Pattern getPattern() {
     return pattern;
+  }
+
+  private static String defaultFieldName(String headerName) {
+    return "req_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override

@@ -27,7 +27,7 @@ public class RegexResponseHeaderField implements LogField {
    * @param pattern the regex pattern to match (e.g., Pattern.compile("X-RateLimit-.*"))
    */
   public RegexResponseHeaderField(Pattern pattern) {
-    this(pattern, name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"), value -> value);
+    this(pattern, RegexResponseHeaderField::defaultFieldName, value -> value);
   }
 
   /**
@@ -56,7 +56,7 @@ public class RegexResponseHeaderField implements LogField {
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
-            : name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_");
+            : RegexResponseHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
     this.description = "Response headers matching pattern: " + pattern.pattern();
   }
@@ -150,6 +150,10 @@ public class RegexResponseHeaderField implements LogField {
 
   public Pattern getPattern() {
     return pattern;
+  }
+
+  private static String defaultFieldName(String headerName) {
+    return "res_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override
