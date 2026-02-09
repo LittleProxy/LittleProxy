@@ -21,6 +21,9 @@ Summary of Recent Changes (Post-PR Updates)
 - **Null-safe Client Connect Logging** (new): `CLIENT_CONNECTED` no longer throws when the client address is temporarily unavailable; regression test added.
 - **DNS Timing Metrics** (new): DNS resolution start/end/duration now tracked in FlowContext and surfaced in lifecycle logs (e.g., `server_connected`) as `dns_resolution_time_ms`.
 - **Request/Response Header Logging** (new): CLI options now differentiate between request (`--activity_log_request_*`) and response (`--activity_log_response_*`) header capture. Logged header fields are automatically prefixed with `req_` or `res_` to indicate their origin.
+- **Response Time Categorization** (new): Configurable response time thresholds with `--activity_log_response_time_thresholds` CLI option. Categories requests as fast/medium/slow/very_slow based on customizable millisecond thresholds (default: 100,500,2000).
+- **Latency and Transfer Time Metrics** (new): Added `response_latency_ms` (Time to First Byte - TTFB) and `response_transfer_time_ms` for detailed performance breakdown. Shows the relationship: `response_time = latency + transfer_time`.
+- **Comprehensive Test Coverage** (new): Expanded from 50 to 589+ tests covering all logging components, formatters, field extractors, configuration classes, and adapter patterns. 46 test files with complete coverage of logging infrastructure.
 
 ---
 Changes Overview
@@ -213,13 +216,26 @@ Available in: JSON, LTSV, CSV formats
 - Format compliance documentation
 ---
 14. Testing
-- 50 comprehensive tests for ActivityLogger (increased from 36)
-- Lifecycle event testing including SSL handshake timing
-- Field configuration testing
-- Format compliance testing
+- 589+ comprehensive tests across 46 test files (increased from 50)
+- ActivityLogger testing including lifecycle events and SSL handshake timing
+- All 21 StandardField extractors tested
+- All 10 LogEntryFormatter implementations tested (CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, KEYVALUE)
+- Header field testing: RequestHeaderField, ResponseHeaderField, PrefixRequestHeaderField, PrefixResponseHeaderField, RegexRequestHeaderField, RegexResponseHeaderField, ExcludeRequestHeaderField, ExcludeResponseHeaderField
+- Configuration testing: LogFieldConfigurationFactory, LoggingConfiguration, LogEntryFormatterFactory
+- Preset configuration testing: SecurityMonitoringConfig, PerformanceAnalyticsConfig, APIManagementConfig
+- ResponseTimeCategoryField testing with configurable thresholds
+- Adapter pattern testing: ActivityTrackerAdapter, HttpFiltersAdapter, ChainedProxyAdapter, HttpFiltersSourceAdapter
+- Interface contract testing: ActivityTracker, ChainedProxy, HttpFilters, HttpFiltersSource, MitmManager, ProxyAuthenticator, SslEngineSource
+- DNS resolution testing: DefaultHostResolver, HostResolver
+- SSL/Security testing: SelfSignedSslEngineSource, TrustingTrustManager
+- Enum testing: ChainedProxyType, TransportProtocol, LogFormat, TimingMode, StandardField, ComputedField
+- Exception testing: UnknownChainedProxyTypeException, UnknownTransportProtocolException
+- Lifecycle event testing including timing metrics
+- Field configuration testing with JSON parsing
+- Format compliance testing for all log formats
 - Timing mode testing (OFF, MINIMAL, ALL)
 - NPE prevention testing for null timing data
-- All 99+ tests passing
+- All 589+ tests passing
 ---
 Breaking Changes
 1. Package relocation: ActivityLogger moved from org.littleshoot.proxy.extras to org.littleshoot.proxy.extras.logging
