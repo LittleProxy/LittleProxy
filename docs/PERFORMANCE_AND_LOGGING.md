@@ -772,12 +772,20 @@ builder.excludeRequestHeadersMatching("Authorization|Cookie|X-API-Key");
 # Log response headers by prefix
 ./run.bash --activity_log_format JSON --activity_log_response_prefix_headers "X-RateLimit-"
 
+# Log response headers by regex
+./run.bash --activity_log_format JSON --activity_log_response_regex_headers "X-.*-Id"
+
+# Exclude sensitive response headers
+./run.bash --activity_log_format JSON --activity_log_response_exclude_headers "Set-Cookie,X-Auth-Token"
+
 # Combined
 ./run.bash --activity_log_format JSON \
   --activity_log_request_prefix_headers "X-Custom-" \
   --activity_log_request_regex_headers "X-.*-Id" \
   --activity_log_request_exclude_headers "Authorization,Cookie" \
-  --activity_log_response_prefix_headers "X-RateLimit-"
+  --activity_log_response_prefix_headers "X-RateLimit-" \
+  --activity_log_response_regex_headers "X-Response-.*" \
+  --activity_log_response_exclude_headers "Set-Cookie"
 ```
 
 **File-based configuration:**
@@ -801,9 +809,6 @@ Control the verbosity of ActivityLogger at runtime using the `--activity_log_lev
 | **TRACE** | Detailed diagnostics - method entry, state transitions, thread info | Debugging complex issues |
 | **DEBUG** | Essential operations - connections, disconnections, errors | Development, troubleshooting |
 | **INFO** | Complete interaction summary - aggregated metrics per request | Production (default) |
-| **WARN** | Warnings and errors only | Reduced logging |
-| **ERROR** | Errors only | Minimal logging |
-| **OFF** | Disable activity logging completely | Disable logging |
 
 **Examples:**
 ```bash
@@ -815,10 +820,9 @@ Control the verbosity of ActivityLogger at runtime using the `--activity_log_lev
 
 # TRACE level for detailed diagnostics
 ./run.bash --server --port 8080 --activity_log_format JSON --activity_log_level TRACE
-
-# Disable activity logging
-./run.bash --server --port 8080 --activity_log_level OFF
 ```
+
+**Note:** The ActivityLogger only produces output at TRACE, DEBUG, and INFO levels. Setting the level to WARN, ERROR, or OFF will effectively disable activity logging output.
 
 **How it works:**
 The `--activity_log_level` option sets a system property that is referenced by the Log4j2 configuration files. This allows runtime control without modifying XML configuration files.

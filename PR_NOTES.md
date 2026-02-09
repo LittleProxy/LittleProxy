@@ -166,11 +166,14 @@ Available in: JSON, LTSV, CSV formats
 ---
 10. CLI Enhancements
     New Options:
-    --activity_log_level TRACE|DEBUG|INFO|WARN|ERROR|OFF  # Set log level
+    --activity_log_level TRACE|DEBUG|INFO                  # Set log level (default: INFO)
     --activity_log_field_config <path>                    # JSON configuration file
-    --activity_log_prefix_headers "X-Custom-,X-Trace-"    # Include headers by prefix
-    --activity_log_regex_headers "X-.*-Id"                # Include headers by regex
-    --activity_log_exclude_headers "Authorization,Cookie" # Exclude sensitive headers
+    --activity_log_request_prefix_headers <csv>           # Include request headers by prefix
+    --activity_log_request_regex_headers <csv>            # Include request headers by regex
+    --activity_log_request_exclude_headers <csv>          # Exclude request headers
+    --activity_log_response_prefix_headers <csv>          # Include response headers by prefix
+    --activity_log_response_regex_headers <csv>           # Include response headers by regex
+    --activity_log_response_exclude_headers <csv>         # Exclude response headers
     --activity_log_mask_sensitive true                    # Mask sensitive values
     --activity_timing_mode OFF|MINIMAL|ALL                # Timing field configuration (default: MINIMAL)
     Timing Mode Options:
