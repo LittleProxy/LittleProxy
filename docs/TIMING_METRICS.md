@@ -83,6 +83,7 @@ Time to First Byte (TTFB) - the time from when the proxy receives the request to
     *   TCP connection establishment to the server (if required).
     *   Server processing time to generate the response.
     *   Network latency to the server.
+*   **Not Available For**: CONNECT requests (HTTPS tunneling). For CONNECT, this field will be `-` because the proxy tunnels encrypted data and cannot observe HTTP responses.
 
 **Timeline Diagram:**
 ```text
@@ -108,6 +109,7 @@ Time to transfer the complete response body from first byte to last byte sent to
     *   Data transfer from server to proxy.
     *   Proxy processing (filtering, transformation).
     *   Data transfer from proxy to client.
+*   **Not Available For**: CONNECT requests (HTTPS tunneling). For CONNECT, this field will be `-` because the proxy tunnels encrypted data and cannot observe HTTP responses.
 
 **Relationship**: `http_request_processing_time_ms = response_latency_ms + response_transfer_time_ms`
 
@@ -317,3 +319,46 @@ public void responseSentToClient(FlowContext flowContext, HttpResponse httpRespo
 5. **Compare `http_request_processing_time_ms` with Server Logs**: If the proxy's processing time is significantly higher than the origin server's logged response time, the bottleneck is likely in the proxy's filters or the network between proxy and server.
 6. **Use Connection Pooling**: Reusing server connections (keeping `tcp_server_connection_duration_ms` high) avoids the overhead of `tcp_connection_establishment_time_ms` for every request.
 7. **Analyze `ssl_handshake_time_ms`**: If this is high, consider optimizing your SSL/TLS configuration (e.g., enabling session resumption or using faster cipher suites).
+
+---
+
+## Timing Metrics Availability by Request Type
+
+### HTTP Requests (GET, POST, PUT, DELETE, PATCH, etc.)
+
+All timing metrics are available for standard HTTP requests:
+
+| Metric | Available | Notes |
+|--------|-----------|-------|
+| `http_request_processing_time_ms` | ✅ | Full request processing time |
+| `response_latency_ms` | ✅ | Time to first byte from server |
+| `response_transfer_time_ms` | ✅ | Time to transfer response body |
+| `tcp_connection_establishment_time_ms` | ✅ | Connection setup time |
+| `tcp_client_connection_duration_ms` | ✅ | Client connection lifetime |
+| `tcp_server_connection_duration_ms` | ✅ | Server connection lifetime |
+| `ssl_handshake_time_ms` | ✅ | SSL handshake duration (if HTTPS) |
+| `dns_resolution_time_ms` | ✅ | DNS lookup time |
+
+### CONNECT Requests (HTTPS Tunneling)
+
+For CONNECT requests, the proxy establishes an encrypted tunnel and passes data through without inspecting it:
+
+| Metric | Available | Notes |
+|--------|-----------|-------|
+| `http_request_processing_time_ms` | ✅ | **Tunnel establishment time only** (CONNECT → 200 OK) |
+| `response_latency_ms` | ❌ | Shows `-` - proxy cannot see HTTP inside tunnel |
+| `response_transfer_time_ms` | ❌ | Shows `-` - proxy cannot see HTTP inside tunnel |
+| `tcp_connection_establishment_time_ms` | ✅ | Time to connect to target server |
+| `tcp_client_connection_duration_ms` | ✅ | Client connection lifetime |
+| `tcp_server_connection_duration_ms` | ✅ | Server connection lifetime |
+| `ssl_handshake_time_ms` | ✅ | SSL handshake to target server |
+| `dns_resolution_time_ms` | ✅ | DNS lookup time |
+
+**Why latency/transfer metrics are unavailable for CONNECT:**
+
+When a client sends `CONNECT example.com:443 HTTP/1.1`, the proxy:
+1. Establishes a TCP connection to `example.com:443`
+2. Sends `HTTP/1.1 200 Connection Established` back to the client
+3. Switches to **tunnel mode** - all subsequent data is encrypted and passed through as-is
+
+From this point, the proxy cannot observe HTTP request/response cycles because they're encrypted end-to-end between client and server. The `http_request_processing_time_ms` for a CONNECT request measures only the tunnel establishment time (step 1-2 above).
