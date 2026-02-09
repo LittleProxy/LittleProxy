@@ -10,6 +10,7 @@
       - **Timing Field Fixes**: Fixed all timing metrics (ssl_handshake_time_ms, tcp_connection_establishment_time_ms, tcp_client_connection_duration_ms, tcp_server_connection_duration_ms) to be properly populated
       - **Lifecycle Event Timing Enrichment**: Lifecycle DEBUG logs now expose connection age, request spacing, and latency metrics (e.g., server connect latency, time since previous request) when `--activity_timing_mode ALL` is enabled
       - **DNS Resolution Metrics**: DNS start/end/time durations are captured in FlowContext and emitted in lifecycle logs for tracing upstream resolution latency
+      - **Request/Response Header Logging Enhancements**: CLI options now differentiate between request (`--activity_log_request_*`) and response (`--activity_log_response_*`) headers, and logged header fields are prefixed with `req_` or `res_` for clarity
      - **Timing Mode Implementation**: Fully implemented `--activity_timing_mode` CLI option with proper field filtering in both INFO logs and DEBUG lifecycle events
     - **Standards-Compliant Formats**: Fixed W3C, Squid, and HAProxy log formats for full specification compliance
     - **Strategy Pattern Formatters**: Refactored log formatting into modular, testable formatter classes supporting CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, and KEYVALUE formats

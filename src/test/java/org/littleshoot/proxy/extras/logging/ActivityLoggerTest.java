@@ -609,8 +609,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Prefix Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"x_custom_auth\":\"token123\"");
-    assertThat(tracker.lastLogMessage).contains("\"x_custom_id\":\"abc-456\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_custom_auth\":\"token123\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_custom_id\":\"abc-456\"");
   }
 
   @Test
@@ -712,9 +712,9 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Regex Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"x_request_id\":\"req-123\"");
-    assertThat(tracker.lastLogMessage).contains("\"x_trace_id\":\"trace-456\"");
-    assertThat(tracker.lastLogMessage).contains("\"x_session_id\":\"sess-789\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_request_id\":\"req-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_trace_id\":\"trace-456\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_session_id\":\"sess-789\"");
   }
 
   @Test
@@ -826,8 +826,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Exclude Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"x_request_id\":\"req-123\"");
-    assertThat(tracker.lastLogMessage).contains("\"content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_request_id\":\"req-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_content_type\":\"application/json\"");
     assertThat(tracker.lastLogMessage).doesNotContain("authorization");
     assertThat(tracker.lastLogMessage).doesNotContain("cookie");
     assertThat(tracker.lastLogMessage).doesNotContain("secret-token");
@@ -894,9 +894,9 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Exclude Response Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"x_ratelimit_limit\":\"1000\"");
-    assertThat(tracker.lastLogMessage).contains("\"x_cache_status\":\"HIT\"");
-    assertThat(tracker.lastLogMessage).contains("\"content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).contains("\"res_x_ratelimit_limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"res_x_cache_status\":\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"res_content_type\":\"application/json\"");
     assertThat(tracker.lastLogMessage).doesNotContain("set_cookie");
     assertThat(tracker.lastLogMessage).doesNotContain("secret123");
   }

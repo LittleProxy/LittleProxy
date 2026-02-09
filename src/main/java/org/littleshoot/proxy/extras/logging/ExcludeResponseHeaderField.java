@@ -20,10 +20,7 @@ public class ExcludeResponseHeaderField implements LogField {
   private final Function<String, String> valueTransformer;
 
   public ExcludeResponseHeaderField(String excludeRegex) {
-    this(
-        excludeRegex,
-        name -> "res_" + name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
-        value -> value);
+    this(excludeRegex, ExcludeResponseHeaderField::defaultFieldName, value -> value);
   }
 
   public ExcludeResponseHeaderField(
@@ -34,7 +31,7 @@ public class ExcludeResponseHeaderField implements LogField {
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
-            : name -> "res_" + name.toLowerCase().replaceAll("[^a-z0-9]", "_");
+            : ExcludeResponseHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
   }
 
@@ -63,5 +60,9 @@ public class ExcludeResponseHeaderField implements LogField {
       }
     }
     return matches;
+  }
+
+  private static String defaultFieldName(String headerName) {
+    return "res_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 }

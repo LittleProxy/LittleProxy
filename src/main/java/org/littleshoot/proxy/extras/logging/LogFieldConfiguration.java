@@ -370,6 +370,15 @@ public class LogFieldConfiguration {
       return this;
     }
 
+    public Builder excludeResponseHeadersMatching(
+        String excludePattern,
+        java.util.function.Function<String, String> fieldNameTransformer,
+        java.util.function.Function<String, String> valueTransformer) {
+      fields.add(
+          new ExcludeResponseHeaderField(excludePattern, fieldNameTransformer, valueTransformer));
+      return this;
+    }
+
     /**
      * Adds a computed field.
      *
