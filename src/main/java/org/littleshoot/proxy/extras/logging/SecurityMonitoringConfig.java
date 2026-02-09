@@ -62,7 +62,7 @@ public class SecurityMonitoringConfig {
         .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
         .addComputedField(ComputedField.AUTHENTICATION_TYPE)
         .addComputedField(ComputedField.REQUEST_SIZE)
-        .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+        .addResponseTimeCategoryField()
 
         // W3C compliance for security monitoring
         .strictStandardsCompliance(true)
@@ -124,7 +124,7 @@ public class SecurityMonitoringConfig {
         .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
         .addComputedField(ComputedField.AUTHENTICATION_TYPE)
         .addComputedField(ComputedField.REQUEST_SIZE)
-        .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+        .addResponseTimeCategoryField()
         .strictStandardsCompliance(true)
         .build();
   }

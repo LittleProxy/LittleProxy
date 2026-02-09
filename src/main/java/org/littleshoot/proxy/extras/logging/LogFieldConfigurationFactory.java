@@ -42,6 +42,13 @@ public class LogFieldConfigurationFactory {
   public static LogFieldConfiguration buildConfiguration(LoggingConfiguration config) {
     LogFieldConfiguration.Builder builder = LogFieldConfiguration.builder();
 
+    // Set response time thresholds if provided
+    if (config.getResponseTimeThresholds() != null
+        && !config.getResponseTimeThresholds().isEmpty()) {
+      builder.responseTimeThresholds(config.getResponseTimeThresholds());
+      LOG.debug("Set response time thresholds: {}", config.getResponseTimeThresholds());
+    }
+
     // Add standard fields
     if (config.getStandardFields() != null) {
       for (String fieldName : config.getStandardFields()) {
@@ -178,12 +185,17 @@ public class LogFieldConfigurationFactory {
     // Add computed fields
     if (config.getComputedFields() != null) {
       for (String fieldName : config.getComputedFields()) {
-        try {
-          ComputedField field = ComputedField.valueOf(fieldName.toUpperCase());
-          builder.addComputedField(field);
-          LOG.debug("Added computed field: {}", field);
-        } catch (IllegalArgumentException e) {
-          LOG.warn("Unknown computed field: {}", fieldName);
+        if ("RESPONSE_TIME_CATEGORY".equalsIgnoreCase(fieldName)) {
+          builder.addResponseTimeCategoryField();
+          LOG.debug("Added response time category field with configured thresholds");
+        } else {
+          try {
+            ComputedField field = ComputedField.valueOf(fieldName.toUpperCase());
+            builder.addComputedField(field);
+            LOG.debug("Added computed field: {}", field);
+          } catch (IllegalArgumentException e) {
+            LOG.warn("Unknown computed field: {}", fieldName);
+          }
         }
       }
     }

@@ -13,8 +13,6 @@ public enum ComputedField implements LogField {
   CACHE_HIT_RATIO("cache_hit_ratio", "Ratio of cache hits (simplified implementation)"),
   COMPRESSION_RATIO("compression_ratio", "Compression ratio based on content encoding"),
   GEOLOCATION_COUNTRY("geolocation_country", "Country code based on client IP geolocation"),
-  RESPONSE_TIME_CATEGORY(
-      "response_time_category", "Category based on response time (fast/medium/slow)"),
   REQUEST_SIZE("request_size", "Total request size in bytes"),
   AUTHENTICATION_TYPE("authentication_type", "Type of authentication used (basic/bearer/none)");
 
@@ -47,13 +45,6 @@ public enum ComputedField implements LogField {
 
       case GEOLOCATION_COUNTRY:
         return extractGeolocationCountry(flowContext);
-
-      case RESPONSE_TIME_CATEGORY:
-        Long httpRequestProcessingTime =
-            flowContext.getTimingData("http_request_processing_time_ms");
-        return httpRequestProcessingTime != null
-            ? categorizeResponseTime(httpRequestProcessingTime)
-            : "-";
 
       case REQUEST_SIZE:
         return extractRequestSize(request);
@@ -120,18 +111,6 @@ public enum ComputedField implements LogField {
     }
 
     return "UNKNOWN";
-  }
-
-  private String categorizeResponseTime(long duration) {
-    if (duration < 100) {
-      return "fast";
-    } else if (duration < 500) {
-      return "medium";
-    } else if (duration < 2000) {
-      return "slow";
-    } else {
-      return "very_slow";
-    }
   }
 
   private String extractRequestSize(HttpRequest request) {

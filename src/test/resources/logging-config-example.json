@@ -1,5 +1,6 @@
 {
   "_comment": "Example logging configuration for LittleProxy - Copy this file and customize for your needs",
+  "responseTimeThresholds": [100, 500, 2000],
   "standardFields": [
     "TIMESTAMP",
     "CLIENT_IP",

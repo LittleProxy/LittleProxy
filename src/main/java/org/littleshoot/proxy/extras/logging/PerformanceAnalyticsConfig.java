@@ -66,7 +66,7 @@ public class PerformanceAnalyticsConfig {
         // Computed performance fields
         .addComputedField(ComputedField.CACHE_HIT_RATIO)
         .addComputedField(ComputedField.COMPRESSION_RATIO)
-        .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+        .addResponseTimeCategoryField()
         .addComputedField(ComputedField.REQUEST_SIZE)
 
         // W3C compliance for performance monitoring
@@ -105,7 +105,7 @@ public class PerformanceAnalyticsConfig {
 
         // Computed fields
         .addComputedField(ComputedField.CACHE_HIT_RATIO)
-        .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+        .addResponseTimeCategoryField()
         .strictStandardsCompliance(false)
         .build();
   }

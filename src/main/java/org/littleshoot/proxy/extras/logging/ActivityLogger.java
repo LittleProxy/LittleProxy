@@ -151,6 +151,38 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
+  public void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse) {
+    long now = System.currentTimeMillis();
+    String flowId = getFlowId(flowContext);
+
+    // Store the time when first response byte was received from server
+    flowContext.setTimingData("response_first_byte_time_ms", now);
+
+    // Calculate response latency (TTFB - Time To First Byte)
+    Long requestStartTime = flowContext.getTimingData("request_start_time");
+    if (requestStartTime != null) {
+      long responseLatencyMs = now - requestStartTime;
+      flowContext.setTimingData("response_latency_ms", responseLatencyMs);
+    }
+
+    // DEBUG: Structured formatting for response received from server
+    var responseAttributes = new java.util.HashMap<String, Object>();
+    responseAttributes.put("status", httpResponse.status().code());
+    responseAttributes.put("server_host", flowContext.getServerHostAndPort());
+    if (timingMode != TimingMode.OFF) {
+      Long latency = flowContext.getTimingData("response_latency_ms");
+      if (latency != null) {
+        responseAttributes.put("response_latency_ms", latency);
+      }
+    }
+    logLifecycleEvent(
+        LifecycleEvent.RESPONSE_RECEIVED_FROM_SERVER,
+        flowContext,
+        java.util.Map.copyOf(responseAttributes),
+        flowId);
+  }
+
+  @Override
   public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
     TimedRequest timedRequest = requestMap.remove(flowContext);
     if (timedRequest == null) {
@@ -158,16 +190,32 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
 
     String flowId = timedRequest.flowId;
-    long httpRequestProcessingTimeMs = System.currentTimeMillis() - timedRequest.startTime;
+    long now = System.currentTimeMillis();
+    long httpRequestProcessingTimeMs = now - timedRequest.startTime;
 
     // Store timing data in FlowContext
     flowContext.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
+
+    // Calculate response transfer time (from first byte to last byte)
+    Long firstByteTime = flowContext.getTimingData("response_first_byte_time_ms");
+    if (firstByteTime != null) {
+      long responseTransferTimeMs = now - firstByteTime;
+      flowContext.setTimingData("response_transfer_time_ms", responseTransferTimeMs);
+    }
 
     // DEBUG: Structured formatting for response sent
     var responseAttributesBuilder = new java.util.HashMap<String, Object>();
     responseAttributesBuilder.put("status", httpResponse.status().code());
     if (timingMode != TimingMode.OFF) {
       responseAttributesBuilder.put("http_request_processing_time_ms", httpRequestProcessingTimeMs);
+      Long latency = flowContext.getTimingData("response_latency_ms");
+      if (latency != null) {
+        responseAttributesBuilder.put("response_latency_ms", latency);
+      }
+      Long transferTime = flowContext.getTimingData("response_transfer_time_ms");
+      if (transferTime != null) {
+        responseAttributesBuilder.put("response_transfer_time_ms", transferTime);
+      }
     }
     logLifecycleEvent(
         LifecycleEvent.RESPONSE_SENT,

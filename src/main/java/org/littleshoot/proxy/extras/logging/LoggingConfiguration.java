@@ -17,6 +17,7 @@ public class LoggingConfiguration {
   private List<ExcludeHeaderConfig> responseExcludeHeaders;
   private List<String> computedFields;
   private List<SingleHeaderConfig> singleHeaders;
+  private List<Long> responseTimeThresholds;
 
   public List<String> getStandardFields() {
     return standardFields;
@@ -24,6 +25,14 @@ public class LoggingConfiguration {
 
   public void setStandardFields(List<String> standardFields) {
     this.standardFields = standardFields;
+  }
+
+  public List<Long> getResponseTimeThresholds() {
+    return responseTimeThresholds;
+  }
+
+  public void setResponseTimeThresholds(List<Long> responseTimeThresholds) {
+    this.responseTimeThresholds = responseTimeThresholds;
   }
 
   public List<PrefixHeaderConfig> getRequestPrefixHeaders() {

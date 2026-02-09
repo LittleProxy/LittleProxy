@@ -109,7 +109,7 @@ public class APIManagementConfig {
 
         // Computed fields for API analytics
         .addComputedField(ComputedField.AUTHENTICATION_TYPE)
-        .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+        .addResponseTimeCategoryField()
         .addComputedField(ComputedField.REQUEST_SIZE)
 
         // W3C compliance for API management
@@ -143,7 +143,7 @@ public class APIManagementConfig {
 
         // Essential computed fields
         .addComputedField(ComputedField.AUTHENTICATION_TYPE)
-        .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+        .addResponseTimeCategoryField()
         .strictStandardsCompliance(false)
         .build();
   }

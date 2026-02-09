@@ -1538,4 +1538,265 @@ class ActivityLoggerTest {
     assertThat(logMessage).contains("method:GET");
     assertThat(logMessage).contains("status:200");
   }
+
+  @Test
+  void testResponseLatencyMeasurement() {
+    // Test that response_latency_ms is measured correctly (TTFB - Time To First Byte)
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+
+    // Before receiving response from server, latency should not be set
+    Long latencyBefore = fullFlowContext.getTimingData("response_latency_ms");
+    assertThat(latencyBefore).isNull();
+
+    // Receive response from server - this sets latency
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+
+    // After receiving response from server, latency should be set
+    Long latencyAfter = fullFlowContext.getTimingData("response_latency_ms");
+    assertThat(latencyAfter).isNotNull();
+    assertThat(latencyAfter).isGreaterThanOrEqualTo(0L);
+
+    // First byte time should also be set
+    Long firstByteTime = fullFlowContext.getTimingData("response_first_byte_time_ms");
+    assertThat(firstByteTime).isNotNull();
+
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testResponseTransferTimeMeasurement() {
+    // Test that response_transfer_time_ms is measured correctly
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+
+    // Before sending response to client, transfer time should not be set
+    Long transferTimeBefore = fullFlowContext.getTimingData("response_transfer_time_ms");
+    assertThat(transferTimeBefore).isNull();
+
+    // Send response to client - this calculates transfer time
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // After sending response, transfer time should be set
+    Long transferTimeAfter = fullFlowContext.getTimingData("response_transfer_time_ms");
+    assertThat(transferTimeAfter).isNotNull();
+    assertThat(transferTimeAfter).isGreaterThanOrEqualTo(0L);
+
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testResponseTimeEqualsLatencyPlusTransferTime() {
+    // Test that: http_request_processing_time = response_latency + response_transfer_time
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // Verify the relationship: response_time >= latency (transfer_time >= 0)
+    Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
+    Long latency = fullFlowContext.getTimingData("response_latency_ms");
+    Long transferTime = fullFlowContext.getTimingData("response_transfer_time_ms");
+
+    assertThat(processingTime).isNotNull();
+    assertThat(latency).isNotNull();
+    assertThat(transferTime).isNotNull();
+
+    // Processing time should be >= latency (since transfer time >= 0)
+    assertThat(processingTime).isGreaterThanOrEqualTo(latency);
+
+    // Latency + transfer time should approximately equal processing time
+    // (may not be exact due to millisecond precision, but should be very close)
+    long sum = latency + transferTime;
+    assertThat(sum).isLessThanOrEqualTo(processingTime + 1); // Allow 1ms tolerance
+
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testLatencyFieldsInLogOutput() {
+    // Test that latency and transfer time fields appear in JSON log output
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.TIMESTAMP)
+            .addStandardField(StandardField.CLIENT_IP)
+            .addStandardField(StandardField.METHOD)
+            .addStandardField(StandardField.URI)
+            .addStandardField(StandardField.STATUS)
+            .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
+            .addStandardField(StandardField.RESPONSE_LATENCY_MS)
+            .addStandardField(StandardField.RESPONSE_TRANSFER_TIME_MS)
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("Latency Log: " + logMessage);
+
+    // Verify latency fields appear in output
+    assertThat(logMessage).contains("\"http_request_processing_time_ms\"");
+    assertThat(logMessage).contains("\"response_latency_ms\"");
+    assertThat(logMessage).contains("\"response_transfer_time_ms\"");
+
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testLatencyWithoutResponseReceivedFromServer() {
+    // Test that when responseReceivedFromServer is not called,
+    // latency is "-" and transfer time is "-"
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> timingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              timingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(flowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(flowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> timingData.get(inv.getArgument(0)));
+
+    // Skip responseReceivedFromServer call
+    tracker.clientConnected(flowContext);
+    tracker.requestReceivedFromClient(flowContext, request);
+    // Note: NOT calling responseReceivedFromServer
+    tracker.responseSentToClient(flowContext, response);
+
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("Log without responseReceivedFromServer: " + logMessage);
+
+    // Latency should be "-" (not set)
+    assertThat(logMessage).contains("\"response_latency_ms\":\"-\"");
+    // Transfer time should be "-" (not set)
+    assertThat(logMessage).contains("\"response_transfer_time_ms\":\"-\"");
+
+    tracker.clientDisconnected(flowContext, null);
+  }
 }

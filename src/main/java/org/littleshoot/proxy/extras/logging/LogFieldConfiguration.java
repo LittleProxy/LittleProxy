@@ -11,12 +11,15 @@ public class LogFieldConfiguration {
   private final Set<LogField> fields;
   private final boolean strictStandardsCompliance;
   private final Map<String, String> customFieldMappings;
+  private final List<Long> responseTimeThresholds;
 
   private LogFieldConfiguration(Builder builder) {
     this.fields = Collections.unmodifiableSet(new HashSet<>(builder.fields));
     this.strictStandardsCompliance = builder.strictStandardsCompliance;
     this.customFieldMappings =
         Collections.unmodifiableMap(new HashMap<>(builder.customFieldMappings));
+    this.responseTimeThresholds =
+        Collections.unmodifiableList(new ArrayList<>(builder.responseTimeThresholds));
   }
 
   /**
@@ -44,6 +47,15 @@ public class LogFieldConfiguration {
    */
   public Map<String, String> getCustomFieldMappings() {
     return customFieldMappings;
+  }
+
+  /**
+   * Gets the response time thresholds for categorization.
+   *
+   * @return an unmodifiable list of thresholds in milliseconds
+   */
+  public List<Long> getResponseTimeThresholds() {
+    return responseTimeThresholds;
   }
 
   /**
@@ -89,6 +101,7 @@ public class LogFieldConfiguration {
     private final Set<LogField> fields = new HashSet<>();
     private boolean strictStandardsCompliance = false;
     private final Map<String, String> customFieldMappings = new HashMap<>();
+    private List<Long> responseTimeThresholds = Arrays.asList(100L, 500L, 2000L);
 
     /**
      * Adds all standard fields to the configuration.
@@ -387,6 +400,27 @@ public class LogFieldConfiguration {
      */
     public Builder addComputedField(ComputedField field) {
       fields.add(field);
+      return this;
+    }
+
+    /**
+     * Sets the response time thresholds for categorization.
+     *
+     * @param thresholds list of thresholds in milliseconds
+     * @return this builder for chaining
+     */
+    public Builder responseTimeThresholds(List<Long> thresholds) {
+      this.responseTimeThresholds = thresholds;
+      return this;
+    }
+
+    /**
+     * Adds a response time category field with the configured thresholds.
+     *
+     * @return this builder for chaining
+     */
+    public Builder addResponseTimeCategoryField() {
+      fields.add(new ResponseTimeCategoryField(responseTimeThresholds));
       return this;
     }
 

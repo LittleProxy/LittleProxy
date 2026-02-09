@@ -35,6 +35,9 @@ public enum LifecycleEvent {
   /** HTTP request received from client */
   REQUEST_RECEIVED("request_received"),
 
+  /** HTTP response received from upstream server */
+  RESPONSE_RECEIVED_FROM_SERVER("response_received_from_server"),
+
   /** HTTP response sent to client */
   RESPONSE_SENT("response_sent");
 

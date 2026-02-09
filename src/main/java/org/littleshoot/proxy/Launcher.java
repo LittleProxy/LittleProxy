@@ -82,6 +82,8 @@ public class Launcher {
   private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
   private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
   private static final String OPTION_ACTIVITY_TIMING_MODE = "activity_timing_mode";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS =
+      "activity_log_response_time_thresholds";
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
   @Nullable private volatile HttpProxyServer httpProxyServer;
@@ -415,6 +417,8 @@ public class Launcher {
         case ALL:
           builder
               .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
+              .addStandardField(StandardField.RESPONSE_LATENCY_MS)
+              .addStandardField(StandardField.RESPONSE_TRANSFER_TIME_MS)
               .addStandardField(StandardField.DNS_RESOLUTION_TIME_MS)
               .addStandardField(StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS)
               .addStandardField(StandardField.TCP_CLIENT_CONNECTION_DURATION_MS)
@@ -422,6 +426,20 @@ public class Launcher {
               .addStandardField(StandardField.SSL_HANDSHAKE_TIME_MS);
           LOG.debug("Adding all timing metrics");
           break;
+      }
+
+      // Configure response time thresholds if provided
+      if (cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS)) {
+        String thresholdsValue = cmd.getOptionValue(OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS);
+        try {
+          java.util.List<Long> thresholds = parseResponseTimeThresholds(thresholdsValue);
+          builder.responseTimeThresholds(thresholds);
+          builder.addResponseTimeCategoryField();
+          LOG.info("Using custom response time thresholds: {}", thresholds);
+        } catch (IllegalArgumentException e) {
+          printHelp(options, "Invalid response time thresholds: " + e.getMessage());
+          return;
+        }
       }
 
       configureHeaderOption(
@@ -483,7 +501,8 @@ public class Launcher {
         || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS)
         || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS)
         || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS)
-        || cmd.hasOption(OPTION_ACTIVITY_LOG_MASK_SENSITIVE);
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_MASK_SENSITIVE)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS);
   }
 
   private void configureHeaderOption(
@@ -505,6 +524,42 @@ public class Launcher {
         LOG.debug("Added {}: {}", logDescription, value);
       }
     }
+  }
+
+  /**
+   * Parses response time thresholds from a comma-separated string.
+   *
+   * @param thresholdsString comma-separated threshold values (e.g., "100,500,2000")
+   * @return list of threshold values in ascending order
+   * @throws IllegalArgumentException if the string is invalid
+   */
+  private java.util.List<Long> parseResponseTimeThresholds(String thresholdsString) {
+    if (thresholdsString == null || thresholdsString.trim().isEmpty()) {
+      throw new IllegalArgumentException("Thresholds string cannot be empty");
+    }
+    String[] parts = thresholdsString.split(",");
+    java.util.List<Long> thresholds = new java.util.ArrayList<>();
+    for (String part : parts) {
+      try {
+        long value = Long.parseLong(part.trim());
+        if (value < 0) {
+          throw new IllegalArgumentException("Thresholds must be non-negative: " + value);
+        }
+        thresholds.add(value);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException("Invalid threshold value: " + part);
+      }
+    }
+    if (thresholds.size() < 1 || thresholds.size() > 4) {
+      throw new IllegalArgumentException(
+          "Must provide 1-4 thresholds (got " + thresholds.size() + ")");
+    }
+    for (int i = 1; i < thresholds.size(); i++) {
+      if (thresholds.get(i) <= thresholds.get(i - 1)) {
+        throw new IllegalArgumentException("Thresholds must be in ascending order");
+      }
+    }
+    return thresholds;
   }
 
   @SuppressWarnings("java:S106")
@@ -700,6 +755,11 @@ public class Launcher {
         OPTION_ACTIVITY_TIMING_MODE,
         true,
         "Timing field configuration: OFF, MINIMAL, ALL (default: MINIMAL)");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS,
+        true,
+        "Response time category thresholds in ms (comma-separated, e.g., '100,500,2000')");
     return options;
   }
 

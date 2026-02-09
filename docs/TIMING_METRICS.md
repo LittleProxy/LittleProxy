@@ -70,7 +70,61 @@ Request Start                                     Response End
 
 ---
 
-### 2. `tcp_connection_establishment_time_ms`
+### 2. `response_latency_ms`
+
+Time to First Byte (TTFB) - the time from when the proxy receives the request to when the first response byte arrives from the server.
+
+*   **Definition**: Time to first byte from the upstream server (TTFB).
+*   **Starts**: When the proxy receives the HTTP request from the client.
+*   **Ends**: When the proxy receives the first byte of the HTTP response from the server.
+*   **What's Included**:
+    *   Internal proxy processing (filters, routing).
+    *   DNS resolution for the origin server.
+    *   TCP connection establishment to the server (if required).
+    *   Server processing time to generate the response.
+    *   Network latency to the server.
+
+**Timeline Diagram:**
+```text
+Request Start                              First Byte from Server
+      |                                                |
+      v <-------------- response_latency_ms -----------> v
+      +------------------------------------------------+
+      |  Receive  |  Proxy  |  Server  |  Network      |
+      |  Request  |  Logic  |  Process |  Transfer     |
+      +------------------------------------------------+
+```
+
+---
+
+### 3. `response_transfer_time_ms`
+
+Time to transfer the complete response body from first byte to last byte sent to client.
+
+*   **Definition**: Time to transfer the full response body.
+*   **Starts**: When the proxy receives the first byte of the HTTP response from the server.
+*   **Ends**: When the proxy finishes sending the last byte of the HTTP response to the client.
+*   **What's Included**:
+    *   Data transfer from server to proxy.
+    *   Proxy processing (filtering, transformation).
+    *   Data transfer from proxy to client.
+
+**Relationship**: `http_request_processing_time_ms = response_latency_ms + response_transfer_time_ms`
+
+**Timeline Diagram:**
+```text
+First Byte from Server                    Response End
+      |                                        |
+      v <----- response_transfer_time_ms -----> v
+      +----------------------------------------+
+      |  Receive Body  |  Process  |  Send     |
+      |  from Server   |           |  to Client|
+      +----------------------------------------+
+```
+
+---
+
+### 4. `tcp_connection_establishment_time_ms`
 
 The time taken specifically to establish a network connection to the upstream server.
 
@@ -93,7 +147,7 @@ Connect Call                                      Connected
 
 ---
 
-### 3. `tcp_client_connection_duration_ms`
+### 5. `tcp_client_connection_duration_ms`
 
 The total lifetime of the client's connection to the proxy.
 
@@ -117,7 +171,7 @@ Client Connect                                  Client Disconnect
 
 ---
 
-### 4. `tcp_server_connection_duration_ms`
+### 6. `tcp_server_connection_duration_ms`
 
 The total lifetime of the proxy's connection to the upstream server.
 
@@ -141,7 +195,7 @@ Proxy Connect                                   Proxy Disconnect
 
 ---
 
-### 5. `ssl_handshake_time_ms`
+### 7. `ssl_handshake_time_ms`
 
 The duration of the SSL/TLS handshake between the client and the proxy.
 
@@ -169,9 +223,10 @@ Handshake Start                                Handshake Success
 
 Understanding how these metrics overlap is crucial for debugging:
 
-1. **Request vs. Connection**: `http_request_processing_time_ms` is usually a subset of `tcp_client_connection_duration_ms`. However, if the connection is reused for multiple requests, the connection duration will span across multiple request processing times.
-2. **Server Connect vs. Request**: If the proxy has a pooled connection to the server, `tcp_connection_establishment_time_ms` will be **0** (or not present) for subsequent requests, significantly reducing the `http_request_processing_time_ms`.
-3. **SSL vs. Request**: `ssl_handshake_time_ms` happens before the first HTTP request on a connection. It is included in `tcp_client_connection_duration_ms` but **not** in `http_request_processing_time_ms`.
+1. **Response Time Decomposition**: `http_request_processing_time_ms = response_latency_ms + response_transfer_time_ms`. High latency indicates slow server processing; high transfer time indicates large payloads or slow network.
+2. **Request vs. Connection**: `http_request_processing_time_ms` is usually a subset of `tcp_client_connection_duration_ms`. However, if the connection is reused for multiple requests, the connection duration will span across multiple request processing times.
+3. **Server Connect vs. Request**: If the proxy has a pooled connection to the server, `tcp_connection_establishment_time_ms` will be **0** (or not present) for subsequent requests, significantly reducing the `response_latency_ms`.
+4. **SSL vs. Request**: `ssl_handshake_time_ms` happens before the first HTTP request on a connection. It is included in `tcp_client_connection_duration_ms` but **not** in `http_request_processing_time_ms`.
 
 ---
 
@@ -235,7 +290,7 @@ java -jar littleproxy.jar --activity_timing_mode OFF
 |------|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `OFF` | No timing data | None                                                                                                                                                                                            |
 | `MINIMAL` | Basic timing only (default) | `http_request_processing_time_ms`                                                                                                                                                               |
-| `ALL` | Complete timing breakdown | All timing fields: `http_request_processing_time_ms`, `tcp_connection_establishment_time_ms`, `tcp_client_connection_duration_ms`, `tcp_server_connection_duration_ms`, `ssl_handshake_time_ms` |
+| `ALL` | Complete timing breakdown | All timing fields: `http_request_processing_time_ms`, `response_latency_ms`, `response_transfer_time_ms`, `tcp_connection_establishment_time_ms`, `tcp_client_connection_duration_ms`, `tcp_server_connection_duration_ms`, `ssl_handshake_time_ms`, `dns_resolution_time_ms` |
 
 ### Programmatic Access
 Timing data is stored in the `FlowContext`. You can access it within your `HttpFilters` or an `ActivityTracker`:
@@ -255,7 +310,10 @@ public void responseSentToClient(FlowContext flowContext, HttpResponse httpRespo
 
 ## Best Practices
 
-1. **Monitor `tcp_connection_establishment_time_ms`**: High values here indicate network congestion between the proxy and the origin server or DNS resolution issues.
-2. **Compare `http_request_processing_time_ms` with Server Logs**: If the proxy's processing time is significantly higher than the origin server's logged response time, the bottleneck is likely in the proxy's filters or the network between proxy and server.
-3. **Use Connection Pooling**: Reusing server connections (keeping `tcp_server_connection_duration_ms` high) avoids the overhead of `tcp_connection_establishment_time_ms` for every request.
-4. **Analyze `ssl_handshake_time_ms`**: If this is high, consider optimizing your SSL/TLS configuration (e.g., enabling session resumption or using faster cipher suites).
+1. **Monitor `response_latency_ms` (TTFB)**: Time to First Byte measures how quickly the server starts responding. High latency indicates slow backend processing or network issues.
+2. **Analyze `response_transfer_time_ms`**: Large transfer times relative to latency indicate large response bodies or slow client connections.
+3. **Understand the relationship**: `http_request_processing_time_ms = response_latency_ms + response_transfer_time_ms`. If latency is low but processing time is high, the issue is transfer time.
+4. **Monitor `tcp_connection_establishment_time_ms`**: High values here indicate network congestion between the proxy and the origin server or DNS resolution issues.
+5. **Compare `http_request_processing_time_ms` with Server Logs**: If the proxy's processing time is significantly higher than the origin server's logged response time, the bottleneck is likely in the proxy's filters or the network between proxy and server.
+6. **Use Connection Pooling**: Reusing server connections (keeping `tcp_server_connection_duration_ms` high) avoids the overhead of `tcp_connection_establishment_time_ms` for every request.
+7. **Analyze `ssl_handshake_time_ms`**: If this is high, consider optimizing your SSL/TLS configuration (e.g., enabling session resumption or using faster cipher suites).
