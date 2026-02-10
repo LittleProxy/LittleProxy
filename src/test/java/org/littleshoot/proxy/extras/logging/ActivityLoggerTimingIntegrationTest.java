@@ -12,7 +12,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -63,6 +65,11 @@ class ActivityLoggerTimingIntegrationTest {
   private ActivityLogger createCapturingActivityLogger() {
     return new ActivityLogger(LogFormat.JSON, null, TimingMode.ALL) {
       @Override
+      protected boolean shouldLogInfoEntry() {
+        return true;
+      }
+
+      @Override
       protected void logFormattedEntry(String flowId, String message) {
         capturedLogMessages.add(message);
         super.logFormattedEntry(flowId, message);
@@ -103,11 +110,8 @@ class ActivityLoggerTimingIntegrationTest {
       assertThat(response).contains("Hello, World!");
     }
 
-    // Wait a bit for any async logging
-    Thread.sleep(100);
-
-    // Verify that we captured at least one log message
-    assertThat(capturedLogMessages).isNotEmpty();
+    // Wait for async logging
+    Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> !capturedLogMessages.isEmpty());
 
     // Get the last log message
     String logMessage = capturedLogMessages.get(capturedLogMessages.size() - 1);
@@ -175,11 +179,10 @@ class ActivityLoggerTimingIntegrationTest {
       assertThat(response).contains("Connection closed!");
     }
 
-    // Wait for connection to close
-    Thread.sleep(500);
-
-    // Verify that we captured at least one log message
-    assertThat(capturedLogMessages).isNotEmpty();
+    // Wait for connection to close and async logging
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .until(() -> capturedLogMessages.stream().anyMatch(msg -> msg.contains("close-test")));
 
     // Find the log message for this request
     String logMessage = null;

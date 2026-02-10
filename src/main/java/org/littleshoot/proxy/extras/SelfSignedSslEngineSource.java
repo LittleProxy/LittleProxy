@@ -193,10 +193,18 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
       }
       String dataAsString = new String(data);
 
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        LOG.error("Process '{}' exited with code {}", Arrays.asList(commands), exitCode);
+      }
+
       LOG.info(
           "Completed native call: '{}'\nResponse: '{}'", Arrays.asList(commands), dataAsString);
     } catch (final IOException e) {
       LOG.error("Error running commands: {}", Arrays.asList(commands), e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.error("Interrupted while running commands: {}", Arrays.asList(commands), e);
     }
   }
 }

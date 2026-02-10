@@ -29,8 +29,7 @@ class HostResolverTest {
 
   @Test
   void testSimpleImplementation() throws UnknownHostException {
-    HostResolver resolver =
-            (host, port) -> new InetSocketAddress("127.0.0.1", port);
+    HostResolver resolver = (host, port) -> new InetSocketAddress("127.0.0.1", port);
 
     InetSocketAddress address = resolver.resolve("example.com", 8080);
 

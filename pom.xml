@@ -19,6 +19,7 @@
 
         <!-- Centralized dependency versions for easier maintenance (alphabetically sorted) -->
         <assertj.version>3.27.7</assertj.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <commons.cli.version>1.11.0</commons.cli.version>
         <commons.exec.version>1.6.0</commons.exec.version>
         <commons.io.version>2.21.0</commons.io.version>
@@ -342,6 +343,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
 
