@@ -1,20 +1,26 @@
 package org.littleshoot.proxy;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
-import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
-
-import io.netty.handler.codec.http.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import javax.net.ssl.SSLException;
-import org.jspecify.annotations.NonNull;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+
+import javax.net.ssl.SSLException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.littleshoot.proxy.test.HttpClientUtil.performHttpGet;
+import static org.littleshoot.proxy.test.HttpClientUtil.performLocalHttpGet;
 
 /** This class tests direct requests to the proxy server, which causes endless loops (#205). */
 @NullMarked
@@ -61,12 +67,11 @@ public final class DirectRequestTest {
     final HttpResponseStatus status = HttpResponseStatus.valueOf(statusCode);
     HttpFiltersSource filtersSource =
         new HttpFiltersSourceAdapter() {
-          @NonNull
           @Override
-          public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
+          public HttpFilters filterRequest(HttpRequest originalRequest) {
             return new HttpFiltersAdapter(originalRequest) {
               @Override
-              public HttpResponse clientToProxyRequest(@NonNull HttpObject httpObject) {
+              public HttpResponse clientToProxyRequest(HttpObject httpObject) {
                 return new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
               }
             };
@@ -109,13 +114,12 @@ public final class DirectRequestTest {
             .withProxyAlias("testAllowRequestToOriginServerWithOverride")
             .withFiltersSource(
                 new HttpFiltersSourceAdapter() {
-                  @NonNull
                   @Override
-                  public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
+                  public HttpFilters filterRequest(HttpRequest originalRequest) {
                     return new HttpFiltersAdapter(originalRequest) {
                       @Nullable
                       @Override
-                      public HttpResponse clientToProxyRequest(@NonNull HttpObject httpObject) {
+                      public HttpResponse clientToProxyRequest(HttpObject httpObject) {
                         if (httpObject instanceof HttpRequest) {
                           HttpRequest request = (HttpRequest) httpObject;
                           String viaHeader = request.headers().get(HttpHeaderNames.VIA);
