@@ -580,21 +580,21 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       requestHasBeenWritten = initialRequest != null;
     }
 
-    //no request has been transmitted to server
+    // no request has been transmitted to server
     if (currentServerConnection == null
         ||
-            //server has never read anything yet
-            (currentServerConnection.lastReadTime == 0
-            //no initial request has been written to the server
+        // server has never read anything yet
+        (currentServerConnection.lastReadTime == 0
+            // no initial request has been written to the server
             && !requestHasBeenWritten
-            //there are no current request from the client
+            // there are no current request from the client
             && currentRequest == null)
         ||
-            //cover three use cases :
-            //- The client hasn't sent data as recently as the server
-            //- Both sides are idle (no activity on either end)
-            //- After a response is complete and neither client nor server has sent anything new
-            lastReadTime <= currentServerConnection.lastReadTime) {
+        // cover three use cases :
+        // - The client hasn't sent data as recently as the server
+        // - Both sides are idle (no activity on either end)
+        // - After a response is complete and neither client nor server has sent anything new
+        lastReadTime <= currentServerConnection.lastReadTime) {
       super.timedOut();
     }
   }

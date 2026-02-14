@@ -215,9 +215,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   /**
-   * Reconstructs the full URL from the request.
-   * If the URI is already absolute (starts with http:// or https://), returns it as-is.
-   * Otherwise, prepends the Host header to create a complete URL.
+   * Reconstructs the full URL from the request. If the URI is already absolute (starts with http://
+   * or https://), returns it as-is. Otherwise, prepends the Host header to create a complete URL.
    *
    * @param request the HTTP request
    * @return the full URL
