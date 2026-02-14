@@ -50,6 +50,11 @@ public class ThreadDumpExtension
         () -> takeThreadDump(log), initialDelayMs(context), DELAY_MS, MILLISECONDS);
 
     context.getStore(NAMESPACE).put("executor", executor);
+
+    String originalThreadName = Thread.currentThread().getName();
+    String newThreadName = String.format("%s-%s-%s", originalThreadName, context.getTestClass().map(Class::getName).orElse(""), context.getDisplayName());
+    Thread.currentThread().setName(newThreadName);
+    context.getStore(NAMESPACE).put("originalThreadName", originalThreadName);
   }
 
   private int initialDelayMs(ExtensionContext context) {
@@ -64,6 +69,8 @@ public class ThreadDumpExtension
   public void afterEach(ExtensionContext context) {
     logger(context)
         .info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
+    String originalThreadName = context.getStore(NAMESPACE).get("originalThreadName", String.class);
+    Thread.currentThread().setName(originalThreadName);
     ScheduledExecutorService executor =
         (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
     executor.shutdown();
