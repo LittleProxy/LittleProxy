@@ -560,7 +560,41 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected void timedOut() {
     // idle timeout fired on the client channel. if we aren't waiting on a response from a server,
     // hang up
-    if (currentServerConnection == null || lastReadTime <= currentServerConnection.lastReadTime) {
+    //
+    // The original issue: when server.lastReadTime == 0 (server has never read) and
+    // client.lastReadTime > 0, the comparison lastReadTime <= server.lastReadTime evaluates to
+    // FALSE, preventing timeout even when the client IS idle.
+    //
+    // However, we need to be careful not to close when:
+    // 1. A request has been sent but the server hasn't responded yet (normal)
+    // 2. A request was sent, proxy generated 504 (server didn't respond), and we're waiting for
+    //    the next request from client
+    //
+    // We distinguish these by checking if the server connection has an "initialRequest" that has
+    // been written to the server but not yet reset. If initialRequest is not null, a request
+    // has been written and we're waiting for response.
+    boolean requestHasBeenWritten = false;
+    if (currentServerConnection != null) {
+      // Check if a request has been written to the server but not yet completed
+      HttpRequest initialRequest = currentServerConnection.getInitialRequest();
+      requestHasBeenWritten = initialRequest != null;
+    }
+
+    //no request has been transmitted to server
+    if (currentServerConnection == null
+        ||
+            //server has never read anything yet
+            (currentServerConnection.lastReadTime == 0
+            //no initial request has been written to the server
+            && !requestHasBeenWritten
+            //there are no current request from the client
+            && currentRequest == null)
+        ||
+            //cover three use cases :
+            //- The client hasn't sent data as recently as the server
+            //- Both sides are idle (no activity on either end)
+            //- After a response is complete and neither client nor server has sent anything new
+            lastReadTime <= currentServerConnection.lastReadTime) {
       super.timedOut();
     }
   }
