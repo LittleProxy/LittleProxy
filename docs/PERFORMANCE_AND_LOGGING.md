@@ -13,6 +13,11 @@ This guide covers logging performance optimization techniques and configuration 
   - [BurstFilter Configuration](#burstfilter-configuration)
   - [Custom Filter Implementation](#custom-filter-implementation)
 - [Activity Logging](#activity-logging)
+  - [LogFieldConfiguration](#logfieldconfiguration)
+  - [Field Name Transformers](#field-name-transformers)
+  - [Value Transformers](#value-transformers)
+  - [Header Pattern Types](#header-pattern-types)
+  - [CLI Options for Field Configuration](#cli-options-for-field-configuration)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
 
@@ -437,9 +442,127 @@ Log4j2 supports Groovy scripts for dynamic filtering without compilation. This i
 
 ## Activity Logging
 
-Activity logging in LittleProxy captures HTTP request/response details. This can be a significant performance factor.
+Activity logging in LittleProxy captures HTTP request/response details. This can be a significant performance factor. The logging system is located in the `org.littleshoot.proxy.extras.logging` package.
+
+### ActivityLogger Three-Tier Logging Strategy
+
+The `ActivityLogger` class implements a sophisticated three-tier logging strategy that provides different levels of detail based on the log level configuration:
+
+#### TRACE Level - Detailed Diagnostics
+
+**Purpose**: Method entry tracing, state transitions, and detailed context information for deep debugging.
+
+**When to use**: 
+- Development and debugging
+- Troubleshooting complex connection issues
+- Understanding the flow of requests through the proxy
+
+**What is logged**:
+- Method entry points with full context (flow ID, thread name, timestamps)
+- State transitions (client connected, SSL handshake started, etc.)
+- Connection saturation/writability events
+- Exception details with stack traces
+
+**Example output**:
+```
+TRACE: ENTER clientConnected - address=/192.168.1.1:12345, thread=netty-worker-1, timestamp=1234567890
+TRACE: ENTER serverConnected - serverAddress=example.com:443, flowContext=FullFlowContext@abc123, timestamp=1234567891
+TRACE: Connection saturated - side=server, flowContext=FullFlowContext@abc123
+```
+
+**Performance impact**: High - generates many log entries per request. Use only during debugging.
+
+#### DEBUG Level - Essential Operations
+
+**Purpose**: High-level lifecycle events and operational information for production troubleshooting.
+
+**When to use**:
+- Production monitoring
+- Operational dashboards
+- Troubleshooting without overwhelming logs
+
+**What is logged**:
+- Client connections/disconnections with duration
+- Server connections/disconnections with timing
+- SSL handshake completion
+- Connection timeouts
+- Exception summaries (type and message)
+- Formatted log entries (CLF, JSON, etc.)
+
+**Example output**:
+```
+DEBUG: Client connected: /192.168.1.1:12345
+DEBUG: Server connected: example.com:443 (took 45ms)
+DEBUG: Client SSL handshake succeeded: /192.168.1.1:12345, duration: 12ms
+DEBUG: Client disconnected: /192.168.1.1:12345, duration: 150ms
+DEBUG: Connection timed out: server
+DEBUG: Connection exception caught: client, type: IOException, message: Connection reset by peer
+```
+
+**Performance impact**: Moderate - one log entry per lifecycle event. Safe for production with filtering.
+
+#### INFO Level - Complete Interaction Summary
+
+**Purpose**: Single structured log entry per request/response cycle with all aggregated metrics.
+
+**When to use**:
+- Production access logging
+- Analytics and monitoring
+- Audit trails
+- Request tracing
+
+**What is logged**:
+- Single line per request with all metrics:
+  - Flow ID for request tracing
+  - Client and server addresses
+  - HTTP method, URI, protocol
+  - Response status and bytes
+  - Duration metrics (total, server connect, SSL handshake)
+  - Saturation counts
+  - Exception information
+
+**Example output**:
+```
+INFO: flow_id=01HV8J3K2M4N5P6Q7R8S9T0UV client_ip=192.168.1.1 client_port=12345 server_ip=10.0.0.1 server_port=443 method=GET uri="/api/status" protocol=HTTP/1.1 status=200 bytes=1234 http_request_ms=150 tcp_connection_ms=152 server_connect_ms=45 ssl_handshake_ms=12 client_saturations=0 server_saturations=0 exception=none
+```
+
+**Performance impact**: Low - single log entry per request. Recommended for production.
+
+#### Log Level Configuration
+
+Configure log levels in your Log4j2 configuration:
+
+```xml
+<!-- Development: Enable all levels -->
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="TRACE"/>
+
+<!-- Production: INFO for operational visibility -->
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="INFO"/>
+
+<!-- Production with debugging: DEBUG for troubleshooting -->
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="DEBUG"/>
+```
+
+#### Performance Considerations by Level
+
+| Log Level | Events/Request | Performance | Use Case |
+|-----------|----------------|-------------|----------|
+| **TRACE** | 10-20 | 🐢 Slowest | Development only |
+| **DEBUG** | 5-10 | 🏃 Moderate | Production troubleshooting |
+| **INFO** | 1 | ⚡ Fastest | Production standard |
+
+**Recommendation**: Use INFO for production, DEBUG for troubleshooting, TRACE for development only.
 
 ### Activity Log Formats
+
+**KEYVALUE (Structured Text Format):**
+```bash
+--activity_log_format KEYVALUE
+```
+The default structured text format with `field=value` pairs. Example:
+```
+flow_id=01KGNMFEFZ84ZAR511NTRAFW13 client_ip=127.0.0.1 client_port=53326 method=CONNECT status=200 ...
+```
 
 **CLF (Common Log Format):**
 ```bash
@@ -481,6 +604,229 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 --activity_log_format HAPROXY
 ```
 
+#### INFO Level and Format Selection
+
+When using `--activity_log_level INFO`, the output format matches the configured `--activity_log_format`:
+
+- `--activity_log_format JSON` → INFO logs in JSON format
+- `--activity_log_format KEYVALUE` → INFO logs in key=value format
+- `--activity_log_format CLF` → INFO logs in CLF format
+- etc.
+
+Example:
+```bash
+# JSON format at INFO level
+./run.bash --server --port 8888 --activity_log_format JSON --activity_log_level INFO
+
+# KEYVALUE format at INFO level (traditional format)
+./run.bash --server --port 8888 --activity_log_format KEYVALUE --activity_log_level INFO
+```
+
+### LogFieldConfiguration
+
+The `LogFieldConfiguration` class provides fine-grained control over which fields are logged. You can configure it programmatically or load it from a JSON file.
+
+#### Programmatic Configuration
+
+```java
+import org.littleshoot.proxy.extras.logging.*;
+
+LogFieldConfiguration fieldConfig = LogFieldConfiguration.builder()
+    // Add standard fields
+    .addStandardField(StandardField.TIMESTAMP)
+    .addStandardField(StandardField.CLIENT_IP)
+    .addStandardField(StandardField.METHOD)
+    .addStandardField(StandardField.URI)
+    .addStandardField(StandardField.STATUS)
+    
+    // Log headers by prefix
+    .addRequestHeadersWithPrefix("X-Custom-")
+    .addResponseHeadersWithPrefix("X-RateLimit-")
+    
+    // Log headers by regex pattern
+    .addRequestHeadersMatching("X-.*-Id")
+    
+    // Exclude sensitive headers
+    .excludeRequestHeadersMatching("Authorization|Cookie")
+    
+    // Add computed fields
+    .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
+    .addComputedField(ComputedField.RESPONSE_TIME_CATEGORY)
+    
+    .build();
+
+ActivityLogger logger = new ActivityLogger(LogFormat.JSON, fieldConfig);
+```
+
+#### JSON Configuration File
+
+Create a JSON configuration file for easier maintenance:
+
+```json
+{
+  "standardFields": ["TIMESTAMP", "CLIENT_IP", "METHOD", "URI", "STATUS"],
+  "prefixHeaders": [
+    {
+      "prefix": "X-Custom-",
+      "fieldNameTransformer": "lower_underscore"
+    },
+    {
+      "prefix": "X-Trace-",
+      "fieldNameTransformer": "remove_prefix"
+    }
+  ],
+  "regexHeaders": [
+    {
+      "pattern": "X-.*-Id",
+      "fieldNameTransformer": "lower_underscore"
+    }
+  ],
+  "excludeHeaders": [
+    {
+      "pattern": "Authorization|Cookie",
+      "valueTransformer": "mask_full"
+    }
+  ],
+  "computedFields": ["GEOLOCATION_COUNTRY", "RESPONSE_TIME_CATEGORY"]
+}
+```
+
+Load the configuration:
+
+```java
+LogFieldConfiguration config = LogFieldConfigurationFactory.fromJsonFile("config.json");
+```
+
+Or via CLI:
+
+```bash
+./run.bash --activity_log_format JSON --activity_log_field_config ./config.json
+```
+
+### Field Name Transformers
+
+Field name transformers convert HTTP header names to log field names:
+
+| Transformer | Description | Example |
+|-------------|-------------|---------|
+| `lower_underscore` | Lowercase with underscores | `X-Custom-Auth` → `x_custom_auth` |
+| `remove_prefix` | Remove X- prefix, lowercase | `X-Trace-Id` → `trace_id` |
+| `lower_hyphen` | Lowercase with hyphens | `X-Custom-Auth` → `x-custom-auth` |
+| `upper_underscore` | Uppercase with underscores | `X-Custom-Auth` → `X_CUSTOM_AUTH` |
+
+### Value Transformers
+
+Value transformers modify header values before logging (useful for masking sensitive data):
+
+| Transformer | Description | Example |
+|-------------|-------------|---------|
+| `mask_sensitive` | Show first/last 4 chars | `secret-token-123` → `secr****t-123` |
+| `mask_full` | Complete masking | `secret` → `****` |
+| `mask_email` | Mask email addresses | `user@example.com` → `us***@example.com` |
+| `truncate_100` | Truncate to 100 chars | Long value → `First 100 chars...` |
+
+### Header Pattern Types
+
+**Prefix Patterns:**
+```java
+// Log all headers starting with X-Custom-
+builder.addRequestHeadersWithPrefix("X-Custom-");
+
+// With custom field name transformer
+builder.addRequestHeadersWithPrefix("X-RateLimit-", 
+    name -> name.replace("X-RateLimit-", "").toLowerCase());
+// Result: X-RateLimit-Limit → limit
+```
+
+**Regex Patterns:**
+```java
+// Log all headers matching X-*-Id pattern
+builder.addRequestHeadersMatching("X-.*-Id");
+// Matches: X-Request-Id, X-Trace-Id, X-Session-Id
+
+// With value transformer for masking
+builder.addRequestHeadersMatching("X-API-.*", 
+    name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
+    value -> value.length() > 8 ? value.substring(0, 4) + "****" + value.substring(value.length() - 4) : value);
+```
+
+**Exclude Patterns:**
+```java
+// Log all headers EXCEPT matching patterns
+builder.excludeRequestHeadersMatching("Authorization|Cookie|X-API-Key");
+```
+
+### CLI Options for Field Configuration
+
+**Basic inline options:**
+```bash
+# Log request headers by prefix
+./run.bash --activity_log_format JSON --activity_log_request_prefix_headers "X-Custom-,X-Trace-"
+
+# Log request headers by regex
+./run.bash --activity_log_format JSON --activity_log_request_regex_headers "X-.*-Id"
+
+# Exclude sensitive request headers
+./run.bash --activity_log_format JSON --activity_log_request_exclude_headers "Authorization,Cookie"
+
+# Log response headers by prefix
+./run.bash --activity_log_format JSON --activity_log_response_prefix_headers "X-RateLimit-"
+
+# Log response headers by regex
+./run.bash --activity_log_format JSON --activity_log_response_regex_headers "X-.*-Id"
+
+# Exclude sensitive response headers
+./run.bash --activity_log_format JSON --activity_log_response_exclude_headers "Set-Cookie,X-Auth-Token"
+
+# Combined
+./run.bash --activity_log_format JSON \
+  --activity_log_request_prefix_headers "X-Custom-" \
+  --activity_log_request_regex_headers "X-.*-Id" \
+  --activity_log_request_exclude_headers "Authorization,Cookie" \
+  --activity_log_response_prefix_headers "X-RateLimit-" \
+  --activity_log_response_regex_headers "X-Response-.*" \
+  --activity_log_response_exclude_headers "Set-Cookie"
+```
+
+**File-based configuration:**
+```bash
+./run.bash --activity_log_format JSON --activity_log_field_config ./logging-config.json
+```
+
+**Hybrid (file + CLI overrides):**
+```bash
+./run.bash --activity_log_format JSON \
+  --activity_log_field_config ./base-config.json \
+  --activity_log_exclude_headers "X-Secret-Token"
+```
+
+### Activity Log Level Control
+
+Control the verbosity of ActivityLogger at runtime using the `--activity_log_level` CLI option:
+
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| **TRACE** | Detailed diagnostics - method entry, state transitions, thread info | Debugging complex issues |
+| **DEBUG** | Essential operations - connections, disconnections, errors | Development, troubleshooting |
+| **INFO** | Complete interaction summary - aggregated metrics per request | Production (default) |
+
+**Examples:**
+```bash
+# Default INFO level (production)
+./run.bash --server --port 8080 --activity_log_format JSON
+
+# DEBUG level for troubleshooting
+./run.bash --server --port 8080 --activity_log_format JSON --activity_log_level DEBUG
+
+# TRACE level for detailed diagnostics
+./run.bash --server --port 8080 --activity_log_format JSON --activity_log_level TRACE
+```
+
+**Note:** The ActivityLogger only produces output at TRACE, DEBUG, and INFO levels. Setting the level to WARN, ERROR, or OFF will effectively disable activity logging output.
+
+**How it works:**
+The `--activity_log_level` option sets a system property that is referenced by the Log4j2 configuration files. This allows runtime control without modifying XML configuration files.
+
 ### Activity Logging Performance Impact
 
 | Format | Performance | Use Case |
@@ -498,8 +844,11 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 
 1. **Disable in Development**: omit the `--activity_log_format` flag when not needed
 2. **Use CLF in Production**: Fastest format for high-volume scenarios
-3. **Sample Activity Logs**: Consider sampling (every Nth request)
-4. **Separate Activity Logs**: Use different files for access logs vs application logs
+3. **Use JSON with Field Configuration**: For structured logging with custom fields
+4. **Sample Activity Logs**: Consider sampling (every Nth request)
+5. **Separate Activity Logs**: Use different files for access logs vs application logs
+6. **Exclude Sensitive Headers**: Always exclude `Authorization`, `Cookie`, `X-API-Key` in production
+7. **Mask Sensitive Values**: Use value transformers for tokens, passwords, PII
 
 **Example with Activity Logging:**
 ```bash
@@ -510,7 +859,36 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 # Sync logging with JSON activity format (structured logging)
 ./run.bash --server --config ./config/littleproxy.properties \
   --port 9092 --activity_log_format JSON
+
+# JSON with custom field configuration via CLI
+./run.bash --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format JSON \
+  --activity_log_request_prefix_headers "X-Custom-,X-Trace-" \
+  --activity_log_request_exclude_headers "Authorization,Cookie"
+
+# JSON with configuration file (recommended for complex setups)
+./run.bash --server --config ./config/littleproxy.properties \
+  --port 9092 --activity_log_format JSON \
+  --activity_log_field_config ./logging-config.json
 ```
+
+### Performance Impact of Field Configuration
+
+| Configuration | Performance Impact | Best For |
+|---------------|-------------------|----------|
+| **No field config** | ⚡ Minimal | Default logging |
+| **Standard fields only** | ⚡ Fast | Production, high volume |
+| **Prefix patterns** | 🏃 Moderate | Custom header logging |
+| **Regex patterns** | 🐢 Slower | Complex matching needs |
+| **Exclude patterns** | 🏃 Moderate | Security/privacy compliance |
+| **Value transformers** | 🐢 Slower | Sensitive data masking |
+
+**Recommendations:**
+- Use prefix patterns instead of regex when possible (faster)
+- Limit the number of regex patterns (each adds overhead)
+- Apply exclude patterns early to avoid processing sensitive headers
+- Cache field configurations instead of rebuilding for each request
+- Use `mask_sensitive` transformer only when necessary
 
 ## Best Practices
 

@@ -1,15 +1,15 @@
 package org.littleshoot.proxy;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import static java.lang.System.nanoTime;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 /** Unit tests for the Launcher class, specifically testing the start method. */
 class LauncherTest {
@@ -532,6 +532,64 @@ class LauncherTest {
 
     // When/Then - should throw exception for port out of range
     assertThrows(IllegalArgumentException.class, () -> launcher.start(args));
+  }
+
+  /** Test that the start method handles activity timing mode OFF. */
+  @Test
+  void testStartWithActivityTimingModeOff() {
+    // Given
+    String[] args = {
+      "--port", "" + port, "--activity_log_format", "JSON", "--activity_timing_mode", "OFF"
+    };
+
+    // When/Then - should not throw exception
+    assertDoesNotThrow(() -> launcher.start(args));
+  }
+
+  /** Test that the start method handles activity timing mode MINIMAL. */
+  @Test
+  void testStartWithActivityTimingModeMinimal() {
+    // Given
+    String[] args = {
+      "--port", "" + port, "--activity_log_format", "JSON", "--activity_timing_mode", "MINIMAL"
+    };
+
+    // When/Then - should not throw exception
+    assertDoesNotThrow(() -> launcher.start(args));
+  }
+
+  /** Test that the start method handles activity timing mode ALL. */
+  @Test
+  void testStartWithActivityTimingModeAll() {
+    // Given
+    String[] args = {
+      "--port", "" + port, "--activity_log_format", "JSON", "--activity_timing_mode", "ALL"
+    };
+
+    // When/Then - should not throw exception
+    assertDoesNotThrow(() -> launcher.start(args));
+  }
+
+  /** Test that the start method handles invalid activity timing mode gracefully. */
+  @Test
+  void testStartWithInvalidActivityTimingMode() {
+    // Given
+    String[] args = {
+      "--port", "" + port, "--activity_log_format", "JSON", "--activity_timing_mode", "INVALID"
+    };
+
+    // When/Then - should not throw exception and handle gracefully
+    assertDoesNotThrow(() -> launcher.start(args));
+  }
+
+  /** Test that the start method handles default timing mode (MINIMAL when not specified). */
+  @Test
+  void testStartWithDefaultActivityTimingMode() {
+    // Given - no timing mode specified, should default to MINIMAL
+    String[] args = {"--port", "" + port, "--activity_log_format", "JSON"};
+
+    // When/Then - should not throw exception
+    assertDoesNotThrow(() -> launcher.start(args));
   }
 
   private void waitForServerToStart() throws InterruptedException {

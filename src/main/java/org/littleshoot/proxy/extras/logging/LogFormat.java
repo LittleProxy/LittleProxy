@@ -1,4 +1,4 @@
-package org.littleshoot.proxy.extras;
+package org.littleshoot.proxy.extras.logging;
 
 /** Enumeration of supported log formats for the {@link ActivityLogger}. */
 public enum LogFormat {
@@ -30,5 +30,8 @@ public enum LogFormat {
   CSV,
 
   /** HAProxy HTTP Log Format. Includes detailed timing information. */
-  HAPROXY
+  HAPROXY,
+
+  /** Key-Value format. Structured text with field=value pairs (e.g., flow_id=... client_ip=...) */
+  KEYVALUE
 }

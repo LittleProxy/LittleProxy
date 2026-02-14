@@ -19,6 +19,7 @@
 
         <!-- Centralized dependency versions for easier maintenance (alphabetically sorted) -->
         <assertj.version>3.27.7</assertj.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <commons.cli.version>1.11.0</commons.cli.version>
         <commons.exec.version>1.6.0</commons.exec.version>
         <commons.io.version>2.21.0</commons.io.version>
@@ -38,6 +39,7 @@
         <selenium.version>4.40.0</selenium.version>
         <slf4j.version>2.0.17</slf4j.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <ulid.version>5.2.3</ulid.version>
     </properties>
 
     <licenses>
@@ -204,6 +206,13 @@
             <version>${commons.lang3.version}</version>
         </dependency>
 
+        <!-- ULID for globally unique, sortable flow IDs -->
+        <dependency>
+            <groupId>com.github.f4b6a3</groupId>
+            <artifactId>ulid-creator</artifactId>
+            <version>${ulid.version}</version>
+        </dependency>
+
         <!-- Netty - using specific modules instead of netty-all for smaller footprint -->
         <dependency>
             <groupId>io.netty</groupId>
@@ -272,6 +281,14 @@
             <scope>optional</scope>
         </dependency>
 
+        <!-- JSON processing for logging configuration -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.bom.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Optional DNS dependencies -->
         <dependency>
             <groupId>org.littleshoot</groupId>
@@ -326,6 +343,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -649,7 +672,7 @@
                                         <Multi-Release>true</Multi-Release>
                                     </manifestEntries>
                                 </transformer>
-                                
+
                                 <!-- Log4j2 plugin transformer to handle shaded environment -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
                                     <resource>META-INF/log4j2-plugin.dat</resource>
