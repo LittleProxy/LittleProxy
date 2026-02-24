@@ -29,7 +29,7 @@
         <error_prone.version>2.42.0</error_prone.version>
         <guava.version>33.5.0-jre</guava.version>
         <httpclient.version>4.5.14</httpclient.version>
-        <jackson.bom.version>2.21.0</jackson.bom.version>
+        <jackson.bom.version>2.21.1</jackson.bom.version>
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.0.3</junit.version>
         <log4j.version>2.25.3</log4j.version>
