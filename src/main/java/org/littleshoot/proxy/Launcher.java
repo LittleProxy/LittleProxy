@@ -1,5 +1,26 @@
 package org.littleshoot.proxy;
 
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ACCEPTOR_THREADS;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ALLOW_PROXY_PROTOCOL;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ALLOW_REQUESTS_TO_ORIGIN_SERVER;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.CLIENT_TO_PROXY_WORKER_THREADS;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.PROXY_TO_SERVER_WORKER_THREADS;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SEND_PROXY_PROTOCOL;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_ALIAS;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_PASSWORD;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_PATH;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_SEND_CERTS;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_TRUST_ALL_SERVERS;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.THROTTLE_READ_BYTES_PER_SECOND;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.THROTTLE_WRITE_BYTES_PER_SECOND;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.TRANSPARENT;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.bootstrap;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.bootstrapFromFile;
+
+import java.io.File;
+import java.net.InetSocketAddress;
+import java.net.URL;
+import java.util.Arrays;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -19,28 +40,6 @@ import org.littleshoot.proxy.impl.ProxyUtils;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.net.InetSocketAddress;
-import java.net.URL;
-import java.util.Arrays;
-
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ACCEPTOR_THREADS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ALLOW_PROXY_PROTOCOL;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ALLOW_REQUESTS_TO_ORIGIN_SERVER;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.CLIENT_TO_PROXY_WORKER_THREADS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.PROXY_TO_SERVER_WORKER_THREADS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SEND_PROXY_PROTOCOL;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_ALIAS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_PASSWORD;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_PATH;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_SEND_CERTS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_TRUST_ALL_SERVERS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.THROTTLE_READ_BYTES_PER_SECOND;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.THROTTLE_WRITE_BYTES_PER_SECOND;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.TRANSPARENT;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.bootstrap;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.bootstrapFromFile;
 
 /** Launches a new HTTP proxy. */
 public class Launcher {
@@ -90,8 +89,7 @@ public class Launcher {
   public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
-  @Nullable
-  private volatile HttpProxyServer httpProxyServer;
+  @Nullable private volatile HttpProxyServer httpProxyServer;
 
   /**
    * Starts the proxy from the command line.
