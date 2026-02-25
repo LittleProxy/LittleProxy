@@ -13,13 +13,16 @@ import javax.net.ssl.SSLSession;
 public interface ActivityTracker {
 
   /** Record that a client connected. */
-  void clientConnected(InetSocketAddress clientAddress);
+  void clientConnected(FlowContext flowContext);
+
+  /** Record that a client's SSL handshake started. */
+  void clientSSLHandshakeStarted(FlowContext flowContext);
 
   /** Record that a client's SSL handshake completed. */
-  void clientSSLHandshakeSucceeded(InetSocketAddress clientAddress, SSLSession sslSession);
+  void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession);
 
   /** Record that a client disconnected. */
-  void clientDisconnected(InetSocketAddress clientAddress, SSLSession sslSession);
+  void clientDisconnected(FlowContext flowContext, SSLSession sslSession);
 
   /**
    * Record that the proxy received bytes from the client.
@@ -92,4 +95,49 @@ public interface ActivityTracker {
    * @param httpResponse
    */
   void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse);
+
+  /**
+   * Record that the proxy connected to the server.
+   *
+   * @param flowContext provides contextual information about the flow
+   * @param serverAddress the address of the server that was connected
+   */
+  void serverConnected(FullFlowContext flowContext, InetSocketAddress serverAddress);
+
+  /**
+   * Record that the proxy disconnected from the server.
+   *
+   * @param flowContext provides contextual information about the flow
+   * @param serverAddress the address of the server that was disconnected
+   */
+  void serverDisconnected(FullFlowContext flowContext, InetSocketAddress serverAddress);
+
+  /**
+   * Record that a connection became saturated (not writable).
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   */
+  void connectionSaturated(FlowContext flowContext);
+
+  /**
+   * Record that a connection became writable again after being saturated.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   */
+  void connectionWritable(FlowContext flowContext);
+
+  /**
+   * Record that a connection timed out due to idle timeout.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   */
+  void connectionTimedOut(FlowContext flowContext);
+
+  /**
+   * Record that an exception was caught on a connection.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   * @param cause the exception that was caught
+   */
+  void connectionExceptionCaught(FlowContext flowContext, Throwable cause);
 }
