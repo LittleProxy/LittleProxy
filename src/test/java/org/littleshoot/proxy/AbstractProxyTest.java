@@ -5,7 +5,6 @@ import static org.littleshoot.proxy.TestUtils.buildHttpClient;
 
 import io.netty.handler.codec.http.HttpRequest;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.net.ssl.SSLSession;
 import org.apache.http.HttpEntity;
@@ -251,7 +250,7 @@ public abstract class AbstractProxyTest {
   protected HttpProxyServerBootstrap bootstrapProxy() {
     return DefaultHttpProxyServer.bootstrap()
         .plusActivityTracker(
-            new ActivityTracker() {
+            new ActivityTrackerAdapter() {
               @Override
               public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {
                 bytesReceivedFromClient.addAndGet(numberOfBytes);
@@ -298,19 +297,18 @@ public abstract class AbstractProxyTest {
               }
 
               @Override
-              public void clientConnected(InetSocketAddress clientAddress) {
+              public void clientConnected(FlowContext flowContext) {
                 clientConnects.incrementAndGet();
               }
 
               @Override
               public void clientSSLHandshakeSucceeded(
-                  InetSocketAddress clientAddress, SSLSession sslSession) {
+                  FlowContext flowContext, SSLSession sslSession) {
                 clientSSLHandshakeSuccesses.incrementAndGet();
               }
 
               @Override
-              public void clientDisconnected(
-                  InetSocketAddress clientAddress, SSLSession sslSession) {
+              public void clientDisconnected(FlowContext flowContext, SSLSession sslSession) {
                 clientDisconnects.incrementAndGet();
               }
             });
