@@ -42,7 +42,7 @@
             <AppenderRef ref="ASYNC_ROLLING_FILE"/>
         </AsyncRoot>
         <AsyncLogger name="org.littleshoot.proxy" level="INFO" includeLocation="true"/>
-        <AsyncLogger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO" additivity="false" includeLocation="false">
+        <AsyncLogger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="${sys:log4j2.ActivityLogger.level:-INFO}" additivity="false" includeLocation="false">
             <AppenderRef ref="ACCESS_LOG"/>
             <AppenderRef ref="ASYNC_ACCESS_LOG_FILE"/>
         </AsyncLogger>
