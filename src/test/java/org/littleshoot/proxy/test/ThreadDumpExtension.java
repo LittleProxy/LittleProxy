@@ -1,5 +1,17 @@
 package org.littleshoot.proxy.test;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.Executors.newScheduledThreadPool;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.slf4j.LoggerFactory.getLogger;
+
+import java.io.File;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.lang.reflect.Method;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -11,38 +23,55 @@ import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.opentest4j.TestAbortedException;
 import org.slf4j.Logger;
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
-import java.lang.management.ThreadMXBean;
-import java.lang.reflect.Method;
-import java.util.concurrent.ScheduledExecutorService;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.concurrent.Executors.newScheduledThreadPool;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.slf4j.LoggerFactory.getLogger;
-
 public class ThreadDumpExtension
     implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback {
   private static final Namespace NAMESPACE = Namespace.create("ThreadDumpExtension");
   private static final int INITIAL_DELAY_MS = 8000;
   private static final int DELAY_MS = 1000;
 
+  /**
+   * Checks if thread dump is enabled for the given context.
+   *
+   * <p>Thread dump is enabled if:
+   *
+   * <ul>
+   *   <li>The test class has {@link EnableThreadDump} annotation, OR
+   *   <li>The test method has {@link EnableThreadDump} annotation
+   * </ul>
+   */
+  private boolean isThreadDumpEnabled(ExtensionContext context) {
+    return context
+            .getTestClass()
+            .map(clazz -> clazz.isAnnotationPresent(EnableThreadDump.class))
+            .orElse(false)
+        || context
+            .getTestMethod()
+            .map(method -> method.isAnnotationPresent(EnableThreadDump.class))
+            .orElse(false);
+  }
+
   @Override
   public void beforeAll(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     getLogger(context.getDisplayName()).info("Starting tests ({})", memory());
   }
 
   @Override
   public void afterAll(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     getLogger(context.getDisplayName())
         .info("Finished tests - {} ({})", verdict(context), memory());
   }
 
   @Override
   public void beforeEach(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     Logger log = logger(context);
     log.info("starting {} ({})...", context.getDisplayName(), memory());
     ScheduledExecutorService executor = newScheduledThreadPool(1);
@@ -52,28 +81,41 @@ public class ThreadDumpExtension
     context.getStore(NAMESPACE).put("executor", executor);
 
     String originalThreadName = Thread.currentThread().getName();
-    String newThreadName = String.format("%s-%s-%s", originalThreadName, context.getTestClass().map(Class::getName).orElse(""), context.getDisplayName());
+    String newThreadName =
+        String.format(
+            "%s-%s-%s",
+            originalThreadName,
+            context.getTestClass().map(Class::getName).orElse(""),
+            context.getDisplayName());
     Thread.currentThread().setName(newThreadName);
     context.getStore(NAMESPACE).put("originalThreadName", originalThreadName);
   }
 
   private int initialDelayMs(ExtensionContext context) {
-    return context.getTestMethod()
-      .map(method -> method.getAnnotation(Timeout.class))
-      .map(timeout -> (int) timeout.unit().toMillis(timeout.value()) - 3000)
-      .map(timeout -> Math.max(timeout, 1000))
-      .orElse(INITIAL_DELAY_MS);
+    return context
+        .getTestMethod()
+        .map(method -> method.getAnnotation(Timeout.class))
+        .map(timeout -> (int) timeout.unit().toMillis(timeout.value()) - 3000)
+        .map(timeout -> Math.max(timeout, 1000))
+        .orElse(INITIAL_DELAY_MS);
   }
 
   @Override
   public void afterEach(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     logger(context)
         .info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
     String originalThreadName = context.getStore(NAMESPACE).get("originalThreadName", String.class);
-    Thread.currentThread().setName(originalThreadName);
+    if (originalThreadName != null) {
+      Thread.currentThread().setName(originalThreadName);
+    }
     ScheduledExecutorService executor =
         (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
-    executor.shutdown();
+    if (executor != null) {
+      executor.shutdown();
+    }
   }
 
   private static Logger logger(ExtensionContext context) {
