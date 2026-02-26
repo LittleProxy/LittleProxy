@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Tag("slow-test")
+@EnableThreadDump
 public final class WebSocketClientServerTest {
   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(5);

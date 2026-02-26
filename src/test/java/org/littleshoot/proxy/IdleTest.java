@@ -20,6 +20,7 @@ import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
  * <p>It also fails on macOS (tested on 10.14 Mojave). It works on Ubuntu, and presumably most other
  * *nix systems.
  */
+@EnableThreadDump
 public final class IdleTest {
   private static final int NUMBER_OF_CONNECTIONS_TO_OPEN = 2000;
 
