@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import io.netty.handler.codec.haproxy.HAProxyMessage;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Objects;
@@ -19,7 +20,15 @@ public class FlowContext {
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
 
   public FlowContext(ClientToProxyConnection clientConnection) {
-    clientAddress = clientConnection.getClientAddress();
+    HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
+    if (haProxyMessage != null
+        && haProxyMessage.sourceAddress() != null
+        && !haProxyMessage.sourceAddress().isBlank()) {
+      clientAddress =
+          new InetSocketAddress(haProxyMessage.sourceAddress(), haProxyMessage.sourcePort());
+    } else {
+      clientAddress = clientConnection.getClientAddress();
+    }
     SSLEngine sslEngine = clientConnection.getSslEngine();
     clientSslSession = sslEngine != null ? sslEngine.getSession() : null;
     this.connectionId = clientConnection.getId();

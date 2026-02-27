@@ -20,7 +20,10 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.haproxy.HAProxyCommand;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
+import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
+import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMessage;
@@ -89,6 +92,7 @@ import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.UnknownTransportProtocolException;
 import org.littleshoot.proxy.extras.HAProxyMessageEncoder;
+import org.littleshoot.proxy.extras.ProxyProtocolMessage;
 
 /**
  * Represents a connection from our proxy to a server on the web. ProxyConnections are reused fairly
@@ -599,7 +603,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   private void initializeConnectionFlow() {
     connectionFlow = new ConnectionFlow(clientConnection, this, connectLock).then(ConnectChannel);
-
+    if (proxyServer.isSendProxyProtocol()) {
+      connectionFlow.then(SendProxyProtocolHeader);
+    }
     if (hasUpstreamChainedProxy()) {
       if (chainedProxy.requiresEncryption()) {
         connectionFlow.then(serverConnection.EncryptChannel(chainedProxy.newSslEngine()));
@@ -657,6 +663,37 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     }
   }
+
+  private final ConnectionFlowStep<HttpResponse> SendProxyProtocolHeader =
+      new ConnectionFlowStep<>(this, CONNECTING) {
+        @Override
+        protected Future<?> execute() {
+          HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
+          ProxyProtocolMessage proxyProtocolMessage;
+          if (haProxyMessage != null) {
+            proxyProtocolMessage = new ProxyProtocolMessage(haProxyMessage);
+          } else {
+            InetSocketAddress clientAddr = clientConnection.getClientAddress();
+            if (clientAddr == null
+                || clientAddr.getAddress() == null
+                || remoteAddress == null
+                || remoteAddress.getAddress() == null) {
+              LOG.warn("Cannot send PROXY protocol header: addresses not available");
+              return channel.newSucceededFuture();
+            }
+            proxyProtocolMessage =
+                new ProxyProtocolMessage(
+                    HAProxyProtocolVersion.V1,
+                    HAProxyCommand.PROXY,
+                    HAProxyProxiedProtocol.TCP4,
+                    clientAddr.getAddress().getHostAddress(),
+                    remoteAddress.getAddress().getHostAddress(),
+                    clientAddr.getPort(),
+                    remoteAddress.getPort());
+          }
+          return writeToChannel(proxyProtocolMessage);
+        }
+      };
 
   private void addFirstOrReplaceHandler(String name, ChannelHandler handler) {
     if (channel.pipeline().context(name) != null) {
