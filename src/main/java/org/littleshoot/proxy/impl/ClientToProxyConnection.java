@@ -109,7 +109,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   private final AtomicInteger numberOfCurrentlyConnectingServers = new AtomicInteger(0);
 
   /** Keep track of proxy protocol header */
-  private HAProxyMessage haProxyMessage;
+  @Nullable private volatile HAProxyMessage haProxyMessage;
 
   /** Keep track of how many servers are currently connected. */
   private final AtomicInteger numberOfCurrentlyConnectedServers = new AtomicInteger(0);
@@ -133,6 +133,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private final AtomicBoolean authenticated = new AtomicBoolean();
 
+  /** Ensures {@link #recordClientConnected()} fires at most once per connection. */
+  private static final boolean CLIENT_CONNECTED_NOT_YET_RECORDED = false;
+
+  private static final boolean CLIENT_CONNECTED_RECORDED = true;
+  private final AtomicBoolean clientConnectedRecorded = new AtomicBoolean();
+
   private final GlobalTrafficShapingHandler globalTrafficShapingHandler;
 
   /** Cached FlowContext for consistent timing data across client lifecycle events. */
@@ -152,21 +158,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     super(AWAITING_INITIAL, proxyServer, false);
     this.clientFlowContext = new FlowContext(this);
 
-    initChannelPipeline(pipeline);
+    initChannelPipeline(pipeline, sslEngineSource, authenticateClients);
 
-    if (sslEngineSource != null) {
-      LOG.debug("Enabling encryption of traffic from client to proxy");
-      SSLEngine sslEngine = sslEngineSource.newSslEngine();
-      recordClientSSLHandshakeStarted();
-      encrypt(pipeline, sslEngine, authenticateClients)
-          .addListener(
-              future -> {
-                if (future.isSuccess()) {
-                  clientSslSession = sslEngine.getSession();
-                  recordClientSSLHandshakeSucceeded();
-                }
-              });
-    }
     this.globalTrafficShapingHandler = globalTrafficShapingHandler;
 
     LOG.debug("Created ClientToProxyConnection");
@@ -175,6 +168,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected void readHAProxyMessage(HAProxyMessage msg) {
     haProxyMessage = msg;
+    // PROXY header available: fire the deferred clientConnected now (guarded).
+    recordClientConnected();
   }
 
   /* *************************************************************************
@@ -184,6 +179,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   ConnectionState readHTTPInitial(HttpRequest httpRequest) {
     LOG.debug("Received raw request: {}", httpRequest);
+
+    // Earliest point to report connected for connections with no PROXY header (guarded; no-op if already fired).
+    recordClientConnected();
 
     // if we cannot parse the request, immediately return a 400 and close the connection, since we
     // do not know what state
@@ -558,7 +556,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected void connected() {
     super.connected();
     become(AWAITING_INITIAL);
-    recordClientConnected();
+    // recordClientConnected() is deferred, not called here: with PROXY protocol it must wait for the
+    // header so it reports the real client address (readHAProxyMessage); otherwise it fires on the
+    // first request (readHTTPInitial). The header isn't available yet at channel-active time.
   }
 
   void timedOut(ProxyToServerConnection serverConnection) {
@@ -836,17 +836,27 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * <p>Regarding the Javadoc of {@link HttpObjectAggregator} it's needed to have the {@link
    * HttpResponseEncoder} or {@link io.netty.handler.codec.http.HttpRequestEncoder} before the
    * {@link HttpObjectAggregator} in the {@link ChannelPipeline}.
+   *
+   * <p>If an {@link SslEngineSource} is provided, SSL encryption is enabled on the pipeline. When
+   * the proxy protocol is enabled, the {@link HAProxyMessageDecoder} is added after the SSL handler
+   * setup to ensure it is positioned before the {@link io.netty.handler.ssl.SslHandler} in the
+   * inbound pipeline, so that the PROXY protocol header is decoded before the TLS handshake begins.
+   *
+   * @param pipeline the {@link ChannelPipeline} to configure
+   * @param sslEngineSource the {@link SslEngineSource} for client-to-proxy encryption, or {@code
+   *     null} if SSL is not enabled
+   * @param authenticateClients whether to require client certificate authentication
    */
-  private void initChannelPipeline(ChannelPipeline pipeline) {
+  private void initChannelPipeline(
+      ChannelPipeline pipeline,
+      @Nullable SslEngineSource sslEngineSource,
+      boolean authenticateClients) {
     LOG.debug("Configuring ChannelPipeline");
 
     pipeline.addLast("bytesReadMonitor", bytesReadMonitor);
     pipeline.addLast("bytesWrittenMonitor", bytesWrittenMonitor);
 
     pipeline.addLast(HTTP_ENCODER_NAME, new HttpResponseEncoder());
-    if (isAcceptProxyProtocol()) {
-      pipeline.addLast(HTTP_PROXY_DECODER_NAME, new HAProxyMessageDecoder());
-    }
     // We want to allow longer request lines, headers, and chunks
     // respectively.
     pipeline.addLast(
@@ -868,6 +878,24 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     pipeline.addLast("idle", new IdleStateHandler(0, 0, proxyServer.getIdleConnectionTimeout()));
 
     pipeline.addLast(MAIN_HANDLER_NAME, this);
+
+    if (sslEngineSource != null) {
+      LOG.debug("Enabling encryption of traffic from client to proxy");
+      SSLEngine sslEngine = sslEngineSource.newSslEngine();
+      recordClientSSLHandshakeStarted();
+      encrypt(pipeline, sslEngine, authenticateClients)
+          .addListener(
+              future -> {
+                if (future.isSuccess()) {
+                  clientSslSession = sslEngine.getSession();
+                  recordClientSSLHandshakeSucceeded();
+                }
+              });
+    }
+
+    if (isAcceptProxyProtocol()) {
+      pipeline.addFirst(HTTP_PROXY_DECODER_NAME, new HAProxyMessageDecoder());
+    }
   }
 
   private void removeHandlerIfPresent(String name) {
@@ -1588,10 +1616,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       };
 
   private void recordClientConnected() {
+    if (!clientConnectedRecorded.compareAndSet(
+        CLIENT_CONNECTED_NOT_YET_RECORDED, CLIENT_CONNECTED_RECORDED)) {
+      return;
+    }
     try {
-      InetSocketAddress clientAddress = getClientAddress();
-      clientDetails.setClientAddress(clientAddress);
       FlowContext flowContext = flowContext();
+      // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real client IP, not the TCP peer.
+      clientDetails.setClientAddress(flowContext.getClientAddress());
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.clientConnected(flowContext);
       }
@@ -1623,6 +1655,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private void recordClientDisconnected() {
+    // Ensure clientConnected was reported before clientDisconnected, even for silent connections
+    // (guarded).
+    recordClientConnected();
     FlowContext flowContext = flowContext();
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1699,7 +1734,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     serverFlowContexts.remove(serverConnection);
   }
 
-  public HAProxyMessage getHaProxyMessage() {
+  public @Nullable HAProxyMessage getHaProxyMessage() {
     return haProxyMessage;
   }
 
