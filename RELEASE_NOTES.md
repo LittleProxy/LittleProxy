@@ -1,7 +1,44 @@
 # Release Notes
 
-- 2.6.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
-  - TBD
+- 2.7.0 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
+  - Major Activity Tracking & Logging Enhancements (#689) by Charles Lescot
+    - **ULID-based Flow IDs**: Globally unique, sortable identifiers (e.g., 01KGNMFEFZ84ZAR511NTRAFW13) replacing sequential flow IDs for better distributed tracing
+    - **Enhanced ActivityTracker Interface**: New lifecycle methods (serverConnected, serverDisconnected, connectionSaturated, connectionWritable, connectionTimedOut, connectionExceptionCaught) and FlowContext support for richer connection state tracking
+    - **Three-Tier Logging Strategy**: Structured TRACE/DEBUG/INFO logging with flow ID correlation across all levels
+     - **Timing Architecture Refactor**: Centralized timing data storage in FlowContext with configurable `--activity_timing_mode OFF|MINIMAL|ALL` CLI option; renamed duration fields for clarity with _ms suffix
+     - **SSL Handshake Timing**: Added `clientSSLHandshakeStarted()` method to ActivityTracker interface for accurate SSL handshake duration measurement
+     - **Timing Field Fixes**: Fixed all timing metrics (ssl_handshake_time_ms, tcp_connection_establishment_time_ms, tcp_client_connection_duration_ms, tcp_server_connection_duration_ms) to be properly populated
+       - **Lifecycle Event Timing Enrichment**: Lifecycle DEBUG logs now expose connection age, request spacing, and latency metrics (e.g., server connect latency, time since previous request) when `--activity_timing_mode ALL` is enabled
+       - **DNS Resolution Metrics**: DNS start/end/time durations are captured in FlowContext and emitted in lifecycle logs for tracing upstream resolution latency
+       - **Latency and Transfer Time Metrics**: Added `response_latency_ms` (Time to First Byte) and `response_transfer_time_ms` (time to receive full response body) measurements for fine-grained performance analysis
+       - **Response Time Categorization**: Configurable thresholds (`--activity_log_response_time_thresholds=100,500,2000`) categorize responses as fast/medium/slow/very_slow for performance monitoring and alerting
+      - **Request/Response Header Logging Enhancements**: CLI options now differentiate between request (`--activity_log_request_*`) and response (`--activity_log_response_*`) headers, and logged header fields are prefixed with `req_` or `res_` for clarity
+     - **Timing Mode Implementation**: Fully implemented `--activity_timing_mode` CLI option with proper field filtering in both INFO logs and DEBUG lifecycle events
+    - **Standards-Compliant Formats**: Fixed W3C, Squid, and HAProxy log formats for full specification compliance
+    - **Strategy Pattern Formatters**: Refactored log formatting into modular, testable formatter classes supporting CLF, ELF, W3C, JSON, LTSV, CSV, Squid, HAProxy, and KEYVALUE formats
+    - **Advanced Field Configuration**: Builder pattern for custom logging fields, header filtering (prefix/regex matching), sensitive data masking, and pre-configured field sets (SecurityMonitoring, PerformanceAnalytics, APIManagement)
+     - **Unified Lifecycle Event Formatting**: DEBUG/TRACE logs now use configured format (JSON, LTSV, etc.) for consistent structured logging across all levels
+     - **New Documentation**: Added comprehensive Timing Metrics guide (docs/TIMING_METRICS.md) and Architecture documentation references
+   - **Comprehensive Test Coverage Expansion**: Increased test coverage from 50 to 589+ tests across 46 test files, adding extensive unit tests for all formatters, adapters, interfaces, exceptions, and configuration presets
+  - Breaking Changes (#689) by Charles Lescot
+    - Package relocation: ActivityLogger moved to org.littleshoot.proxy.extras.logging
+    - ActivityTracker method signatures changed to accept FlowContext instead of InetSocketAddress
+    - ActivityTracker new method: clientSSLHandshakeStarted(FlowContext) must be implemented or extend ActivityTrackerAdapter
+    - LogField.extractValue() signature changed (removed duration parameter, use FlowContext.getTimingData())
+    - LogEntryFormatter.format() signature changed (removed durationMs parameter, use FlowContext timing map)
+    - Duration field names updated (e.g., duration_ms → http_request_processing_time_ms)
+    - Custom implementations must update to new API signatures
+  - Migration to Log4j2 with async logging support (#684) by Charles Lescot
+  - Request Handling Architecture documentation (#690) by Charles Lescot
+  - Fix proxy authentication bug (#691) by Charles Lescot
+  - Add Spotless code formatting plugin (#682) by Charles Lescot
+  - Fix generated certificates and keystore files at root directory (#680, #681) by Charles Lescot
+  - Fix flaky tests - random free port occupation (#683) by Andrei Solntsev
+  - Fix flaky LauncherTest (#695) by Andrei Solntsev
+  - Bump Netty from 4.2.9.Final to 4.2.10.Final (#694) by dependabot
+  - Bump assertj-core from 3.27.6 to 3.27.7 (#686) by dependabot
+  - Bump maven-compiler-plugin from 3.14.1 to 3.15.0 (#688) by dependabot
+  - Bump spotless-maven-plugin (#685, #687, #692) by dependabot
 
 - 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49?closed=1)
   - Feature/activity tracker logging (#668) by Charles Lescot
