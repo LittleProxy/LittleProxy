@@ -272,6 +272,13 @@
             <scope>optional</scope>
         </dependency>
 
+        <!-- Jackson for JSON configuration parsing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Optional DNS dependencies -->
         <dependency>
             <groupId>org.littleshoot</groupId>
