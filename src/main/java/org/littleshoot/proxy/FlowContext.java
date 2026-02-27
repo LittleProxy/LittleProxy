@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import io.netty.handler.codec.haproxy.HAProxyMessage;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Objects;
@@ -13,26 +14,33 @@ import org.littleshoot.proxy.impl.ClientToProxyConnection;
  * ActivityTracker}.
  */
 public class FlowContext {
-  private final InetSocketAddress clientAddress;
-  private final SSLSession clientSslSession;
+  private final ClientToProxyConnection clientConnection;
   private final long connectionId;
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
 
   public FlowContext(ClientToProxyConnection clientConnection) {
-    clientAddress = clientConnection.getClientAddress();
-    SSLEngine sslEngine = clientConnection.getSslEngine();
-    clientSslSession = sslEngine != null ? sslEngine.getSession() : null;
+    this.clientConnection = clientConnection;
     this.connectionId = clientConnection.getId();
   }
 
-  /** The address of the client. */
+  /**
+   * The client's address: the PROXY header's source address when PROXY protocol is in use,
+   * otherwise the TCP peer. Resolved lazily so a header received after construction is reflected.
+   */
   public InetSocketAddress getClientAddress() {
-    return clientAddress;
+    HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
+    if (haProxyMessage != null
+        && haProxyMessage.sourceAddress() != null
+        && !haProxyMessage.sourceAddress().isBlank()) {
+      return new InetSocketAddress(haProxyMessage.sourceAddress(), haProxyMessage.sourcePort());
+    }
+    return clientConnection.getClientAddress();
   }
 
   /** If using SSL, this returns the {@link SSLSession} on the client connection. */
   public SSLSession getClientSslSession() {
-    return clientSslSession;
+    SSLEngine sslEngine = clientConnection.getSslEngine();
+    return sslEngine != null ? sslEngine.getSession() : null;
   }
 
   /**
