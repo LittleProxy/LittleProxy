@@ -209,7 +209,7 @@ class InternalRedirectTest {
 
     if (originalHost.contains(":")) {
       String[] parts = originalHost.split(":");
-      host = parts[FREE_PORT];
+      host = parts[0];
       try {
         port = Integer.parseInt(parts[1]);
       } catch (NumberFormatException e) {
