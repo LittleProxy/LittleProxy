@@ -1,41 +1,21 @@
 package org.littleshoot.proxy;
 
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ACCEPTOR_THREADS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ALLOW_PROXY_PROTOCOL;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.ALLOW_REQUESTS_TO_ORIGIN_SERVER;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.CLIENT_TO_PROXY_WORKER_THREADS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.PROXY_TO_SERVER_WORKER_THREADS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SEND_PROXY_PROTOCOL;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_ALIAS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_PASSWORD;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_KEYSTORE_PATH;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_SEND_CERTS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.SSL_CLIENTS_TRUST_ALL_SERVERS;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.THROTTLE_READ_BYTES_PER_SECOND;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.THROTTLE_WRITE_BYTES_PER_SECOND;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.TRANSPARENT;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.bootstrap;
-import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.bootstrapFromFile;
+import static org.littleshoot.proxy.impl.DefaultHttpProxyServer.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.Arrays;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.UnrecognizedOptionException;
+import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.littleshoot.proxy.extras.ActivityLogger;
-import org.littleshoot.proxy.extras.LogFormat;
 import org.littleshoot.proxy.extras.SelfSignedMitmManager;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
+import org.littleshoot.proxy.extras.logging.*;
+import org.littleshoot.proxy.extras.logging.TimingMode;
 import org.littleshoot.proxy.impl.ProxyUtils;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 import org.slf4j.Logger;
@@ -86,7 +66,24 @@ public class Launcher {
       PROXY_TO_SERVER_WORKER_THREADS;
   private static final String OPTION_ACCEPTOR_THREADS = ACCEPTOR_THREADS;
   private static final String OPTION_ACTIVITY_LOG_FORMAT = "activity_log_format";
-  public static final int DELAY_IN_SECONDS_BETWEEN_RELOAD = 15;
+  private static final String OPTION_ACTIVITY_LOG_FIELD_CONFIG = "activity_log_field_config";
+  private static final String OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS =
+      "activity_log_request_prefix_headers";
+  private static final String OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS =
+      "activity_log_request_regex_headers";
+  private static final String OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS =
+      "activity_log_request_exclude_headers";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS =
+      "activity_log_response_prefix_headers";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS =
+      "activity_log_response_regex_headers";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS =
+      "activity_log_response_exclude_headers";
+  private static final String OPTION_ACTIVITY_LOG_MASK_SENSITIVE = "activity_log_mask_sensitive";
+  private static final String OPTION_ACTIVITY_LOG_LEVEL = "activity_log_level";
+  private static final String OPTION_ACTIVITY_TIMING_MODE = "activity_timing_mode";
+  private static final String OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS =
+      "activity_log_response_time_thresholds";
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "littleproxy_keystore.jks";
 
   @Nullable private volatile HttpProxyServer httpProxyServer;
@@ -310,17 +307,8 @@ public class Launcher {
       bootstrap.withThreadPoolConfiguration(threadPoolConfiguration);
     }
 
-    if (cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
-      String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
-      try {
-        LogFormat logFormat = LogFormat.valueOf(format.toUpperCase());
-        bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
-        LOG.info("Using activity log format: {}", logFormat);
-      } catch (IllegalArgumentException e) {
-        printHelp(options, "Unknown activity log format: " + format);
-        return;
-      }
-    }
+    // Configure activity logging
+    configureActivityLogging(cmd, bootstrap, options);
 
     LOG.info("About to start...");
     httpProxyServer = bootstrap.start();
@@ -349,8 +337,240 @@ public class Launcher {
     }
   }
 
+  /**
+   * Configures activity logging based on CLI options. Supports both file-based configuration and
+   * inline CLI options.
+   *
+   * @param cmd the command line
+   * @param bootstrap the server bootstrap
+   * @param options the CLI options
+   */
+  private void configureActivityLogging(
+      CommandLine cmd, HttpProxyServerBootstrap bootstrap, Options options) {
+    if (!cmd.hasOption(OPTION_ACTIVITY_LOG_FORMAT)) {
+      return;
+    }
+
+    String format = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FORMAT);
+    LogFormat logFormat;
+    try {
+      logFormat = LogFormat.valueOf(format.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      printHelp(options, "Unknown activity log format: " + format);
+      return;
+    }
+
+    LogFieldConfiguration fieldConfig = null;
+    TimingMode timingMode = TimingMode.MINIMAL;
+
+    // Try to load configuration from file first
+    if (cmd.hasOption(OPTION_ACTIVITY_LOG_FIELD_CONFIG)) {
+      String configPath = cmd.getOptionValue(OPTION_ACTIVITY_LOG_FIELD_CONFIG);
+      try {
+        fieldConfig = LogFieldConfigurationFactory.fromJsonFile(configPath);
+        LOG.info("Loaded logging field configuration from: {}", configPath);
+      } catch (IOException e) {
+        LOG.error("Failed to load logging configuration from {}: {}", configPath, e.getMessage());
+        printHelp(options, "Failed to load logging configuration: " + e.getMessage());
+        return;
+      }
+    }
+
+    // Process timing mode option (default to MINIMAL)
+    if (cmd.hasOption(OPTION_ACTIVITY_TIMING_MODE)) {
+      String modeValue = cmd.getOptionValue(OPTION_ACTIVITY_TIMING_MODE);
+      try {
+        timingMode = TimingMode.valueOf(modeValue.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        printHelp(options, "Unknown timing mode: " + modeValue);
+        return;
+      }
+    }
+
+    // If no file config or if CLI options are provided, build/extend configuration
+    if (fieldConfig == null || hasCliLoggingOptions(cmd)) {
+      LogFieldConfiguration.Builder builder =
+          fieldConfig != null
+              ? LogFieldConfiguration.builder().addAll(fieldConfig.getFields())
+              : LogFieldConfiguration.builder();
+
+      // Add standard fields if starting from scratch
+      if (fieldConfig == null) {
+        builder
+            .addStandardField(StandardField.TIMESTAMP)
+            .addStandardField(StandardField.CLIENT_IP)
+            .addStandardField(StandardField.METHOD)
+            .addStandardField(StandardField.URI)
+            .addStandardField(StandardField.STATUS);
+      }
+
+      // Add timing fields based on mode
+      switch (timingMode) {
+        case OFF:
+          // No timing fields added
+          LOG.debug("Timing metrics disabled (mode: OFF)");
+          break;
+        case MINIMAL:
+          builder.addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS);
+          LOG.debug("Adding minimal timing metrics (http_request_processing_time_ms)");
+          break;
+        case ALL:
+          builder
+              .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
+              .addStandardField(StandardField.RESPONSE_LATENCY_MS)
+              .addStandardField(StandardField.RESPONSE_TRANSFER_TIME_MS)
+              .addStandardField(StandardField.DNS_RESOLUTION_TIME_MS)
+              .addStandardField(StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS)
+              .addStandardField(StandardField.TCP_CLIENT_CONNECTION_DURATION_MS)
+              .addStandardField(StandardField.TCP_SERVER_CONNECTION_DURATION_MS)
+              .addStandardField(StandardField.SSL_HANDSHAKE_TIME_MS);
+          LOG.debug("Adding all timing metrics");
+          break;
+      }
+
+      // Configure response time thresholds if provided
+      if (cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS)) {
+        String thresholdsValue = cmd.getOptionValue(OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS);
+        try {
+          java.util.List<Long> thresholds = parseResponseTimeThresholds(thresholdsValue);
+          builder.responseTimeThresholds(thresholds);
+          builder.addResponseTimeCategoryField();
+          LOG.info("Using custom response time thresholds: {}", thresholds);
+        } catch (IllegalArgumentException e) {
+          printHelp(options, "Invalid response time thresholds: " + e.getMessage());
+          return;
+        }
+      }
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS,
+          builder::addRequestHeadersWithPrefix,
+          "request prefix header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS,
+          builder::addRequestHeadersMatching,
+          "request regex header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS,
+          builder::excludeRequestHeadersMatching,
+          "request exclude header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS,
+          builder::addResponseHeadersWithPrefix,
+          "response prefix header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS,
+          builder::addResponseHeadersMatching,
+          "response regex header matcher");
+
+      configureHeaderOption(
+          cmd,
+          OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS,
+          builder::excludeResponseHeadersMatching,
+          "response exclude header matcher");
+
+      fieldConfig = builder.build();
+    }
+
+    bootstrap.plusActivityTracker(new ActivityLogger(logFormat, fieldConfig, timingMode));
+    LOG.info(
+        "Using activity log format: {} with custom field configuration and timing mode: {}",
+        logFormat,
+        timingMode);
+  }
+
+  /**
+   * Checks if any CLI logging options are provided.
+   *
+   * @param cmd the command line
+   * @return true if any logging-related CLI options are present
+   */
+  private boolean hasCliLoggingOptions(CommandLine cmd) {
+    return cmd.hasOption(OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_MASK_SENSITIVE)
+        || cmd.hasOption(OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS);
+  }
+
+  private void configureHeaderOption(
+      CommandLine cmd,
+      String optionName,
+      java.util.function.Consumer<String> action,
+      String logDescription) {
+    if (!cmd.hasOption(optionName)) {
+      return;
+    }
+    String values = cmd.getOptionValue(optionName);
+    if (values == null) {
+      return;
+    }
+    for (String token : values.split(",")) {
+      String value = token.trim();
+      if (!value.isEmpty()) {
+        action.accept(value);
+        LOG.debug("Added {}: {}", logDescription, value);
+      }
+    }
+  }
+
+  /**
+   * Parses response time thresholds from a comma-separated string.
+   *
+   * @param thresholdsString comma-separated threshold values (e.g., "100,500,2000")
+   * @return list of threshold values in ascending order
+   * @throws IllegalArgumentException if the string is invalid
+   */
+  private java.util.List<Long> parseResponseTimeThresholds(String thresholdsString) {
+    if (thresholdsString == null || thresholdsString.trim().isEmpty()) {
+      throw new IllegalArgumentException("Thresholds string cannot be empty");
+    }
+    String[] parts = thresholdsString.split(",");
+    java.util.List<Long> thresholds = new java.util.ArrayList<>();
+    for (String part : parts) {
+      try {
+        long value = Long.parseLong(part.trim());
+        if (value < 0) {
+          throw new IllegalArgumentException("Thresholds must be non-negative: " + value);
+        }
+        thresholds.add(value);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException("Invalid threshold value: " + part);
+      }
+    }
+    if (thresholds.size() < 1 || thresholds.size() > 4) {
+      throw new IllegalArgumentException(
+          "Must provide 1-4 thresholds (got " + thresholds.size() + ")");
+    }
+    for (int i = 1; i < thresholds.size(); i++) {
+      if (thresholds.get(i) <= thresholds.get(i - 1)) {
+        throw new IllegalArgumentException("Thresholds must be in ascending order");
+      }
+    }
+    return thresholds;
+  }
+
   @SuppressWarnings("java:S106")
   private void configureLogging(CommandLine cmd) {
+    // Set ActivityLogger log level from CLI before initializing Log4j2
+    if (cmd.hasOption(OPTION_ACTIVITY_LOG_LEVEL)) {
+      String level = cmd.getOptionValue(OPTION_ACTIVITY_LOG_LEVEL).toUpperCase();
+      System.setProperty("log4j2.ActivityLogger.level", level);
+      System.out.println("Setting ActivityLogger level to: " + level);
+    }
+
     if (cmd.hasOption(OPTION_LOG_CONFIG)) {
       String optionValue = cmd.getOptionValue(OPTION_LOG_CONFIG);
       File logConfigPath = new File(optionValue);
@@ -443,7 +663,7 @@ public class Launcher {
     options.addOption(
         null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
     options.addOption(
-        null, OPTION_SEND_PROXY_PROTOCOL, true, "send Proxy Protocol header (true|false).");
+        null, OPTION_SEND_PROXY_PROTOCOL, true, "Send Proxy Protocol header (true|false).");
     options.addOption(
         null,
         OPTION_CLIENT_TO_PROXY_WORKER_THREADS,
@@ -456,7 +676,90 @@ public class Launcher {
         "Number of proxy-to-server worker threads.");
     options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
     options.addOption(
-        null, OPTION_ACTIVITY_LOG_FORMAT, true, "Activity log format: CLF, ELF, JSON, SQUID, W3C");
+        null,
+        OPTION_ACTIVITY_LOG_FORMAT,
+        true,
+        "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_FIELD_CONFIG,
+        true,
+        "Path to JSON configuration file for logging fields");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_REQUEST_PREFIX_HEADERS,
+        true,
+        "Comma-separated list of request header prefixes to log (e.g., 'X-Custom-,X-Trace-')");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_REQUEST_REGEX_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for request headers to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_REQUEST_EXCLUDE_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for request headers to exclude from logging");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_PREFIX_HEADERS,
+        true,
+        "Comma-separated list of response header prefixes to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_REGEX_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for response headers to log");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_EXCLUDE_HEADERS,
+        true,
+        "Comma-separated list of regex patterns for response headers to exclude");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_MASK_SENSITIVE,
+        true,
+        "Mask sensitive header values (true|false)");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_LEVEL,
+        true,
+        "ActivityLogger log level: TRACE, DEBUG, INFO, WARN, ERROR, OFF (default: INFO)");
+    options.addOption(
+        null, OPTION_ALLOW_PROXY_PROTOCOL, true, "Allow Proxy Protocol (true|false).");
+    options.addOption(
+        null, OPTION_SEND_PROXY_PROTOCOL, true, "Send Proxy Protocol header (true|false).");
+    options.addOption(
+        null,
+        OPTION_CLIENT_TO_PROXY_WORKER_THREADS,
+        true,
+        "Number of client-to-proxy worker threads.");
+    options.addOption(
+        null,
+        OPTION_PROXY_TO_SERVER_WORKER_THREADS,
+        true,
+        "Number of proxy-to-server worker threads.");
+    options.addOption(null, OPTION_ACCEPTOR_THREADS, true, "Number of acceptor threads.");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_FORMAT,
+        true,
+        "Activity log format: CLF, ELF, JSON, SQUID, W3C, LTSV, CSV, HAPROXY");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_FIELD_CONFIG,
+        true,
+        "Path to JSON configuration file for logging fields");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_TIMING_MODE,
+        true,
+        "Timing field configuration: OFF, MINIMAL, ALL (default: MINIMAL)");
+    options.addOption(
+        null,
+        OPTION_ACTIVITY_LOG_RESPONSE_TIME_THRESHOLDS,
+        true,
+        "Response time category thresholds in ms (comma-separated, e.g., '100,500,2000')");
     return options;
   }
 
