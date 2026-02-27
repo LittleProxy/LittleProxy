@@ -16,17 +16,22 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 final class SelfSignedSslEngineSourceTest {
 
   private static final String DEFAULT_KEYSTORE = "littleproxy_keystore.jks";
   private static final int BUFFER_CAPACITY = 32768;
 
   @TempDir File tempDir;
+
+  @BeforeEach
+  void cleanDefaultKeystore() {
+    new File(DEFAULT_KEYSTORE).delete();
+    new File("littleproxy_cert").delete();
+  }
 
   private static boolean isKeytoolAvailable() {
     ProcessBuilder pb = new ProcessBuilder("keytool", "-help");
@@ -45,7 +50,20 @@ final class SelfSignedSslEngineSourceTest {
     Assumptions.assumeTrue(isKeytoolAvailable(), "keytool is not installed, test ignored");
   }
 
+  @AfterAll
+  static void cleanUp() {
+    File defaultKeystore = new File(DEFAULT_KEYSTORE);
+    if (defaultKeystore.exists()) {
+      defaultKeystore.delete();
+    }
+    File defaultCert = new File("littleproxy_cert");
+    if (defaultCert.exists()) {
+      defaultCert.delete();
+    }
+  }
+
   @Test
+  @Order(1)
   void defaultConstructor() {
     // The default constructor creates "littleproxy_keystore.jks" in the working directory
     // Clean up any existing keystore first to ensure the test is deterministic
@@ -97,6 +115,7 @@ final class SelfSignedSslEngineSourceTest {
   }
 
   @Test
+  @Order(2)
   void constructorWithTrustAllServersGeneratesDefaultKeystore() {
     // Test trustAllServers=true with default keystore path
     // Delete any existing default keystore to test generation
@@ -125,6 +144,7 @@ final class SelfSignedSslEngineSourceTest {
   }
 
   @Test
+  @Order(3)
   void constructorWithTrustAllServersReusesExistingKeystore() {
     // Test that existing default keystore is reused
     File defaultKeystore = new File(DEFAULT_KEYSTORE);
