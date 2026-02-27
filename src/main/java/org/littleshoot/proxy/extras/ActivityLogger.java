@@ -66,9 +66,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   // Cleanup on disconnect just in case
   @Override
-  public void clientDisconnected(
-      InetSocketAddress clientAddress, javax.net.ssl.SSLSession sslSession) {
-    // We can't easily clean up by FlowContext here as we only have address/session.
+  public void clientDisconnected(FlowContext flowContext, javax.net.ssl.SSLSession sslSession) {
+    // We can't easily clean up by FlowContext here.
     // For now, rely on responseSentToClient to clear.
   }
 
