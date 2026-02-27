@@ -95,13 +95,14 @@ class InternalRedirectTest {
               @Override
               @NullMarked
               public HttpObject serverToProxyResponse(HttpObject httpObject) {
-                if (httpObject instanceof HttpResponse response && HttpResponseStatus.FOUND.equals(response.status())
-                      && response.headers().contains(HttpHeaderNames.LOCATION)) {
+                if (httpObject instanceof HttpResponse) {
+                  HttpResponse response = (HttpResponse) httpObject;
+                  if (HttpResponseStatus.FOUND.equals(response.status())
+                          && response.headers().contains(HttpHeaderNames.LOCATION)) {
                     String location = response.headers().get(HttpHeaderNames.LOCATION);
-                    assert originalRequest != null;
                     return followRedirect(originalRequest, location);
                   }
-
+                }
                 return httpObject;
               }
             };
