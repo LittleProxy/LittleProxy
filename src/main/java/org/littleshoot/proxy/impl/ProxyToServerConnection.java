@@ -5,6 +5,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CONNECT_OK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
 import static org.littleshoot.proxy.impl.ConnectionState.CONNECTING;
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECTED;
+import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.HANDSHAKING;
 
 import com.google.common.net.HostAndPort;
@@ -229,8 +230,34 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void read(Object msg) {
     if (isConnecting()) {
-      LOG.debug("In the middle of connecting, forwarding message to connection flow: {}", msg);
-      connectionFlow.read(msg);
+      // When in the middle of connecting (e.g., during CONNECT tunnel establishment),
+      // we need to pass the CONNECT response through the HttpFilters before handling
+      // it in the connection flow. This fixes issue #77:
+      // https://github.com/LittleProxy/LittleProxy/issues/77
+      if (msg instanceof HttpObject) {
+        HttpObject httpObject = (HttpObject) msg;
+        currentFilters.serverToProxyResponseReceiving();
+
+        HttpObject filteredHttpObject = currentFilters.serverToProxyResponse(httpObject);
+        if (filteredHttpObject == null) {
+          LOG.debug("Filter returned null, forcing disconnect");
+          become(DISCONNECT_REQUESTED);
+          return;
+        }
+
+        currentFilters.serverToProxyResponseReceived();
+
+        // Pass the filtered message to the connection flow
+        LOG.debug(
+            "In the middle of connecting, forwarding filtered message to connection flow: {}",
+            filteredHttpObject);
+        connectionFlow.read(filteredHttpObject);
+      } else {
+        // Raw data (e.g., for tunneling) - pass directly to connection flow
+        LOG.debug(
+            "In the middle of connecting, forwarding raw message to connection flow: {}", msg);
+        connectionFlow.read(msg);
+      }
     } else {
       super.read(msg);
     }
