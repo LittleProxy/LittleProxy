@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
  */
 @Disabled
 public final class VariableSpeedClientServerTest {
-  private static final Logger log = LoggerFactory.getLogger(VariableSpeedClientServerTest.class);
+  private static final Logger logger = LoggerFactory.getLogger(VariableSpeedClientServerTest.class);
 
   private static final int PORT = TestUtils.randomPort();
   private static final int PROXY_PORT = TestUtils.randomPort();
@@ -52,7 +52,7 @@ public final class VariableSpeedClientServerTest {
     Thread.sleep(400);
     try (CloseableHttpClient client = createProxiedHttpClient(proxyPort)) {
 
-      log.info("------------------ Memory Usage At Beginning ------------------");
+      logger.info("------------------ Memory Usage At Beginning ------------------");
       TestUtils.getOpenFileDescriptorsAndPrintMemoryUsage();
 
       final HttpPost post = createHttpPost("http://127.0.0.1:" + port + "/");
@@ -78,7 +78,7 @@ public final class VariableSpeedClientServerTest {
       assertThat(bytesRead).isEqualTo(CONTENT_LENGTH);
       // final String body = IOUtils.toString(entity.getContent());
       EntityUtils.consume(entity);
-      log.info("------------------ Memory Usage At Beginning ------------------");
+      logger.info("------------------ Memory Usage At Beginning ------------------");
       TestUtils.getOpenFileDescriptorsAndPrintMemoryUsage();
     }
   }
@@ -117,7 +117,7 @@ public final class VariableSpeedClientServerTest {
               try {
                 startServerOnThread(port, slowReader);
               } catch (IOException e) {
-                log.error(
+                logger.error(
                     "Failed to start server on port {} (slowReader: {})", port, slowReader, e);
               }
             },

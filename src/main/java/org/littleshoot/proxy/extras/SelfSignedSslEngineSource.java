@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  * that are generated lazily if the given key store file doesn't yet exist.
  */
 public class SelfSignedSslEngineSource implements SslEngineSource {
-  private static final Logger LOG = LoggerFactory.getLogger(SelfSignedSslEngineSource.class);
+  private static final Logger logger = LoggerFactory.getLogger(SelfSignedSslEngineSource.class);
 
   private static final String PROTOCOL = "TLS";
 
@@ -111,7 +111,7 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
         "-keystore",
         keyStoreLocalAbsoluteFile.getPath());
 
-    LOG.info("Generated LittleProxy keystore in {}", keyStoreLocalAbsoluteFile);
+    logger.info("Generated LittleProxy keystore in {}", keyStoreLocalAbsoluteFile);
 
     Path certificateFile = Paths.get(keyStoreLocalAbsoluteFile.getParent(), certificateFileName);
     nativeCall(
@@ -125,7 +125,7 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
         password,
         "-file",
         certificateFile.toString());
-    LOG.info("Generated LittleProxy certificate in {}", certificateFile);
+    logger.info("Generated LittleProxy certificate in {}", certificateFile);
   }
 
   private void initializeSSLContext() {
@@ -178,12 +178,12 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
     try (InputStream is = url.openStream()) {
       keyStore.load(is, password.toCharArray());
     }
-    LOG.debug("Loaded LittleProxy keystore from {}", url);
+    logger.debug("Loaded LittleProxy keystore from {}", url);
     return keyStore;
   }
 
   private void nativeCall(final String... commands) {
-    LOG.info("Running '{}'", Arrays.asList(commands));
+    logger.info("Running '{}'", Arrays.asList(commands));
     final ProcessBuilder pb = new ProcessBuilder(commands);
     try {
       final Process process = pb.start();
@@ -193,10 +193,10 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
       }
       String dataAsString = new String(data);
 
-      LOG.info(
+      logger.info(
           "Completed native call: '{}'\nResponse: '{}'", Arrays.asList(commands), dataAsString);
     } catch (final IOException e) {
-      LOG.error("Error running commands: {}", Arrays.asList(commands), e);
+      logger.error("Error running commands: {}", Arrays.asList(commands), e);
     }
   }
 }

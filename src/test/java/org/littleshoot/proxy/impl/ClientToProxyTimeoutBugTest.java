@@ -320,4 +320,3 @@ public class ClientToProxyTimeoutBugTest {
     // - With fixed code: timeout handling is EXECUTED (correct!)
   }
 }
-
