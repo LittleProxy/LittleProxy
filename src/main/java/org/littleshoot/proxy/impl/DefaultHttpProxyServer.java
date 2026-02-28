@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * </pre>
  */
 public class DefaultHttpProxyServer implements HttpProxyServer {
-  private static final Logger LOG = LoggerFactory.getLogger(DefaultHttpProxyServer.class);
+  private static final Logger logger = LoggerFactory.getLogger(DefaultHttpProxyServer.class);
 
   /**
    * The interval in ms at which the GlobalTrafficShapingHandler will run to compute and throttle
@@ -168,12 +168,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       try (InputStream is = new FileInputStream(propsFile)) {
         props.load(is);
       } catch (final IOException e) {
-        LOG.error("Could not load props file", e);
+        logger.error("Could not load props file", e);
         throw new IllegalArgumentException("Could not load props file." + e.getMessage());
       }
     } else {
       String cause = !propsFile.exists() ? "absent" : "a directory";
-      LOG.error("Could not load props file. file is {}", cause);
+      logger.error("Could not load props file. file is {}", cause);
       throw new IllegalArgumentException("Could not load props file. file is " + (cause));
     }
 
@@ -443,9 +443,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     // only stop the server if it hasn't already been stopped
     if (stopped.compareAndSet(false, true)) {
       if (graceful) {
-        LOG.info("Shutting down proxy server gracefully");
+        logger.info("Shutting down proxy server gracefully");
       } else {
-        LOG.info("Shutting down proxy server immediately (non-graceful)");
+        logger.info("Shutting down proxy server immediately (non-graceful)");
       }
 
       closeAllChannels(graceful);
@@ -460,7 +460,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         // ignore -- IllegalStateException means the VM is already shutting down
       }
 
-      LOG.info("Done shutting down proxy server");
+      logger.info("Done shutting down proxy server");
     }
   }
 
@@ -484,7 +484,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
    *     channel-closing exceptions
    */
   protected void closeAllChannels(boolean graceful) {
-    LOG.info("Closing all channels {}", graceful ? "(graceful)" : "(non-graceful)");
+    logger.info("Closing all channels {}", graceful ? "(graceful)" : "(non-graceful)");
 
     ChannelGroupFuture future = allChannels.close();
 
@@ -496,13 +496,13 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
 
-        LOG.warn("Interrupted while waiting for channels to shut down gracefully.");
+        logger.warn("Interrupted while waiting for channels to shut down gracefully.");
       }
 
       if (!future.isSuccess()) {
         for (ChannelFuture cf : future) {
           if (!cf.isSuccess()) {
-            LOG.info(
+            logger.info(
                 "Unable to close channel. Cause of failure for {} is {}",
                 cf.channel(),
                 String.valueOf(cf.cause()));
@@ -514,7 +514,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
   private HttpProxyServer start() {
     if (!serverGroup.isStopped()) {
-      LOG.info("Starting proxy at address: {}", requestedAddress);
+      logger.info("Starting proxy at address: {}", requestedAddress);
 
       serverGroup.registerProxyServer(this);
 
@@ -547,7 +547,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         };
     switch (transportProtocol) {
       case TCP:
-        LOG.info("Proxy listening with TCP transport");
+        logger.info("Proxy listening with TCP transport");
         serverBootstrap.channelFactory(NioServerSocketChannel::new);
         break;
       default:
@@ -565,7 +565,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     Channel serverChannel = future.channel();
     registerChannel(serverChannel);
     boundAddress = (InetSocketAddress) serverChannel.localAddress();
-    LOG.info("Proxy started at address: {}", boundAddress);
+    logger.info("Proxy started at address: {}", boundAddress);
 
     Runtime.getRuntime().addShutdownHook(jvmShutdownHook);
   }
@@ -781,7 +781,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
               org.littleshoot.proxy.extras.LogFormat.valueOf(format.toUpperCase());
           plusActivityTracker(new ActivityLogger(logFormat));
         } catch (IllegalArgumentException e) {
-          LOG.warn("Unknown activity log format requested in properties: {}", format);
+          logger.warn("Unknown activity log format requested in properties: {}", format);
         }
       }
     }
@@ -828,7 +828,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     public HttpProxyServerBootstrap withSslEngineSource(SslEngineSource sslEngineSource) {
       this.sslEngineSource = sslEngineSource;
       if (mitmManager != null) {
-        LOG.warn(
+        logger.warn(
             "Enabled encrypted inbound connections with man in the middle. "
                 + "These are mutually exclusive - man in the middle will be disabled.");
         mitmManager = null;
@@ -858,7 +858,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     public HttpProxyServerBootstrap withManInTheMiddle(MitmManager mitmManager) {
       this.mitmManager = mitmManager;
       if (sslEngineSource != null) {
-        LOG.warn(
+        logger.warn(
             "Enabled man in the middle with encrypted inbound connections. "
                 + "These are mutually exclusive - encrypted inbound connections will be disabled.");
         sslEngineSource = null;

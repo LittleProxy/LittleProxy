@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 
 /** A ThreadFactory that adds LittleProxy-specific information to the threads' names. */
 public class CategorizedThreadFactory implements ThreadFactory {
-  private static final Logger log = LoggerFactory.getLogger(CategorizedThreadFactory.class);
+  private static final Logger logger = LoggerFactory.getLogger(CategorizedThreadFactory.class);
 
   private final String name;
   private final String category;
@@ -20,7 +20,7 @@ public class CategorizedThreadFactory implements ThreadFactory {
    * caught.
    */
   private static final Thread.UncaughtExceptionHandler UNCAUGHT_EXCEPTION_HANDLER =
-      (t, e) -> log.error("Uncaught throwable in thread: {}", t.getName(), e);
+      (t, e) -> logger.error("Uncaught throwable in thread: {}", t.getName(), e);
 
   /**
    * @param name the user-supplied name of this proxy

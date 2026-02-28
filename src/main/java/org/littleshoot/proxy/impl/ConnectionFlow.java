@@ -101,33 +101,33 @@ class ConnectionFlow {
    */
   private void processCurrentStep() {
     final ProxyConnection<?> connection = currentStep.getConnection();
-    final ProxyConnectionLogger LOG = connection.getLOG();
+    final ProxyConnectionLogger logger = connection.getLOG();
 
-    LOG.debug("Processing connection flow step: {}", currentStep);
+    logger.debug("Processing connection flow step: {}", currentStep);
     connection.become(currentStep.getState());
     suppressInitialRequest = suppressInitialRequest || currentStep.shouldSuppressInitialRequest();
 
     if (currentStep.shouldExecuteOnEventLoop()) {
-      connection.ctx.executor().submit(() -> doProcessCurrentStep(LOG));
+      connection.ctx.executor().submit(() -> doProcessCurrentStep(logger));
     } else {
-      doProcessCurrentStep(LOG);
+      doProcessCurrentStep(logger);
     }
   }
 
   /**
    * Does the work of processing the current step, checking the result and handling success/failure.
    */
-  private void doProcessCurrentStep(final ProxyConnectionLogger LOG) {
+  private void doProcessCurrentStep(final ProxyConnectionLogger logger) {
     currentStep
         .execute()
         .addListener(
             future -> {
               synchronized (connectLock) {
                 if (future.isSuccess()) {
-                  LOG.debug("ConnectionFlowStep succeeded");
+                  logger.debug("ConnectionFlowStep succeeded");
                   currentStep.onSuccess(ConnectionFlow.this);
                 } else {
-                  LOG.debug("ConnectionFlowStep failed", future.cause());
+                  logger.debug("ConnectionFlowStep failed", future.cause());
                   fail(future.cause());
                 }
               }

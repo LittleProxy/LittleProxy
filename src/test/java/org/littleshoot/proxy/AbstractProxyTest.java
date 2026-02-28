@@ -58,7 +58,7 @@ public abstract class AbstractProxyTest {
   private final AtomicInteger clientSSLHandshakeSuccesses = new AtomicInteger(0);
   private final AtomicInteger clientDisconnects = new AtomicInteger(0);
 
-  protected Logger logger() {
+  protected final Logger logger() {
     return LoggerFactory.getLogger(getClass());
   }
 
