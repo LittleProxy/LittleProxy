@@ -265,31 +265,44 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
 
     LOG.debug("Finding ProxyToServerConnection for: {}", serverHostAndPort);
-    if (!isMitming() && !isTunneling()) {
-      currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
-    }
+
+    // Use the shared connection pool instead of per-client connections for regular HTTP requests
+    ProxyToServerConnectionPool pool = proxyServer.getServerConnectionPool();
 
     boolean newConnectionRequired = false;
     if (ProxyUtils.isCONNECT(httpRequest)) {
       LOG.debug(
           "Not reusing existing ProxyToServerConnection because request is a CONNECT for: {}",
           serverHostAndPort);
-      newConnectionRequired = true;
-    } else if (currentServerConnection == null) {
-      LOG.debug("Didn't find existing ProxyToServerConnection for: {}", serverHostAndPort);
+      // For CONNECT, try to get from per-client map first (for dedicated tunnel connections)
+      currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
+      if (currentServerConnection == null) {
+        newConnectionRequired = true;
+      }
+    } else {
+      // For regular requests, always get from shared pool (will create if needed)
+      // The pool handles checking for existing available connections
       newConnectionRequired = true;
     }
 
     if (newConnectionRequired) {
       try {
-        currentServerConnection =
-            ProxyToServerConnection.create(
-                proxyServer,
-                this,
-                serverHostAndPort,
-                currentFilters,
-                httpRequest,
-                globalTrafficShapingHandler);
+        // For CONNECT requests, create a dedicated connection (not pooled)
+        if (ProxyUtils.isCONNECT(httpRequest)) {
+          currentServerConnection =
+              ProxyToServerConnection.create(
+                  proxyServer,
+                  this,
+                  serverHostAndPort,
+                  currentFilters,
+                  httpRequest,
+                  globalTrafficShapingHandler);
+        } else {
+          // Use the shared pool for regular requests
+          currentServerConnection =
+              pool.getOrCreateConnection(serverHostAndPort, this, currentFilters, httpRequest);
+        }
+
         if (currentServerConnection == null) {
           LOG.debug("Unable to create server connection, probably no chained proxies available");
           boolean keepAlive = writeBadGateway(httpRequest);
@@ -300,9 +313,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             return DISCONNECT_REQUESTED;
           }
         }
-        // Remember the connection for later
-        serverConnectionsByHostAndPort.put(
-            serverHostAndPort, requireNonNull(currentServerConnection));
+
+        // Remember the connection for tracking (for non-pooled connections)
+        if (ProxyUtils.isCONNECT(httpRequest)) {
+          serverConnectionsByHostAndPort.put(
+              serverHostAndPort, requireNonNull(currentServerConnection));
+        }
       } catch (UnknownHostException uhe) {
         LOG.info("Bad Host {}", httpRequest.uri());
         boolean keepAlive = writeBadGateway(httpRequest);
@@ -316,6 +332,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     } else {
       LOG.debug("Reusing existing server connection: {}", currentServerConnection);
       numberOfReusedServerConnections.incrementAndGet();
+    }
+
+    // For pooled connections, set the current client connection before writing
+    // This allows the server connection to know where to send the response
+    if (!ProxyUtils.isCONNECT(httpRequest) && currentServerConnection != null) {
+      currentServerConnection.setCurrentClientConnectionForRequest(this);
     }
 
     modifyRequestHeadersToReflectProxying(httpRequest);

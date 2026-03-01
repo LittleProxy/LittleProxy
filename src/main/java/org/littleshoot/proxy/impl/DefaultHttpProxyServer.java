@@ -149,6 +149,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       new DefaultChannelGroup("HTTP-Proxy-Server", GlobalEventExecutor.INSTANCE, true);
 
   /**
+   * Shared pool of ProxyToServerConnection instances for all ClientToProxyConnection. This
+   * addresses the connection explosion issue (GitHub issue #83).
+   */
+  private volatile ProxyToServerConnectionPool serverConnectionPool;
+
+  /**
    * JVM shutdown hook to shut down this proxy server. Declared as a class-level variable to allow
    * removing the shutdown hook when the proxy server is stopped normally.
    */
@@ -382,6 +388,17 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     return maxChunkSize;
   }
 
+  /**
+   * Gets the shared ProxyToServerConnectionPool for this server. Creates the pool if it doesn't
+   * exist.
+   */
+  public synchronized ProxyToServerConnectionPool getServerConnectionPool() {
+    if (serverConnectionPool == null) {
+      serverConnectionPool = new ProxyToServerConnectionPool(this, globalTrafficShapingHandler);
+    }
+    return serverConnectionPool;
+  }
+
   public boolean isAllowRequestsToOriginServer() {
     return allowRequestsToOriginServer;
   }
@@ -446,6 +463,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         LOG.info("Shutting down proxy server gracefully");
       } else {
         LOG.info("Shutting down proxy server immediately (non-graceful)");
+      }
+
+      // Close the shared server connection pool
+      if (serverConnectionPool != null) {
+        serverConnectionPool.closeAll();
       }
 
       closeAllChannels(graceful);
