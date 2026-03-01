@@ -580,8 +580,10 @@
                                 <include>src/test/java/**/*.java</include> <!-- Check application tests code -->
                             </includes>
                             <googleJavaFormat/>
-                            <importOrder />
                             <removeUnusedImports />
+                            <eclipse>
+                                <file>${project.basedir}/eclipse-format.xml</file>
+                            </eclipse>
                         </java>
                     </configuration>
                 </plugin>
