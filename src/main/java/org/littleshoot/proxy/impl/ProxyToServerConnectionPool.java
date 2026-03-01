@@ -79,6 +79,7 @@ public class ProxyToServerConnectionPool {
             ProxyToServerConnection.createForPool(
                 proxyServer,
                 this,
+                clientConnection,
                 serverHostAndPort,
                 initialFilters,
                 initialHttpRequest,

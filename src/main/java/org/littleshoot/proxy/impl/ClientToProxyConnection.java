@@ -270,11 +270,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     ProxyToServerConnectionPool pool = proxyServer.getServerConnectionPool();
 
     boolean newConnectionRequired = false;
-    if (ProxyUtils.isCONNECT(httpRequest)) {
+    if (ProxyUtils.isCONNECT(httpRequest)
+        || isTunneling()
+        || isMitming()
+        || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+      // For CONNECT requests, tunneling (WebSocket), or MITM, use dedicated connections
       LOG.debug(
-          "Not reusing existing ProxyToServerConnection because request is a CONNECT for: {}",
+          "Not using shared pool because request is a CONNECT/tunneling/MITM/WebSocket for: {}",
           serverHostAndPort);
-      // For CONNECT, try to get from per-client map first (for dedicated tunnel connections)
       currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
       if (currentServerConnection == null) {
         newConnectionRequired = true;
@@ -287,8 +290,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
     if (newConnectionRequired) {
       try {
-        // For CONNECT requests, create a dedicated connection (not pooled)
-        if (ProxyUtils.isCONNECT(httpRequest)) {
+        // For CONNECT requests, tunneling (WebSocket), or MITM, create dedicated connections (not
+        // pooled)
+        if (ProxyUtils.isCONNECT(httpRequest)
+            || isTunneling()
+            || isMitming()
+            || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
           currentServerConnection =
               ProxyToServerConnection.create(
                   proxyServer,
@@ -315,7 +322,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         }
 
         // Remember the connection for tracking (for non-pooled connections)
-        if (ProxyUtils.isCONNECT(httpRequest)) {
+        if (ProxyUtils.isCONNECT(httpRequest)
+            || isTunneling()
+            || isMitming()
+            || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
           serverConnectionsByHostAndPort.put(
               serverHostAndPort, requireNonNull(currentServerConnection));
         }
@@ -336,7 +346,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
     // For pooled connections, set the current client connection before writing
     // This allows the server connection to know where to send the response
-    if (!ProxyUtils.isCONNECT(httpRequest) && currentServerConnection != null) {
+    // Don't set this for CONNECT/tunneling/MITM/WebSocket as they use dedicated connections
+    if (!ProxyUtils.isCONNECT(httpRequest)
+        && !isTunneling()
+        && !isMitming()
+        && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)
+        && currentServerConnection != null) {
       currentServerConnection.setCurrentClientConnectionForRequest(this);
     }
 

@@ -236,6 +236,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   static ProxyToServerConnection createForPool(
       DefaultHttpProxyServer proxyServer,
       ProxyToServerConnectionPool connectionPool,
+      ClientToProxyConnection clientConnection,
       String serverHostAndPort,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest,
@@ -244,8 +245,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
     ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
     if (chainedProxyManager != null) {
-      // For pooled connections, we don't have a client connection to get details from
-      chainedProxyManager.lookupChainedProxies(initialHttpRequest, chainedProxies, null);
+      // Pass client details from the client connection for chained proxy resolution
+      chainedProxyManager.lookupChainedProxies(
+          initialHttpRequest, chainedProxies, clientConnection.getClientDetails());
       if (chainedProxies.isEmpty()) {
         // ChainedProxyManager returned no proxies, can't connect
         return null;
@@ -254,6 +256,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     return new ProxyToServerConnection(
         proxyServer,
         connectionPool,
+        clientConnection,
         serverHostAndPort,
         chainedProxies.poll(),
         chainedProxies,
@@ -265,6 +268,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private ProxyToServerConnection(
       DefaultHttpProxyServer proxyServer,
       ProxyToServerConnectionPool connectionPool,
+      ClientToProxyConnection clientConnection,
       String serverHostAndPort,
       ChainedProxy chainedProxy,
       Queue<ChainedProxy> availableChainedProxies,
@@ -272,7 +276,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       GlobalTrafficShapingHandler globalTrafficShapingHandler)
       throws UnknownHostException {
     super(DISCONNECTED, proxyServer, true);
-    this.clientConnection = null;
+    this.clientConnection = clientConnection;
     this.connectionPool = connectionPool;
     this.serverHostAndPort = serverHostAndPort;
     this.chainedProxy = chainedProxy;
@@ -380,6 +384,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       return AWAITING_CHUNK;
     } else {
       currentFilters.serverToProxyResponseReceived();
+      // Clear the current client connection after the response is complete
+      // This allows the connection to be reused by another client
+      this.currentClientConnectionForRequest = null;
 
       return AWAITING_INITIAL;
     }
@@ -525,6 +532,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     } else if (getCurrentState() == AWAITING_CHUNK && newState != AWAITING_CHUNK) {
       currentFilters.serverToProxyResponseReceived();
+      // Clear the current client connection after the response is complete
+      // This allows the connection to be reused by another client
+      this.currentClientConnectionForRequest = null;
     }
 
     super.become(newState);
@@ -675,12 +685,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
     targetClientConnection.respond(
         this, currentFilters, currentHttpRequest, currentHttpResponse, httpObject);
-
-    // Clear the current client connection after responding
-    // (for Keep-Alive connections, it will be set again for the next request)
-    if (currentClientConnectionForRequest != null) {
-      currentClientConnectionForRequest = null;
-    }
   }
 
   /**
