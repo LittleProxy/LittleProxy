@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A shared pool of ProxyToServerConnection instances that can be reused across all
@@ -21,13 +23,27 @@ import org.littleshoot.proxy.HttpFilters;
  *
  * <p>This pool supports HTTP pipelining - multiple requests can be pending on a single connection,
  * and responses are matched to the correct client based on request order.
+ *
+ * <p>Per-host connection limits can be configured to allow multiple connections to the same
+ * host:port for high concurrency scenarios.
  */
 public class ProxyToServerConnectionPool {
-  /** Default maximum number of pooled connections per host:port. */
-  private static final int DEFAULT_MAX_CONNECTIONS_PER_HOST = 200;
+  private static final Logger LOG = LoggerFactory.getLogger(ProxyToServerConnectionPool.class);
 
-  /** The map of server host:port to ProxyToServerConnection. */
-  private final ConcurrentMap<String, ProxyToServerConnection> connectionsByHostAndPort =
+  /** Default maximum number of pooled connections per host:port. */
+  private static final int DEFAULT_MAX_CONNECTIONS_PER_HOST = 10;
+
+  /** Default maximum total connections in the pool. */
+  private static final int DEFAULT_MAX_TOTAL_CONNECTIONS = 200;
+
+  /** The map of server host:port to set of ProxyToServerConnection. */
+  private final ConcurrentMap<String, ConcurrentMap<ProxyToServerConnection, Boolean>>
+      connectionsByHostAndPort = new ConcurrentHashMap<>();
+
+  /**
+   * Track the number of connections per host:port. Uses AtomicInteger to allow concurrent access.
+   */
+  private final ConcurrentMap<String, AtomicInteger> connectionCountByHostAndPort =
       new ConcurrentHashMap<>();
 
   /**
@@ -40,7 +56,10 @@ public class ProxyToServerConnectionPool {
   /** Track the number of connections created from this pool to prevent exhaustion. */
   private final AtomicInteger totalConnectionsCreated = new AtomicInteger(0);
 
-  /** Maximum number of connections allowed in the pool. */
+  /** Maximum number of connections allowed per host:port. */
+  private final int maxConnectionsPerHost;
+
+  /** Maximum total connections allowed in the pool. */
   private final int maxConnections;
 
   /** The proxy server that owns this pool. */
@@ -52,16 +71,34 @@ public class ProxyToServerConnectionPool {
   public ProxyToServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
       io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler) {
-    this(proxyServer, globalTrafficShapingHandler, DEFAULT_MAX_CONNECTIONS_PER_HOST);
+    this(
+        proxyServer,
+        globalTrafficShapingHandler,
+        DEFAULT_MAX_CONNECTIONS_PER_HOST,
+        DEFAULT_MAX_TOTAL_CONNECTIONS);
   }
 
   public ProxyToServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
       io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      int maxConnectionsPerHost) {
+    this(
+        proxyServer,
+        globalTrafficShapingHandler,
+        maxConnectionsPerHost,
+        DEFAULT_MAX_TOTAL_CONNECTIONS);
+  }
+
+  public ProxyToServerConnectionPool(
+      DefaultHttpProxyServer proxyServer,
+      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      int maxConnectionsPerHost,
       int maxConnections) {
     this.proxyServer = proxyServer;
     this.globalTrafficShapingHandler = globalTrafficShapingHandler;
-    this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_CONNECTIONS_PER_HOST;
+    this.maxConnectionsPerHost =
+        maxConnectionsPerHost > 0 ? maxConnectionsPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
+    this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_TOTAL_CONNECTIONS;
   }
 
   /**
@@ -79,44 +116,72 @@ public class ProxyToServerConnectionPool {
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
-    // Try to get existing connection first
-    ProxyToServerConnection existingConnection = connectionsByHostAndPort.get(serverHostAndPort);
 
-    if (existingConnection != null && existingConnection.isConnected()) {
-      // Connection exists and is connected - check if it's available for reuse
-      if (existingConnection.isAvailableForNewRequest()) {
-        return existingConnection;
+    // Get current count for this host
+    int currentHostCount =
+        connectionCountByHostAndPort
+            .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
+            .get();
+
+    // Check per-host limit first
+    if (currentHostCount >= maxConnectionsPerHost) {
+      LOG.warn(
+          "Per-host connection limit reached for {}: {} connections, max is {}",
+          serverHostAndPort,
+          currentHostCount,
+          maxConnectionsPerHost);
+      // Try to find an existing available connection
+      ProxyToServerConnection available = findAvailableConnection(serverHostAndPort);
+      if (available != null) {
+        return available;
       }
+      return null;
     }
 
     // Check if pool is exhausted before creating new connection
     if (totalConnectionsCreated.get() >= maxConnections) {
-      org.slf4j.LoggerFactory.getLogger(ProxyToServerConnectionPool.class)
-          .warn(
-              "Pool exhausted: {} connections created, max is {}",
-              totalConnectionsCreated.get(),
-              maxConnections);
+      LOG.warn(
+          "Pool exhausted: {} connections created, max is {}",
+          totalConnectionsCreated.get(),
+          maxConnections);
+      // Try to find an existing available connection
+      ProxyToServerConnection available = findAvailableConnection(serverHostAndPort);
+      if (available != null) {
+        return available;
+      }
       return null;
     }
 
-    // Need to create a new connection
+    // Need to create a new connection - use double-checked locking
     synchronized (this) {
-      // Double-check after acquiring lock
-      existingConnection = connectionsByHostAndPort.get(serverHostAndPort);
-      if (existingConnection != null && existingConnection.isConnected()) {
-        if (existingConnection.isAvailableForNewRequest()) {
-          return existingConnection;
-        }
+      // Re-check per-host limit after acquiring lock
+      int hostCount =
+          connectionCountByHostAndPort
+              .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
+              .get();
+
+      if (hostCount >= maxConnectionsPerHost) {
+        LOG.warn(
+            "Per-host limit reached after sync for {}: {} connections, max is {}",
+            serverHostAndPort,
+            hostCount,
+            maxConnectionsPerHost);
+        return findAvailableConnection(serverHostAndPort);
       }
 
-      // Check again after sync block
+      // Re-check global limit
       if (totalConnectionsCreated.get() >= maxConnections) {
-        org.slf4j.LoggerFactory.getLogger(ProxyToServerConnectionPool.class)
-            .warn(
-                "Pool exhausted after sync: {} connections created, max is {}",
-                totalConnectionsCreated.get(),
-                maxConnections);
-        return null;
+        LOG.warn(
+            "Pool exhausted after sync: {} connections created, max is {}",
+            totalConnectionsCreated.get(),
+            maxConnections);
+        return findAvailableConnection(serverHostAndPort);
+      }
+
+      // Try to find an available connection before creating a new one
+      ProxyToServerConnection existingAvailable = findAvailableConnection(serverHostAndPort);
+      if (existingAvailable != null) {
+        return existingAvailable;
       }
 
       // Create new connection
@@ -132,16 +197,37 @@ public class ProxyToServerConnectionPool {
                 globalTrafficShapingHandler);
 
         if (newConnection != null) {
+          // Add to tracking
+          connectionsByHostAndPort
+              .computeIfAbsent(serverHostAndPort, k -> new ConcurrentHashMap<>())
+              .put(newConnection, Boolean.TRUE);
+          connectionCountByHostAndPort
+              .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
+              .incrementAndGet();
           totalConnectionsCreated.incrementAndGet();
-          connectionsByHostAndPort.put(serverHostAndPort, newConnection);
           return newConnection;
         }
       } catch (java.net.UnknownHostException e) {
-        org.slf4j.LoggerFactory.getLogger(ProxyToServerConnectionPool.class)
-            .warn("Failed to resolve host for {}", serverHostAndPort, e);
+        LOG.warn("Failed to resolve host for {}", serverHostAndPort, e);
       }
     }
 
+    return null;
+  }
+
+  /** Finds an available (connected and not processing a request) connection for the given host. */
+  @Nullable
+  private ProxyToServerConnection findAvailableConnection(String serverHostAndPort) {
+    ConcurrentMap<ProxyToServerConnection, Boolean> connections =
+        connectionsByHostAndPort.get(serverHostAndPort);
+    if (connections == null || connections.isEmpty()) {
+      return null;
+    }
+    for (ProxyToServerConnection conn : connections.keySet()) {
+      if (conn.isConnected() && conn.isAvailableForNewRequest()) {
+        return conn;
+      }
+    }
     return null;
   }
 
@@ -201,25 +287,47 @@ public class ProxyToServerConnectionPool {
    * @param connection the connection being removed
    */
   public void removeConnection(String serverHostAndPort, ProxyToServerConnection connection) {
-    connectionsByHostAndPort.computeIfPresent(
-        serverHostAndPort,
-        (key, existing) -> {
-          if (existing == connection) {
-            totalConnectionsCreated.decrementAndGet();
-            return null;
+    ConcurrentMap<ProxyToServerConnection, Boolean> connections =
+        connectionsByHostAndPort.get(serverHostAndPort);
+    if (connections != null) {
+      if (connections.remove(connection) != null) {
+        // Decrement the count
+        AtomicInteger count = connectionCountByHostAndPort.get(serverHostAndPort);
+        if (count != null) {
+          int newCount = count.decrementAndGet();
+          if (newCount <= 0) {
+            // Clean up empty entries
+            connectionCountByHostAndPort.remove(serverHostAndPort);
+            connectionsByHostAndPort.remove(serverHostAndPort);
           }
-          return existing;
-        });
+        }
+        totalConnectionsCreated.decrementAndGet();
+      }
+    }
   }
 
   /** Closes all connections in the pool. */
   public void closeAll() {
-    for (ProxyToServerConnection connection : connectionsByHostAndPort.values()) {
-      connection.close();
+    for (ConcurrentMap<ProxyToServerConnection, Boolean> connections :
+        connectionsByHostAndPort.values()) {
+      for (ProxyToServerConnection connection : connections.keySet()) {
+        connection.close();
+      }
     }
     connectionsByHostAndPort.clear();
+    connectionCountByHostAndPort.clear();
     pendingRequestsByChannel.clear();
     totalConnectionsCreated.set(0);
+  }
+
+  /** Returns the maximum number of connections allowed per host. */
+  public int getMaxConnectionsPerHost() {
+    return maxConnectionsPerHost;
+  }
+
+  /** Returns the maximum total number of connections allowed in the pool. */
+  public int getMaxConnections() {
+    return maxConnections;
   }
 
   /** Tracks a pending request and its associated client connection for HTTP pipelining. */

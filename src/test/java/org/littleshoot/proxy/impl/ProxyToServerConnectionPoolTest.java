@@ -35,9 +35,16 @@ public class ProxyToServerConnectionPoolTest {
   }
 
   @Test
-  void poolShouldHaveDefaultMaxConnections() throws Exception {
+  void poolShouldHaveDefaultMaxConnectionsPerHost() throws Exception {
     var field =
         ProxyToServerConnectionPool.class.getDeclaredField("DEFAULT_MAX_CONNECTIONS_PER_HOST");
+    field.setAccessible(true);
+    assertThat(field.get(null)).isEqualTo(10);
+  }
+
+  @Test
+  void poolShouldHaveDefaultMaxTotalConnections() throws Exception {
+    var field = ProxyToServerConnectionPool.class.getDeclaredField("DEFAULT_MAX_TOTAL_CONNECTIONS");
     field.setAccessible(true);
     assertThat(field.get(null)).isEqualTo(200);
   }

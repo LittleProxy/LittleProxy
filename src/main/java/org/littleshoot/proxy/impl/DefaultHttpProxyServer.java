@@ -161,6 +161,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   private final boolean useSharedServerConnectionPool;
 
   /**
+   * Maximum number of connections per host:port when using the shared connection pool. Default is
+   * 10.
+   */
+  private final int maxConnectionsPerHost;
+
+  /**
    * JVM shutdown hook to shut down this proxy server. Declared as a class-level variable to allow
    * removing the shutdown hook when the proxy server is stopped normally.
    */
@@ -247,7 +253,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       boolean allowRequestsToOriginServer,
       boolean acceptProxyProtocol,
       boolean sendProxyProtocol,
-      boolean useSharedServerConnectionPool) {
+      boolean useSharedServerConnectionPool,
+      int maxConnectionsPerHost) {
     this.serverGroup = serverGroup;
     this.transportProtocol = transportProtocol;
     this.requestedAddress = requestedAddress;
@@ -292,6 +299,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     this.acceptProxyProtocol = acceptProxyProtocol;
     this.sendProxyProtocol = sendProxyProtocol;
     this.useSharedServerConnectionPool = useSharedServerConnectionPool;
+    this.maxConnectionsPerHost = maxConnectionsPerHost;
   }
 
   /**
@@ -409,7 +417,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       return null;
     }
     if (serverConnectionPool == null) {
-      serverConnectionPool = new ProxyToServerConnectionPool(this, globalTrafficShapingHandler);
+      serverConnectionPool =
+          new ProxyToServerConnectionPool(this, globalTrafficShapingHandler, maxConnectionsPerHost);
     }
     return serverConnectionPool;
   }
@@ -674,6 +683,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private boolean sendProxyProtocol;
     private boolean useSharedServerConnectionPool =
         false; // Disabled by default for backwards compatibility
+    private int maxConnectionsPerHost = 10; // Default max connections per host
 
     private DefaultHttpProxyServerBootstrap() {}
 
@@ -1026,6 +1036,20 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       return this;
     }
 
+    /**
+     * Sets the maximum number of connections per host:port when using the shared connection pool.
+     *
+     * <p>Default is 10. This allows multiple connections to the same server for high concurrency
+     * scenarios.
+     *
+     * @param maxConnectionsPerHost the maximum number of connections per host:port
+     * @return this bootstrap
+     */
+    public HttpProxyServerBootstrap withMaxConnectionsPerHost(int maxConnectionsPerHost) {
+      this.maxConnectionsPerHost = maxConnectionsPerHost;
+      return this;
+    }
+
     @Override
     public HttpProxyServer start() {
       return build().start();
@@ -1076,7 +1100,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
           allowRequestToOriginServer,
           acceptProxyProtocol,
           sendProxyProtocol,
-          useSharedServerConnectionPool);
+          useSharedServerConnectionPool,
+          maxConnectionsPerHost);
     }
 
     private InetSocketAddress determineListenAddress() {

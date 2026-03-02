@@ -230,4 +230,14 @@ public interface HttpProxyServerBootstrap {
    * @param useSharedServerConnectionPool true to enable the shared pool
    */
   HttpProxyServerBootstrap withSharedServerConnectionPool(boolean useSharedServerConnectionPool);
+
+  /**
+   * Sets the maximum number of connections per host:port when using the shared connection pool.
+   *
+   * <p>Default is 10. This allows multiple connections to the same server for high concurrency
+   * scenarios.
+   *
+   * @param maxConnectionsPerHost the maximum number of connections per host:port
+   */
+  HttpProxyServerBootstrap withMaxConnectionsPerHost(int maxConnectionsPerHost);
 }

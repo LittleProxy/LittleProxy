@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.impl.ProxyToServerConnectionPool;
 
 /**
  * Integration tests for the shared ProxyToServerConnectionPool feature. Tests that connection
@@ -59,5 +60,14 @@ public class SharedConnectionPoolTest extends BaseProxyTest {
     // Make another request on the same connection
     ResponseInfo response2 = httpGetWithApacheClient(webHost, DEFAULT_RESOURCE, true, false);
     assertThat(response2.getStatusCode()).isEqualTo(200);
+  }
+
+  @Test
+  void testMaxConnectionsPerHostSetting() {
+    // Verify the pool has the correct max connections per host setting
+    ProxyToServerConnectionPool pool =
+        ((DefaultHttpProxyServer) proxyServer).getServerConnectionPool();
+    assertThat(pool).isNotNull();
+    assertThat(pool.getMaxConnectionsPerHost()).isEqualTo(10);
   }
 }
