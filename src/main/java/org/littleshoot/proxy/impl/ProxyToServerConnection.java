@@ -375,6 +375,17 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       httpResponse = substituteResponse;
     }
 
+    // For pooled connections, look up the pending request to get the correct client connection
+    // This supports HTTP pipelining where multiple requests are sent and responses come back in
+    // order
+    if (connectionPool != null && channel != null) {
+      ProxyToServerConnectionPool.PendingRequest pendingRequest =
+          connectionPool.removePendingRequest(channel);
+      if (pendingRequest != null) {
+        this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
+      }
+    }
+
     currentFilters.serverToProxyResponseReceiving();
 
     rememberCurrentResponse(httpResponse);
@@ -503,6 +514,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     if (httpObject instanceof HttpRequest) {
       // Remember that we issued this HttpRequest for later
       currentHttpRequest = (HttpRequest) httpObject;
+
+      // For pooled connections, register pending request to support HTTP pipelining
+      if (connectionPool != null && channel != null) {
+        ClientToProxyConnection clientConn = getClientConnection();
+        if (clientConn != null) {
+          connectionPool.registerPendingRequest(channel, clientConn, (HttpRequest) httpObject);
+        }
+      }
     }
     return super.writeHttp(httpObject);
   }
@@ -568,6 +587,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       } catch (Exception e) {
         LOG.error("Unable to record connectionFailed", e);
       }
+    }
+    // Remove from pool if this connection was managed by a pool
+    if (connectionPool != null) {
+      connectionPool.removeConnection(serverHostAndPort, this);
     }
     ClientToProxyConnection clientConn = getClientConnection();
     if (clientConn != null) {

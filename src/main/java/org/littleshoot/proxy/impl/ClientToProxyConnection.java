@@ -266,33 +266,38 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
     LOG.debug("Finding ProxyToServerConnection for: {}", serverHostAndPort);
 
-    // Use the shared connection pool instead of per-client connections for regular HTTP requests
+    // Use the shared connection pool if enabled (disabled by default for backwards compatibility)
     ProxyToServerConnectionPool pool = proxyServer.getServerConnectionPool();
+    boolean usePool = pool != null;
 
     boolean newConnectionRequired = false;
-    if (ProxyUtils.isCONNECT(httpRequest)
+    if (!usePool
+        || ProxyUtils.isCONNECT(httpRequest)
         || isTunneling()
         || isMitming()
         || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
-      // For CONNECT requests, tunneling (WebSocket), or MITM, use dedicated connections
+      // For non-pooled mode, CONNECT, tunneling (WebSocket), or MITM, use dedicated connections
       LOG.debug(
-          "Not using shared pool because request is a CONNECT/tunneling/MITM/WebSocket for: {}",
-          serverHostAndPort);
+          "Not using shared pool for: {} (pool enabled: {}, is CONNECT: {}, is Tunneling: {}, is MITM: {})",
+          serverHostAndPort,
+          usePool,
+          ProxyUtils.isCONNECT(httpRequest),
+          isTunneling(),
+          isMitming());
       currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
       if (currentServerConnection == null) {
         newConnectionRequired = true;
       }
     } else {
-      // For regular requests, always get from shared pool (will create if needed)
-      // The pool handles checking for existing available connections
+      // For regular requests with pool enabled, get from shared pool
       newConnectionRequired = true;
     }
 
     if (newConnectionRequired) {
       try {
-        // For CONNECT requests, tunneling (WebSocket), or MITM, create dedicated connections (not
-        // pooled)
-        if (ProxyUtils.isCONNECT(httpRequest)
+        // Create dedicated connection for non-pooled/CONNECT/tunneling/MITM, or use pool
+        if (!usePool
+            || ProxyUtils.isCONNECT(httpRequest)
             || isTunneling()
             || isMitming()
             || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
@@ -321,8 +326,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
           }
         }
 
-        // Remember the connection for tracking (for non-pooled connections)
-        if (ProxyUtils.isCONNECT(httpRequest)
+        // Remember the connection for tracking (for non-pooled connections or
+        // CONNECT/tunneling/MITM)
+        if (!usePool
+            || ProxyUtils.isCONNECT(httpRequest)
             || isTunneling()
             || isMitming()
             || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
@@ -346,8 +353,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
     // For pooled connections, set the current client connection before writing
     // This allows the server connection to know where to send the response
-    // Don't set this for CONNECT/tunneling/MITM/WebSocket as they use dedicated connections
-    if (!ProxyUtils.isCONNECT(httpRequest)
+    // Only set for pooled connections (not for CONNECT/tunneling/MITM/WebSocket)
+    if (usePool
+        && !ProxyUtils.isCONNECT(httpRequest)
         && !isTunneling()
         && !isMitming()
         && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)

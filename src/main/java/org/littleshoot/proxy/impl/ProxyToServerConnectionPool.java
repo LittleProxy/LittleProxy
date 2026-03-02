@@ -2,8 +2,11 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
 
@@ -15,15 +18,30 @@ import org.littleshoot.proxy.HttpFilters;
  * <p>Instead of each ClientToProxyConnection maintaining its own pool of server connections, all
  * client connections share a common pool. This allows connections to the same server to be reused
  * across different client connections.
+ *
+ * <p>This pool supports HTTP pipelining - multiple requests can be pending on a single connection,
+ * and responses are matched to the correct client based on request order.
  */
 public class ProxyToServerConnectionPool {
+  /** Default maximum number of pooled connections per host:port. */
+  private static final int DEFAULT_MAX_CONNECTIONS_PER_HOST = 200;
+
   /** The map of server host:port to ProxyToServerConnection. */
   private final ConcurrentMap<String, ProxyToServerConnection> connectionsByHostAndPort =
       new ConcurrentHashMap<>();
 
-  /** Track pending requests to route responses to the correct client connection. */
-  private final ConcurrentMap<Channel, PendingRequest> pendingRequestsByChannel =
+  /**
+   * Track pending requests by channel to support HTTP pipelining. Each channel can have multiple
+   * pending requests in flight.
+   */
+  private final ConcurrentMap<Channel, Queue<PendingRequest>> pendingRequestsByChannel =
       new ConcurrentHashMap<>();
+
+  /** Track the number of connections created from this pool to prevent exhaustion. */
+  private final AtomicInteger totalConnectionsCreated = new AtomicInteger(0);
+
+  /** Maximum number of connections allowed in the pool. */
+  private final int maxConnections;
 
   /** The proxy server that owns this pool. */
   private final DefaultHttpProxyServer proxyServer;
@@ -34,8 +52,16 @@ public class ProxyToServerConnectionPool {
   public ProxyToServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
       io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler) {
+    this(proxyServer, globalTrafficShapingHandler, DEFAULT_MAX_CONNECTIONS_PER_HOST);
+  }
+
+  public ProxyToServerConnectionPool(
+      DefaultHttpProxyServer proxyServer,
+      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      int maxConnections) {
     this.proxyServer = proxyServer;
     this.globalTrafficShapingHandler = globalTrafficShapingHandler;
+    this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_CONNECTIONS_PER_HOST;
   }
 
   /**
@@ -45,7 +71,7 @@ public class ProxyToServerConnectionPool {
    * @param clientConnection the client connection that needs the server connection
    * @param initialFilters the initial HTTP filters
    * @param initialHttpRequest the initial HTTP request
-   * @return the ProxyToServerConnection, or null if creation failed
+   * @return the ProxyToServerConnection, or null if creation failed or pool is exhausted
    */
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
@@ -63,6 +89,16 @@ public class ProxyToServerConnectionPool {
       }
     }
 
+    // Check if pool is exhausted before creating new connection
+    if (totalConnectionsCreated.get() >= maxConnections) {
+      org.slf4j.LoggerFactory.getLogger(ProxyToServerConnectionPool.class)
+          .warn(
+              "Pool exhausted: {} connections created, max is {}",
+              totalConnectionsCreated.get(),
+              maxConnections);
+      return null;
+    }
+
     // Need to create a new connection
     synchronized (this) {
       // Double-check after acquiring lock
@@ -71,6 +107,16 @@ public class ProxyToServerConnectionPool {
         if (existingConnection.isAvailableForNewRequest()) {
           return existingConnection;
         }
+      }
+
+      // Check again after sync block
+      if (totalConnectionsCreated.get() >= maxConnections) {
+        org.slf4j.LoggerFactory.getLogger(ProxyToServerConnectionPool.class)
+            .warn(
+                "Pool exhausted after sync: {} connections created, max is {}",
+                totalConnectionsCreated.get(),
+                maxConnections);
+        return null;
       }
 
       // Create new connection
@@ -86,6 +132,7 @@ public class ProxyToServerConnectionPool {
                 globalTrafficShapingHandler);
 
         if (newConnection != null) {
+          totalConnectionsCreated.incrementAndGet();
           connectionsByHostAndPort.put(serverHostAndPort, newConnection);
           return newConnection;
         }
@@ -99,8 +146,7 @@ public class ProxyToServerConnectionPool {
   }
 
   /**
-   * Registers a pending request so that when a response comes back, we know which client connection
-   * to send it to.
+   * Registers a pending request for HTTP pipelining support.
    *
    * @param channel the server channel
    * @param clientConnection the client connection that made the request
@@ -108,18 +154,44 @@ public class ProxyToServerConnectionPool {
    */
   public void registerPendingRequest(
       Channel channel, ClientToProxyConnection clientConnection, HttpRequest request) {
-    pendingRequestsByChannel.put(channel, new PendingRequest(clientConnection, request));
+    pendingRequestsByChannel
+        .computeIfAbsent(channel, k -> new ConcurrentLinkedQueue<>())
+        .add(new PendingRequest(clientConnection, request));
   }
 
   /**
-   * Gets and removes the pending request for the given channel.
+   * Gets and removes the oldest pending request for the given channel (FIFO order for pipelining).
    *
    * @param channel the server channel
-   * @return the pending request, or null if none found
+   * @return the oldest pending request, or null if none found
    */
   @Nullable
   public PendingRequest removePendingRequest(Channel channel) {
-    return pendingRequestsByChannel.remove(channel);
+    Queue<PendingRequest> queue = pendingRequestsByChannel.get(channel);
+    if (queue == null || queue.isEmpty()) {
+      return null;
+    }
+    PendingRequest request = queue.poll();
+    // Clean up empty queues
+    if (queue.isEmpty()) {
+      pendingRequestsByChannel.remove(channel);
+    }
+    return request;
+  }
+
+  /**
+   * Gets the oldest pending request without removing it.
+   *
+   * @param channel the server channel
+   * @return the oldest pending request, or null if none found
+   */
+  @Nullable
+  public PendingRequest peekPendingRequest(Channel channel) {
+    Queue<PendingRequest> queue = pendingRequestsByChannel.get(channel);
+    if (queue == null || queue.isEmpty()) {
+      return null;
+    }
+    return queue.peek();
   }
 
   /**
@@ -133,6 +205,7 @@ public class ProxyToServerConnectionPool {
         serverHostAndPort,
         (key, existing) -> {
           if (existing == connection) {
+            totalConnectionsCreated.decrementAndGet();
             return null;
           }
           return existing;
@@ -146,9 +219,10 @@ public class ProxyToServerConnectionPool {
     }
     connectionsByHostAndPort.clear();
     pendingRequestsByChannel.clear();
+    totalConnectionsCreated.set(0);
   }
 
-  /** Tracks a pending request and its associated client connection. */
+  /** Tracks a pending request and its associated client connection for HTTP pipelining. */
   public static class PendingRequest {
     private final ClientToProxyConnection clientConnection;
     private final HttpRequest request;

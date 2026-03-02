@@ -155,6 +155,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   private volatile ProxyToServerConnectionPool serverConnectionPool;
 
   /**
+   * Whether to use the shared server connection pool. Disabled by default for backwards
+   * compatibility.
+   */
+  private final boolean useSharedServerConnectionPool;
+
+  /**
    * JVM shutdown hook to shut down this proxy server. Declared as a class-level variable to allow
    * removing the shutdown hook when the proxy server is stopped normally.
    */
@@ -214,6 +220,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
    *     an origin-form URI, as defined in RFC 7230 5.3.1
    * @param acceptProxyProtocol when true, the proxy will accept a proxy protocol header from client
    * @param sendProxyProtocol when true, the proxy will send a proxy protocol header to the server
+   * @param useSharedServerConnectionPool when true, enables the shared server connection pool
    */
   private DefaultHttpProxyServer(
       ServerGroup serverGroup,
@@ -239,7 +246,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       int maxChunkSize,
       boolean allowRequestsToOriginServer,
       boolean acceptProxyProtocol,
-      boolean sendProxyProtocol) {
+      boolean sendProxyProtocol,
+      boolean useSharedServerConnectionPool) {
     this.serverGroup = serverGroup;
     this.transportProtocol = transportProtocol;
     this.requestedAddress = requestedAddress;
@@ -283,6 +291,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     this.allowRequestsToOriginServer = allowRequestsToOriginServer;
     this.acceptProxyProtocol = acceptProxyProtocol;
     this.sendProxyProtocol = sendProxyProtocol;
+    this.useSharedServerConnectionPool = useSharedServerConnectionPool;
   }
 
   /**
@@ -391,8 +400,14 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   /**
    * Gets the shared ProxyToServerConnectionPool for this server. Creates the pool if it doesn't
    * exist.
+   *
+   * @return the shared pool, or null if the pool is disabled
    */
+  @Nullable
   public synchronized ProxyToServerConnectionPool getServerConnectionPool() {
+    if (!useSharedServerConnectionPool) {
+      return null;
+    }
     if (serverConnectionPool == null) {
       serverConnectionPool = new ProxyToServerConnectionPool(this, globalTrafficShapingHandler);
     }
@@ -657,6 +672,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private boolean allowRequestToOriginServer;
     private boolean acceptProxyProtocol;
     private boolean sendProxyProtocol;
+    private boolean useSharedServerConnectionPool =
+        false; // Disabled by default for backwards compatibility
 
     private DefaultHttpProxyServerBootstrap() {}
 
@@ -991,6 +1008,24 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       return this;
     }
 
+    /**
+     * Enable or disable the shared server connection pool.
+     *
+     * <p>When enabled, all client connections share a common pool of server connections, allowing
+     * connections to the same server to be reused across different client connections. This
+     * addresses connection explosion when many clients connect to the same servers.
+     *
+     * <p>Disabled by default for backwards compatibility.
+     *
+     * @param useSharedServerConnectionPool true to enable the shared pool
+     * @return this bootstrap
+     */
+    public HttpProxyServerBootstrap withSharedServerConnectionPool(
+        boolean useSharedServerConnectionPool) {
+      this.useSharedServerConnectionPool = useSharedServerConnectionPool;
+      return this;
+    }
+
     @Override
     public HttpProxyServer start() {
       return build().start();
@@ -1040,7 +1075,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
           maxChunkSize,
           allowRequestToOriginServer,
           acceptProxyProtocol,
-          sendProxyProtocol);
+          sendProxyProtocol,
+          useSharedServerConnectionPool);
     }
 
     private InetSocketAddress determineListenAddress() {
