@@ -217,4 +217,17 @@ public interface HttpProxyServerBootstrap {
    * @param sendProxyProtocol when true, the proxy will send a proxy protocol header
    */
   HttpProxyServerBootstrap withSendProxyProtocol(boolean sendProxyProtocol);
+
+  /**
+   * Enable or disable the shared server connection pool.
+   *
+   * <p>When enabled, all client connections share a common pool of server connections, allowing
+   * connections to the same server to be reused across different client connections. This addresses
+   * connection explosion when many clients connect to the same servers.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param useSharedServerConnectionPool true to enable the shared pool
+   */
+  HttpProxyServerBootstrap withSharedServerConnectionPool(boolean useSharedServerConnectionPool);
 }
