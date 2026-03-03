@@ -267,7 +267,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     LOG.debug("Finding ProxyToServerConnection for: {}", serverHostAndPort);
 
     // Use the shared connection pool if enabled (disabled by default for backwards compatibility)
-    ProxyToServerConnectionPool pool = proxyServer.getServerConnectionPool();
+    ServerConnectionPool pool = proxyServer.getServerConnectionPool();
     boolean usePool = pool != null;
 
     boolean newConnectionRequired = false;

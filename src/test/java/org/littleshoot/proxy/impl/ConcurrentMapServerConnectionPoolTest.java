@@ -8,15 +8,15 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import org.junit.jupiter.api.Test;
 
-/** Unit tests for ProxyToServerConnectionPool.PendingRequest. */
-public class ProxyToServerConnectionPoolTest {
+/** Unit tests for ServerConnectionPool.PendingRequest and defaults. */
+public class ConcurrentMapServerConnectionPoolTest {
 
   @Test
   void pendingRequestShouldStoreDataCorrectly() {
     HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
-    ProxyToServerConnectionPool.PendingRequest pendingRequest =
-        new ProxyToServerConnectionPool.PendingRequest(null, request);
+    ServerConnectionPool.PendingRequest pendingRequest =
+        new ServerConnectionPool.PendingRequest(null, request);
 
     assertThat(pendingRequest.getClientConnection()).isNull();
     assertThat(pendingRequest.getRequest()).isSameAs(request);
@@ -26,8 +26,8 @@ public class ProxyToServerConnectionPoolTest {
   @Test
   void pendingRequestTimestampShouldBeRecent() {
     long before = System.currentTimeMillis();
-    ProxyToServerConnectionPool.PendingRequest pendingRequest =
-        new ProxyToServerConnectionPool.PendingRequest(null, null);
+    ServerConnectionPool.PendingRequest pendingRequest =
+        new ServerConnectionPool.PendingRequest(null, null);
     long after = System.currentTimeMillis();
 
     assertThat(pendingRequest.getTimestamp()).isGreaterThanOrEqualTo(before);
@@ -35,17 +35,12 @@ public class ProxyToServerConnectionPoolTest {
   }
 
   @Test
-  void poolShouldHaveDefaultMaxConnectionsPerHost() throws Exception {
-    var field =
-        ProxyToServerConnectionPool.class.getDeclaredField("DEFAULT_MAX_CONNECTIONS_PER_HOST");
-    field.setAccessible(true);
-    assertThat(field.get(null)).isEqualTo(10);
+  void poolShouldHaveDefaultMaxConnectionsPerHost() {
+    assertThat(ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST).isEqualTo(10);
   }
 
   @Test
-  void poolShouldHaveDefaultMaxTotalConnections() throws Exception {
-    var field = ProxyToServerConnectionPool.class.getDeclaredField("DEFAULT_MAX_TOTAL_CONNECTIONS");
-    field.setAccessible(true);
-    assertThat(field.get(null)).isEqualTo(200);
+  void poolShouldHaveDefaultMaxTotalConnections() {
+    assertThat(ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS).isEqualTo(200);
   }
 }

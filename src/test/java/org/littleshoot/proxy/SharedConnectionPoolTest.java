@@ -3,12 +3,13 @@ package org.littleshoot.proxy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.littleshoot.proxy.impl.ConcurrentMapServerConnectionPool;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
-import org.littleshoot.proxy.impl.ProxyToServerConnectionPool;
+import org.littleshoot.proxy.impl.ServerConnectionPool;
 
 /**
- * Integration tests for the shared ProxyToServerConnectionPool feature. Tests that connection
- * pooling works correctly when enabled.
+ * Integration tests for the shared ServerConnectionPool feature. Tests that connection pooling
+ * works correctly when enabled.
  */
 public class SharedConnectionPoolTest extends BaseProxyTest {
 
@@ -51,6 +52,12 @@ public class SharedConnectionPoolTest extends BaseProxyTest {
   }
 
   @Test
+  void testDefaultPoolTypeIsConcurrentMap() {
+    ServerConnectionPool pool = ((DefaultHttpProxyServer) proxyServer).getServerConnectionPool();
+    assertThat(pool).isInstanceOf(ConcurrentMapServerConnectionPool.class);
+  }
+
+  @Test
   void testKeepAliveWithPoolEnabled() {
     // Test that keep-alive works with the pool enabled
     // This is important because the pool relies on connection reuse
@@ -65,9 +72,9 @@ public class SharedConnectionPoolTest extends BaseProxyTest {
   @Test
   void testMaxConnectionsPerHostSetting() {
     // Verify the pool has the correct max connections per host setting
-    ProxyToServerConnectionPool pool =
-        ((DefaultHttpProxyServer) proxyServer).getServerConnectionPool();
+    ServerConnectionPool pool = ((DefaultHttpProxyServer) proxyServer).getServerConnectionPool();
     assertThat(pool).isNotNull();
     assertThat(pool.getMaxConnectionsPerHost()).isEqualTo(10);
+    assertThat(pool.getMaxConnections()).isEqualTo(200);
   }
 }

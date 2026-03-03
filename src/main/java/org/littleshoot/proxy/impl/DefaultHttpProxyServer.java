@@ -76,6 +76,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   public static final String ACCEPTOR_THREADS = "acceptor_threads";
   public static final String SEND_PROXY_PROTOCOL = "send_proxy_protocol";
   public static final String ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
+  public static final String SERVER_CONNECTION_POOL_TYPE = "server_connection_pool_type";
+  public static final String MAX_TOTAL_CONNECTIONS = "max_total_connections";
+  public static final String MAX_CONNECTIONS_PER_HOST = "max_connections_per_host";
   public static final String ALLOW_REQUESTS_TO_ORIGIN_SERVER = "allow_requests_to_origin_server";
   public static final String THROTTLE_WRITE_BYTES_PER_SECOND = "throttle_write_bytes_per_second";
   public static final String THROTTLE_READ_BYTES_PER_SECOND = "throttle_read_bytes_per_second";
@@ -152,7 +155,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
    * Shared pool of ProxyToServerConnection instances for all ClientToProxyConnection. This
    * addresses the connection explosion issue (GitHub issue #83).
    */
-  private volatile ProxyToServerConnectionPool serverConnectionPool;
+  private volatile ServerConnectionPool serverConnectionPool;
 
   /**
    * Whether to use the shared server connection pool. Disabled by default for backwards
@@ -165,6 +168,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
    * 10.
    */
   private final int maxConnectionsPerHost;
+
+  /** Maximum total connections in the shared pool. */
+  private final int maxConnections;
+
+  /** Selected server connection pool implementation. */
+  private final ServerConnectionPoolType serverConnectionPoolType;
 
   /**
    * JVM shutdown hook to shut down this proxy server. Declared as a class-level variable to allow
@@ -254,7 +263,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       boolean acceptProxyProtocol,
       boolean sendProxyProtocol,
       boolean useSharedServerConnectionPool,
-      int maxConnectionsPerHost) {
+      int maxConnectionsPerHost,
+      ServerConnectionPoolType serverConnectionPoolType,
+      int maxConnections) {
     this.serverGroup = serverGroup;
     this.transportProtocol = transportProtocol;
     this.requestedAddress = requestedAddress;
@@ -300,6 +311,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     this.sendProxyProtocol = sendProxyProtocol;
     this.useSharedServerConnectionPool = useSharedServerConnectionPool;
     this.maxConnectionsPerHost = maxConnectionsPerHost;
+    this.serverConnectionPoolType = serverConnectionPoolType;
+    this.maxConnections = maxConnections;
   }
 
   /**
@@ -406,21 +419,38 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   }
 
   /**
-   * Gets the shared ProxyToServerConnectionPool for this server. Creates the pool if it doesn't
-   * exist.
+   * Gets the shared ServerConnectionPool for this server. Creates the pool if it doesn't exist.
    *
    * @return the shared pool, or null if the pool is disabled
    */
   @Nullable
-  public synchronized ProxyToServerConnectionPool getServerConnectionPool() {
+  public synchronized ServerConnectionPool getServerConnectionPool() {
     if (!useSharedServerConnectionPool) {
       return null;
     }
     if (serverConnectionPool == null) {
-      serverConnectionPool =
-          new ProxyToServerConnectionPool(this, globalTrafficShapingHandler, maxConnectionsPerHost);
+      serverConnectionPool = createServerConnectionPool();
     }
     return serverConnectionPool;
+  }
+
+  private ServerConnectionPool createServerConnectionPool() {
+    ServerConnectionPoolType poolType =
+        serverConnectionPoolType != null
+            ? serverConnectionPoolType
+            : ServerConnectionPoolType.CONCURRENT_MAP;
+    switch (poolType) {
+      case COMMONS_POOL2:
+        return new CommonsPoolServerConnectionPool(
+            this, globalTrafficShapingHandler, maxConnectionsPerHost, maxConnections);
+      case STORMPOT:
+        return new StormpotServerConnectionPool(
+            this, globalTrafficShapingHandler, maxConnectionsPerHost, maxConnections);
+      case CONCURRENT_MAP:
+      default:
+        return new ConcurrentMapServerConnectionPool(
+            this, globalTrafficShapingHandler, maxConnectionsPerHost, maxConnections);
+    }
   }
 
   public boolean isAllowRequestsToOriginServer() {
@@ -461,7 +491,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         maxInitialLineLength,
         maxHeaderSize,
         maxChunkSize,
-        allowRequestsToOriginServer);
+        allowRequestsToOriginServer,
+        useSharedServerConnectionPool,
+        maxConnectionsPerHost,
+        serverConnectionPoolType,
+        maxConnections);
   }
 
   @Override
@@ -684,6 +718,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private boolean useSharedServerConnectionPool =
         false; // Disabled by default for backwards compatibility
     private int maxConnectionsPerHost = 10; // Default max connections per host
+    private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
+    private ServerConnectionPoolType serverConnectionPoolType =
+        ServerConnectionPoolType.CONCURRENT_MAP;
 
     private DefaultHttpProxyServerBootstrap() {}
 
@@ -709,7 +746,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         int maxInitialLineLength,
         int maxHeaderSize,
         int maxChunkSize,
-        boolean allowRequestToOriginServer) {
+        boolean allowRequestToOriginServer,
+        boolean useSharedServerConnectionPool,
+        int maxConnectionsPerHost,
+        ServerConnectionPoolType serverConnectionPoolType,
+        int maxConnections) {
       this.serverGroup = serverGroup;
       this.transportProtocol = transportProtocol;
       this.requestedAddress = requestedAddress;
@@ -735,6 +776,10 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       this.maxHeaderSize = maxHeaderSize;
       this.maxChunkSize = maxChunkSize;
       this.allowRequestToOriginServer = allowRequestToOriginServer;
+      this.useSharedServerConnectionPool = useSharedServerConnectionPool;
+      this.maxConnectionsPerHost = maxConnectionsPerHost;
+      this.serverConnectionPoolType = serverConnectionPoolType;
+      this.maxConnections = maxConnections;
     }
 
     private DefaultHttpProxyServerBootstrap(Properties props) {
@@ -811,6 +856,22 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       }
       if (props.containsKey(SEND_PROXY_PROTOCOL)) {
         sendProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, SEND_PROXY_PROTOCOL);
+      }
+      if (props.containsKey(SERVER_CONNECTION_POOL_TYPE)) {
+        String poolTypeValue = props.getProperty(SERVER_CONNECTION_POOL_TYPE, "CONCURRENT_MAP");
+        try {
+          serverConnectionPoolType =
+              ServerConnectionPoolType.valueOf(poolTypeValue.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+          LOG.warn("Unknown server connection pool type: {}", poolTypeValue);
+        }
+      }
+      if (props.containsKey(MAX_CONNECTIONS_PER_HOST)) {
+        maxConnectionsPerHost =
+            ProxyUtils.extractInt(props, MAX_CONNECTIONS_PER_HOST, maxConnectionsPerHost);
+      }
+      if (props.containsKey(MAX_TOTAL_CONNECTIONS)) {
+        maxConnections = ProxyUtils.extractInt(props, MAX_TOTAL_CONNECTIONS, maxConnections);
       }
       if (props.containsKey(CLIENT_TO_PROXY_WORKER_THREADS)) {
         clientToProxyWorkerThreads =
@@ -1018,6 +1079,14 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       return this;
     }
 
+    @Override
+    public HttpProxyServerBootstrap withServerConnectionPoolType(
+        ServerConnectionPoolType poolType) {
+      this.serverConnectionPoolType =
+          poolType != null ? poolType : ServerConnectionPoolType.CONCURRENT_MAP;
+      return this;
+    }
+
     /**
      * Enable or disable the shared server connection pool.
      *
@@ -1047,6 +1116,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
      */
     public HttpProxyServerBootstrap withMaxConnectionsPerHost(int maxConnectionsPerHost) {
       this.maxConnectionsPerHost = maxConnectionsPerHost;
+      return this;
+    }
+
+    @Override
+    public HttpProxyServerBootstrap withMaxConnections(int maxConnections) {
+      this.maxConnections = maxConnections;
       return this;
     }
 
@@ -1101,7 +1176,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
           acceptProxyProtocol,
           sendProxyProtocol,
           useSharedServerConnectionPool,
-          maxConnectionsPerHost);
+          maxConnectionsPerHost,
+          serverConnectionPoolType,
+          maxConnections);
     }
 
     private InetSocketAddress determineListenAddress() {

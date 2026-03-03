@@ -12,44 +12,30 @@ import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * A shared pool of ProxyToServerConnection instances that can be reused across all
- * ClientToProxyConnection instances. This addresses the connection explosion issue described in
- * GitHub issue #83.
- *
- * <p>Instead of each ClientToProxyConnection maintaining its own pool of server connections, all
- * client connections share a common pool. This allows connections to the same server to be reused
- * across different client connections.
- *
- * <p>This pool supports HTTP pipelining - multiple requests can be pending on a single connection,
- * and responses are matched to the correct client based on request order.
- *
- * <p>Per-host connection limits can be configured to allow multiple connections to the same
- * host:port for high concurrency scenarios.
- */
-public class ProxyToServerConnectionPool {
-  private static final Logger LOG = LoggerFactory.getLogger(ProxyToServerConnectionPool.class);
+/** ConcurrentHashMap-based implementation of {@link ServerConnectionPool}. */
+public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(ConcurrentMapServerConnectionPool.class);
 
   /** Default maximum number of pooled connections per host:port. */
-  private static final int DEFAULT_MAX_CONNECTIONS_PER_HOST = 10;
+  static final int DEFAULT_MAX_CONNECTIONS_PER_HOST = 10;
 
   /** Default maximum total connections in the pool. */
-  private static final int DEFAULT_MAX_TOTAL_CONNECTIONS = 200;
+  static final int DEFAULT_MAX_TOTAL_CONNECTIONS = 200;
 
   /** The map of server host:port to set of ProxyToServerConnection. */
   private final ConcurrentMap<String, ConcurrentMap<ProxyToServerConnection, Boolean>>
       connectionsByHostAndPort = new ConcurrentHashMap<>();
 
-  /**
-   * Track the number of connections per host:port. Uses AtomicInteger to allow concurrent access.
-   */
+  /** Available connections per host:port. */
+  private final ConcurrentMap<String, Queue<ProxyToServerConnection>>
+      availableConnectionsByHostAndPort = new ConcurrentHashMap<>();
+
+  /** Track the number of connections per host:port. */
   private final ConcurrentMap<String, AtomicInteger> connectionCountByHostAndPort =
       new ConcurrentHashMap<>();
 
-  /**
-   * Track pending requests by channel to support HTTP pipelining. Each channel can have multiple
-   * pending requests in flight.
-   */
+  /** Track pending requests by channel to support HTTP pipelining. */
   private final ConcurrentMap<Channel, Queue<PendingRequest>> pendingRequestsByChannel =
       new ConcurrentHashMap<>();
 
@@ -68,7 +54,7 @@ public class ProxyToServerConnectionPool {
   /** The global traffic shaping handler. */
   private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
 
-  public ProxyToServerConnectionPool(
+  public ConcurrentMapServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
       io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler) {
     this(
@@ -78,7 +64,7 @@ public class ProxyToServerConnectionPool {
         DEFAULT_MAX_TOTAL_CONNECTIONS);
   }
 
-  public ProxyToServerConnectionPool(
+  public ConcurrentMapServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
       io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
       int maxConnectionsPerHost) {
@@ -89,7 +75,7 @@ public class ProxyToServerConnectionPool {
         DEFAULT_MAX_TOTAL_CONNECTIONS);
   }
 
-  public ProxyToServerConnectionPool(
+  public ConcurrentMapServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
       io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
       int maxConnectionsPerHost,
@@ -101,60 +87,46 @@ public class ProxyToServerConnectionPool {
     this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_TOTAL_CONNECTIONS;
   }
 
-  /**
-   * Gets a connection for the given host and port, or creates one if it doesn't exist.
-   *
-   * @param serverHostAndPort the server host and port key
-   * @param clientConnection the client connection that needs the server connection
-   * @param initialFilters the initial HTTP filters
-   * @param initialHttpRequest the initial HTTP request
-   * @return the ProxyToServerConnection, or null if creation failed or pool is exhausted
-   */
+  @Override
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
+    ProxyToServerConnection available = borrowAvailableConnection(serverHostAndPort);
+    if (available != null) {
+      return available;
+    }
 
-    // Get current count for this host
     int currentHostCount =
         connectionCountByHostAndPort
             .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
             .get();
 
-    // Check per-host limit first
     if (currentHostCount >= maxConnectionsPerHost) {
       LOG.warn(
           "Per-host connection limit reached for {}: {} connections, max is {}",
           serverHostAndPort,
           currentHostCount,
           maxConnectionsPerHost);
-      // Try to find an existing available connection
-      ProxyToServerConnection available = findAvailableConnection(serverHostAndPort);
-      if (available != null) {
-        return available;
-      }
       return null;
     }
 
-    // Check if pool is exhausted before creating new connection
     if (totalConnectionsCreated.get() >= maxConnections) {
       LOG.warn(
           "Pool exhausted: {} connections created, max is {}",
           totalConnectionsCreated.get(),
           maxConnections);
-      // Try to find an existing available connection
-      ProxyToServerConnection available = findAvailableConnection(serverHostAndPort);
-      if (available != null) {
-        return available;
-      }
       return null;
     }
 
-    // Need to create a new connection - use double-checked locking
     synchronized (this) {
-      // Re-check per-host limit after acquiring lock
+      ProxyToServerConnection existingAvailable = borrowAvailableConnection(serverHostAndPort);
+      if (existingAvailable != null) {
+        return existingAvailable;
+      }
+
       int hostCount =
           connectionCountByHostAndPort
               .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
@@ -166,25 +138,17 @@ public class ProxyToServerConnectionPool {
             serverHostAndPort,
             hostCount,
             maxConnectionsPerHost);
-        return findAvailableConnection(serverHostAndPort);
+        return null;
       }
 
-      // Re-check global limit
       if (totalConnectionsCreated.get() >= maxConnections) {
         LOG.warn(
             "Pool exhausted after sync: {} connections created, max is {}",
             totalConnectionsCreated.get(),
             maxConnections);
-        return findAvailableConnection(serverHostAndPort);
+        return null;
       }
 
-      // Try to find an available connection before creating a new one
-      ProxyToServerConnection existingAvailable = findAvailableConnection(serverHostAndPort);
-      if (existingAvailable != null) {
-        return existingAvailable;
-      }
-
-      // Create new connection
       try {
         ProxyToServerConnection newConnection =
             ProxyToServerConnection.createForPool(
@@ -197,7 +161,6 @@ public class ProxyToServerConnectionPool {
                 globalTrafficShapingHandler);
 
         if (newConnection != null) {
-          // Add to tracking
           connectionsByHostAndPort
               .computeIfAbsent(serverHostAndPort, k -> new ConcurrentHashMap<>())
               .put(newConnection, Boolean.TRUE);
@@ -215,29 +178,27 @@ public class ProxyToServerConnectionPool {
     return null;
   }
 
-  /** Finds an available (connected and not processing a request) connection for the given host. */
-  @Nullable
-  private ProxyToServerConnection findAvailableConnection(String serverHostAndPort) {
+  @Override
+  public void releaseConnection(ProxyToServerConnection connection) {
+    if (connection == null) {
+      return;
+    }
+    String serverHostAndPort = connection.getServerHostAndPort();
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
         connectionsByHostAndPort.get(serverHostAndPort);
-    if (connections == null || connections.isEmpty()) {
-      return null;
+    if (connections == null || !connections.containsKey(connection)) {
+      return;
     }
-    for (ProxyToServerConnection conn : connections.keySet()) {
-      if (conn.isConnected() && conn.isAvailableForNewRequest()) {
-        return conn;
-      }
+    if (!connection.isConnected()) {
+      removeConnection(serverHostAndPort, connection);
+      return;
     }
-    return null;
+    availableConnectionsByHostAndPort
+        .computeIfAbsent(serverHostAndPort, k -> new ConcurrentLinkedQueue<>())
+        .offer(connection);
   }
 
-  /**
-   * Registers a pending request for HTTP pipelining support.
-   *
-   * @param channel the server channel
-   * @param clientConnection the client connection that made the request
-   * @param request the HTTP request
-   */
+  @Override
   public void registerPendingRequest(
       Channel channel, ClientToProxyConnection clientConnection, HttpRequest request) {
     pendingRequestsByChannel
@@ -245,12 +206,7 @@ public class ProxyToServerConnectionPool {
         .add(new PendingRequest(clientConnection, request));
   }
 
-  /**
-   * Gets and removes the oldest pending request for the given channel (FIFO order for pipelining).
-   *
-   * @param channel the server channel
-   * @return the oldest pending request, or null if none found
-   */
+  @Override
   @Nullable
   public PendingRequest removePendingRequest(Channel channel) {
     Queue<PendingRequest> queue = pendingRequestsByChannel.get(channel);
@@ -258,19 +214,13 @@ public class ProxyToServerConnectionPool {
       return null;
     }
     PendingRequest request = queue.poll();
-    // Clean up empty queues
     if (queue.isEmpty()) {
       pendingRequestsByChannel.remove(channel);
     }
     return request;
   }
 
-  /**
-   * Gets the oldest pending request without removing it.
-   *
-   * @param channel the server channel
-   * @return the oldest pending request, or null if none found
-   */
+  @Override
   @Nullable
   public PendingRequest peekPendingRequest(Channel channel) {
     Queue<PendingRequest> queue = pendingRequestsByChannel.get(channel);
@@ -280,33 +230,32 @@ public class ProxyToServerConnectionPool {
     return queue.peek();
   }
 
-  /**
-   * Removes a connection from the pool when it's disconnected.
-   *
-   * @param serverHostAndPort the server host and port key
-   * @param connection the connection being removed
-   */
+  @Override
   public void removeConnection(String serverHostAndPort, ProxyToServerConnection connection) {
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
         connectionsByHostAndPort.get(serverHostAndPort);
     if (connections != null) {
       if (connections.remove(connection) != null) {
-        // Decrement the count
         AtomicInteger count = connectionCountByHostAndPort.get(serverHostAndPort);
         if (count != null) {
           int newCount = count.decrementAndGet();
           if (newCount <= 0) {
-            // Clean up empty entries
             connectionCountByHostAndPort.remove(serverHostAndPort);
             connectionsByHostAndPort.remove(serverHostAndPort);
+            availableConnectionsByHostAndPort.remove(serverHostAndPort);
           }
         }
         totalConnectionsCreated.decrementAndGet();
       }
     }
+    Queue<ProxyToServerConnection> available =
+        availableConnectionsByHostAndPort.get(serverHostAndPort);
+    if (available != null) {
+      available.remove(connection);
+    }
   }
 
-  /** Closes all connections in the pool. */
+  @Override
   public void closeAll() {
     for (ConcurrentMap<ProxyToServerConnection, Boolean> connections :
         connectionsByHostAndPort.values()) {
@@ -315,43 +264,40 @@ public class ProxyToServerConnectionPool {
       }
     }
     connectionsByHostAndPort.clear();
+    availableConnectionsByHostAndPort.clear();
     connectionCountByHostAndPort.clear();
     pendingRequestsByChannel.clear();
     totalConnectionsCreated.set(0);
   }
 
-  /** Returns the maximum number of connections allowed per host. */
+  @Override
   public int getMaxConnectionsPerHost() {
     return maxConnectionsPerHost;
   }
 
-  /** Returns the maximum total number of connections allowed in the pool. */
+  @Override
   public int getMaxConnections() {
     return maxConnections;
   }
 
-  /** Tracks a pending request and its associated client connection for HTTP pipelining. */
-  public static class PendingRequest {
-    private final ClientToProxyConnection clientConnection;
-    private final HttpRequest request;
-    private final long timestamp;
-
-    public PendingRequest(ClientToProxyConnection clientConnection, HttpRequest request) {
-      this.clientConnection = clientConnection;
-      this.request = request;
-      this.timestamp = System.currentTimeMillis();
+  @Nullable
+  private ProxyToServerConnection borrowAvailableConnection(String serverHostAndPort) {
+    Queue<ProxyToServerConnection> available =
+        availableConnectionsByHostAndPort.get(serverHostAndPort);
+    if (available == null || available.isEmpty()) {
+      return null;
     }
-
-    public ClientToProxyConnection getClientConnection() {
-      return clientConnection;
-    }
-
-    public HttpRequest getRequest() {
-      return request;
-    }
-
-    public long getTimestamp() {
-      return timestamp;
+    while (true) {
+      ProxyToServerConnection conn = available.poll();
+      if (conn == null) {
+        return null;
+      }
+      if (conn.isConnected() && conn.isAvailableForNewRequest()) {
+        return conn;
+      }
+      if (!conn.isConnected()) {
+        removeConnection(serverHostAndPort, conn);
+      }
     }
   }
 }

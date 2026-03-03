@@ -112,7 +112,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static final String SOCKS_DECODER_NAME = "socksDecoder";
   private static final String MAIN_HANDLER_NAME = "handler";
   private final ClientToProxyConnection clientConnection;
-  private final ProxyToServerConnectionPool connectionPool;
+  private final ServerConnectionPool connectionPool;
   private final ProxyToServerConnection serverConnection = this;
   private volatile TransportProtocol transportProtocol;
   private volatile ChainedProxyType chainedProxyType;
@@ -235,7 +235,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @CheckReturnValue
   static ProxyToServerConnection createForPool(
       DefaultHttpProxyServer proxyServer,
-      ProxyToServerConnectionPool connectionPool,
+      ServerConnectionPool connectionPool,
       ClientToProxyConnection clientConnection,
       String serverHostAndPort,
       HttpFilters initialFilters,
@@ -267,7 +267,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   /** Constructor for pooled connections. */
   private ProxyToServerConnection(
       DefaultHttpProxyServer proxyServer,
-      ProxyToServerConnectionPool connectionPool,
+      ServerConnectionPool connectionPool,
       ClientToProxyConnection clientConnection,
       String serverHostAndPort,
       ChainedProxy chainedProxy,
@@ -379,10 +379,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // This supports HTTP pipelining where multiple requests are sent and responses come back in
     // order
     if (connectionPool != null && channel != null) {
-      ProxyToServerConnectionPool.PendingRequest pendingRequest =
+      ServerConnectionPool.PendingRequest pendingRequest =
           connectionPool.removePendingRequest(channel);
       if (pendingRequest != null) {
         this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
+        this.currentHttpRequest = pendingRequest.getRequest();
       }
     }
 
@@ -395,9 +396,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       return AWAITING_CHUNK;
     } else {
       currentFilters.serverToProxyResponseReceived();
-      // Clear the current client connection after the response is complete
-      // This allows the connection to be reused by another client
-      this.currentClientConnectionForRequest = null;
+      markResponseComplete();
 
       return AWAITING_INITIAL;
     }
@@ -512,14 +511,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       chainedProxy.filterRequest(httpObject);
     }
     if (httpObject instanceof HttpRequest) {
-      // Remember that we issued this HttpRequest for later
-      currentHttpRequest = (HttpRequest) httpObject;
+      if (connectionPool == null) {
+        // Remember that we issued this HttpRequest for later
+        currentHttpRequest = (HttpRequest) httpObject;
+      }
 
       // For pooled connections, register pending request to support HTTP pipelining
       if (connectionPool != null && channel != null) {
         ClientToProxyConnection clientConn = getClientConnection();
         if (clientConn != null) {
           connectionPool.registerPendingRequest(channel, clientConn, (HttpRequest) httpObject);
+          if (currentHttpRequest == null) {
+            currentHttpRequest = (HttpRequest) httpObject;
+          }
         }
       }
     }
@@ -551,9 +555,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     } else if (getCurrentState() == AWAITING_CHUNK && newState != AWAITING_CHUNK) {
       currentFilters.serverToProxyResponseReceived();
-      // Clear the current client connection after the response is complete
-      // This allows the connection to be reused by another client
-      this.currentClientConnectionForRequest = null;
+      markResponseComplete();
     }
 
     super.become(newState);
@@ -716,6 +718,25 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   void setCurrentClientConnectionForRequest(ClientToProxyConnection clientConnection) {
     this.currentClientConnectionForRequest = clientConnection;
+  }
+
+  private void markResponseComplete() {
+    this.currentClientConnectionForRequest = null;
+    this.currentHttpResponse = null;
+    if (connectionPool != null) {
+      if (channel != null) {
+        ServerConnectionPool.PendingRequest nextPending =
+            connectionPool.peekPendingRequest(channel);
+        if (nextPending != null) {
+          this.currentHttpRequest = nextPending.getRequest();
+          return;
+        }
+      }
+      this.currentHttpRequest = null;
+      connectionPool.releaseConnection(this);
+    } else {
+      this.currentHttpRequest = null;
+    }
   }
 
   /**
