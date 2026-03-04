@@ -837,7 +837,6 @@
             </plugin>
         </plugins>
     </reporting>
-
     <developers>
         <developer>
             <id>mrogers</id>
