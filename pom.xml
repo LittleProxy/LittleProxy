@@ -694,7 +694,7 @@
                             <include>src/test/java/**/*.java</include> <!-- Check application tests code -->
                         </includes>
                         <googleJavaFormat>
-                            <version>1.35.0</version>
+                            <version>1.28.0</version>
                         </googleJavaFormat>
                         <importOrder/>
                         <removeUnusedImports />
