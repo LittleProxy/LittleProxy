@@ -34,7 +34,7 @@
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.0.3</junit.version>
         <log4j.version>2.25.3</log4j.version>
-        <mockito.version>5.21.0</mockito.version>
+        <mockito.version>5.22.0</mockito.version>
         <netty.version>4.2.10.Final</netty.version>
         <selenium.version>4.41.0</selenium.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -586,7 +586,7 @@
                 <plugin>
                     <groupId>com.diffplug.spotless</groupId>
                     <artifactId>spotless-maven-plugin</artifactId>
-                    <version>3.2.1</version>
+                    <version>3.3.0</version>
                     <configuration>
                         <java>
                             <includes>
