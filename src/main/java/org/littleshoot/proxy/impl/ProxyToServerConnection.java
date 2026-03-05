@@ -379,8 +379,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // This supports HTTP pipelining where multiple requests are sent and responses come back in
     // order
     if (connectionPool != null && channel != null) {
-      ServerConnectionPool.PendingRequest pendingRequest =
-          connectionPool.removePendingRequest(channel);
+      PendingRequest pendingRequest = connectionPool.removePendingRequest(channel);
       if (pendingRequest != null) {
         this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
         this.currentHttpRequest = pendingRequest.getRequest();
@@ -725,8 +724,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentHttpResponse = null;
     if (connectionPool != null) {
       if (channel != null) {
-        ServerConnectionPool.PendingRequest nextPending =
-            connectionPool.peekPendingRequest(channel);
+        PendingRequest nextPending = connectionPool.peekPendingRequest(channel);
         if (nextPending != null) {
           this.currentHttpRequest = nextPending.getRequest();
           return;

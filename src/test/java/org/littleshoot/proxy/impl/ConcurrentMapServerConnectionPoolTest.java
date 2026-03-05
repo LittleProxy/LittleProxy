@@ -8,15 +8,14 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import org.junit.jupiter.api.Test;
 
-/** Unit tests for ServerConnectionPool.PendingRequest and defaults. */
+/** Unit tests for PendingRequest and defaults. */
 public class ConcurrentMapServerConnectionPoolTest {
 
   @Test
   void pendingRequestShouldStoreDataCorrectly() {
     HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
-    ServerConnectionPool.PendingRequest pendingRequest =
-        new ServerConnectionPool.PendingRequest(null, request);
+    PendingRequest pendingRequest = new PendingRequest(null, request);
 
     assertThat(pendingRequest.getClientConnection()).isNull();
     assertThat(pendingRequest.getRequest()).isSameAs(request);
@@ -26,8 +25,7 @@ public class ConcurrentMapServerConnectionPoolTest {
   @Test
   void pendingRequestTimestampShouldBeRecent() {
     long before = System.currentTimeMillis();
-    ServerConnectionPool.PendingRequest pendingRequest =
-        new ServerConnectionPool.PendingRequest(null, null);
+    PendingRequest pendingRequest = new PendingRequest(null, null);
     long after = System.currentTimeMillis();
 
     assertThat(pendingRequest.getTimestamp()).isGreaterThanOrEqualTo(before);
