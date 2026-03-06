@@ -3,15 +3,34 @@ package org.littleshoot.proxy.extras;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 class SelfSignedSslEngineSourceTest {
 
   @TempDir File tempDir;
+
+  private static boolean isKeytoolAvailable() {
+    ProcessBuilder pb = new ProcessBuilder("keytool", "-help");
+    pb.redirectErrorStream(true);
+    try {
+      Process p = pb.start();
+      boolean finished = p.waitFor(5, TimeUnit.SECONDS);
+      return finished && p.exitValue() == 0;
+    } catch (IOException | InterruptedException e) {
+      return false;
+    }
+  }
+
+  @BeforeAll
+  static void setUp() {
+    Assumptions.assumeTrue(isKeytoolAvailable(), "keytool is not installed, test ignored");
+  }
 
   @Test
   void testDefaultConstructor() {
