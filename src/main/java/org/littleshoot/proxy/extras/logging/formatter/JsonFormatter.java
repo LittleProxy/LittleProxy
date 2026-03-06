@@ -32,17 +32,13 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
     sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
 
     // Use configured fields dynamically
-    boolean first = false;
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"")
               .append(entry.getKey())
               .append("\":\"")
@@ -53,10 +49,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"")
               .append(entry.getKey())
               .append("\":\"")
@@ -67,10 +60,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"")
               .append(entry.getKey())
               .append("\":\"")
@@ -81,10 +71,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"")
               .append(entry.getKey())
               .append("\":\"")
@@ -95,10 +82,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"")
               .append(entry.getKey())
               .append("\":\"")
@@ -109,10 +93,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"")
               .append(entry.getKey())
               .append("\":\"")
@@ -123,10 +104,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
         String value = field.extractValue(context, request, response);
         // Skip fields with null values (e.g., TCP timing data not yet available)
         if (value != null) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
 
           sb.append("\"")
               .append(field.getName())

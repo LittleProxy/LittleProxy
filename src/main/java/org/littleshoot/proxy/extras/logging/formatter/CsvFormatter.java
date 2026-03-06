@@ -29,77 +29,55 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
 
     // Comma-Separated Values
     sb.append("\"").append(escapeJson(flowId)).append("\"");
-    boolean first = false;
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else if (field instanceof RegexRequestHeaderField) {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append(",");
-          }
-          first = false;
+          sb.append(",");
           sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
         }
       } else {
         String value = field.extractValue(context, request, response);
         // For CSV, use empty string for null values (maintains column alignment)
         String csvValue = value != null ? value : "";
-        if (!first) {
-          sb.append(",");
-        }
-        first = false;
+        sb.append(",");
 
         sb.append("\"").append(escapeJson(csvValue)).append("\"");
       }
