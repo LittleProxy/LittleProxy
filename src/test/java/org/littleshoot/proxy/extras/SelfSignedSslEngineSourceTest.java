@@ -17,6 +17,11 @@ class SelfSignedSslEngineSourceTest {
   void testDefaultConstructor() {
     // The default constructor tries to create "littleproxy_keystore.jks"
     // This may succeed if keytool is available or fail otherwise
+    File file = new File(tempDir, "littleproxy_keystore.jks");
+    if (file.exists()) {
+      boolean delete = file.delete();
+      assertThat(delete).isTrue();
+    }
     Assertions.assertDoesNotThrow(() -> new SelfSignedSslEngineSource());
   }
 
