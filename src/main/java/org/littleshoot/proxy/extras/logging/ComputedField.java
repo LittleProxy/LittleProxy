@@ -3,6 +3,8 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import org.littleshoot.proxy.FlowContext;
+import org.littleshoot.proxy.extras.logging.geo.GeoCountryResolver;
+import org.littleshoot.proxy.extras.logging.geo.GeoCountryResolverFactory;
 
 /**
  * Enumeration of computed log fields that derive their values from other request/response data.
@@ -18,6 +20,9 @@ public enum ComputedField implements LogField {
 
   private final String name;
   private final String description;
+
+  private static final GeoCountryResolver GEO_COUNTRY_RESOLVER =
+      GeoCountryResolverFactory.getResolver();
 
   ComputedField(String name, String description) {
     this.name = name;
@@ -90,27 +95,15 @@ public enum ComputedField implements LogField {
   }
 
   private String extractGeolocationCountry(FlowContext flowContext) {
-    // Simplified geolocation - in reality would use GeoIP database or service
     try {
       if (flowContext.getClientAddress() != null) {
-        String ip = flowContext.getClientAddress().getAddress().getHostAddress();
-
-        // Simple IP range detection for demo purposes
-        if (ip.startsWith("127.") || ip.startsWith("192.168.") || ip.startsWith("10.")) {
-          return "LOCAL";
-        }
-        if (ip.startsWith("8.8.") || ip.startsWith("8.34.")) {
-          return "US";
-        }
-        if (ip.startsWith("91.") || ip.startsWith("93.")) {
-          return "FR";
-        }
+        return GEO_COUNTRY_RESOLVER.resolveCountryCode(flowContext.getClientAddress().getAddress());
       }
     } catch (Exception e) {
-      // Ignore geolocation errors
+      return GeoCountryResolver.UNKNOWN;
     }
 
-    return "UNKNOWN";
+    return GeoCountryResolver.UNKNOWN;
   }
 
   private String extractRequestSize(HttpRequest request) {
