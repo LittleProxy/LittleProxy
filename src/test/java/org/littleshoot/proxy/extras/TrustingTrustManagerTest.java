@@ -40,10 +40,8 @@ class TrustingTrustManagerTest {
 
   @Test
   void testGetAcceptedIssuers() {
-    X509Certificate[] issuers = trustManager.getAcceptedIssuers();
-
     // Should return null (accepts all issuers)
-    assertThat(issuers).isNull();
+    assertThat(trustManager.getAcceptedIssuers()).isNull();
   }
 
   @Test
