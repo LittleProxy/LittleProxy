@@ -13,24 +13,6 @@ class ProxyAuthenticatorTest {
   }
 
   @Test
-  void testHasAuthenticateMethod() throws NoSuchMethodException {
-    assertThat(ProxyAuthenticator.class.getMethod("authenticate", String.class, String.class))
-        .isNotNull();
-    assertThat(
-            ProxyAuthenticator.class
-                .getMethod("authenticate", String.class, String.class)
-                .getReturnType())
-        .isEqualTo(boolean.class);
-  }
-
-  @Test
-  void testHasGetRealmMethod() throws NoSuchMethodException {
-    assertThat(ProxyAuthenticator.class.getMethod("getRealm")).isNotNull();
-    assertThat(ProxyAuthenticator.class.getMethod("getRealm").getReturnType())
-        .isEqualTo(String.class);
-  }
-
-  @Test
   void testSimpleImplementation() {
     ProxyAuthenticator authenticator =
         new ProxyAuthenticator() {

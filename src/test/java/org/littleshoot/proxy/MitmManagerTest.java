@@ -15,32 +15,6 @@ import org.junit.jupiter.api.Test;
 class MitmManagerTest {
 
   @Test
-  void testInterfaceDefinition() {
-    // Verify MitmManager is an interface
-    assertThat(MitmManager.class).isInterface();
-  }
-
-  @Test
-  void testHasServerSslEngineWithPeerInfoMethod() throws NoSuchMethodException {
-    // Verify the interface has the serverSslEngine(String, int) method
-    assertThat(MitmManager.class.getMethod("serverSslEngine", String.class, int.class)).isNotNull();
-  }
-
-  @Test
-  void testHasServerSslEngineMethod() throws NoSuchMethodException {
-    // Verify the interface has the serverSslEngine() method
-    assertThat(MitmManager.class.getMethod("serverSslEngine")).isNotNull();
-  }
-
-  @Test
-  void testHasClientSslEngineForMethod() throws NoSuchMethodException {
-    // Verify the interface has the clientSslEngineFor(HttpRequest, SSLSession) method
-    assertThat(
-            MitmManager.class.getMethod("clientSslEngineFor", HttpRequest.class, SSLSession.class))
-        .isNotNull();
-  }
-
-  @Test
   void testSimpleImplementation() throws Exception {
     // Create a simple test implementation
     MitmManager testManager =
@@ -87,20 +61,5 @@ class MitmManagerTest {
     assertThat(engine2).isNotNull();
     assertThat(engine2.getPeerHost()).isEqualTo("example.com");
     assertThat(engine2.getPeerPort()).isEqualTo(443);
-  }
-
-  @Test
-  void testReturnTypes() throws NoSuchMethodException {
-    // Verify all methods return SSLEngine
-    assertThat(
-            MitmManager.class.getMethod("serverSslEngine", String.class, int.class).getReturnType())
-        .isEqualTo(SSLEngine.class);
-    assertThat(MitmManager.class.getMethod("serverSslEngine").getReturnType())
-        .isEqualTo(SSLEngine.class);
-    assertThat(
-            MitmManager.class
-                .getMethod("clientSslEngineFor", HttpRequest.class, SSLSession.class)
-                .getReturnType())
-        .isEqualTo(SSLEngine.class);
   }
 }

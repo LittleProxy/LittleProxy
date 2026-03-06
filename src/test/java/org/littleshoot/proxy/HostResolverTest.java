@@ -15,19 +15,6 @@ class HostResolverTest {
   }
 
   @Test
-  void testHasResolveMethod() throws NoSuchMethodException {
-    assertThat(HostResolver.class.getMethod("resolve", String.class, int.class)).isNotNull();
-    assertThat(HostResolver.class.getMethod("resolve", String.class, int.class).getReturnType())
-        .isEqualTo(InetSocketAddress.class);
-  }
-
-  @Test
-  void testResolveMethodThrowsUnknownHostException() throws NoSuchMethodException {
-    assertThat(HostResolver.class.getMethod("resolve", String.class, int.class).getExceptionTypes())
-        .contains(UnknownHostException.class);
-  }
-
-  @Test
   void testSimpleImplementation() throws UnknownHostException {
     HostResolver resolver = (host, port) -> new InetSocketAddress("127.0.0.1", port);
 
