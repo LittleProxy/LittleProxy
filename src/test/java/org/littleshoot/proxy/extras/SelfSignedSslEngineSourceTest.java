@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
