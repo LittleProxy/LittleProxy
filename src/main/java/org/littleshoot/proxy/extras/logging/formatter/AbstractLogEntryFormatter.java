@@ -19,14 +19,8 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
   /** Date format pattern for Common Log Format. */
   protected static final String DATE_FORMAT_CLF = "dd/MMM/yyyy:HH:mm:ss Z";
 
-  /** UTC timezone identifier. */
-  protected static final String UTC = "UTC";
-
   /** User-Agent header name. */
   protected static final String USER_AGENT = "User-Agent";
-
-  /** ISO 8601 date/time pattern. */
-  protected static final String ISO_8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
   /**
    * Reconstructs the full URL from the request. If the URI is already absolute (starts with http://
@@ -157,7 +151,7 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
    * @return client IP or "-"
    */
   protected String getClientIp(FlowContext context) {
-    if (context.getClientAddress() != null) {
+    if (context.getClientAddress() != null && context.getClientAddress().getAddress() != null) {
       return context.getClientAddress().getAddress().getHostAddress();
     }
     return "-";
