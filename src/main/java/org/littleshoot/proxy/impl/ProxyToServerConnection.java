@@ -652,8 +652,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-
-
   /** Flag to track whether we've inspected the first bytes for TLS detection in MITM mode. */
   private volatile boolean tlsInspectionDone = false;
 
