@@ -217,4 +217,45 @@ public interface HttpProxyServerBootstrap {
    * @param sendProxyProtocol when true, the proxy will send a proxy protocol header
    */
   HttpProxyServerBootstrap withSendProxyProtocol(boolean sendProxyProtocol);
+
+  /**
+   * Enable or disable the shared server connection pool.
+   *
+   * <p>When enabled, all client connections share a common pool of server connections, allowing
+   * connections to the same server to be reused across different client connections. This addresses
+   * connection explosion when many clients connect to the same servers.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param useSharedServerConnectionPool true to enable the shared pool
+   */
+  HttpProxyServerBootstrap withSharedServerConnectionPool(boolean useSharedServerConnectionPool);
+
+  /**
+   * Selects the server connection pool implementation to use when the shared pool is enabled.
+   *
+   * <p>Default is {@link ServerConnectionPoolType#CONCURRENT_MAP}.
+   *
+   * @param poolType the pool implementation to use
+   */
+  HttpProxyServerBootstrap withServerConnectionPoolType(ServerConnectionPoolType poolType);
+
+  /**
+   * Sets the maximum number of connections per host:port when using the shared connection pool.
+   *
+   * <p>Default is 10. This allows multiple connections to the same server for high concurrency
+   * scenarios.
+   *
+   * @param maxConnectionsPerHost the maximum number of connections per host:port
+   */
+  HttpProxyServerBootstrap withMaxConnectionsPerHost(int maxConnectionsPerHost);
+
+  /**
+   * Sets the maximum total number of connections in the shared connection pool.
+   *
+   * <p>Default is 200.
+   *
+   * @param maxConnections the maximum total number of pooled connections
+   */
+  HttpProxyServerBootstrap withMaxConnections(int maxConnections);
 }
