@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class Hostname {
-  private static final Logger LOG = LoggerFactory.getLogger(Hostname.class);
+  private static final Logger logger = LoggerFactory.getLogger(Hostname.class);
 
   private static volatile String hostname;
 
@@ -37,7 +37,7 @@ class Hostname {
             Hostname::executeHostname,
             Hostname::getLocalHost);
     long duration = NANOSECONDS.toMillis(nanoTime() - startTime);
-    LOG.info("Resolved local machine's hostname \"{}\" in {} ms.", hostName, duration);
+    logger.info("Resolved local machine's hostname \"{}\" in {} ms.", hostName, duration);
     return hostName;
   }
 
@@ -56,7 +56,7 @@ class Hostname {
     try {
       return s.get();
     } catch (Exception e) {
-      LOG.info("Failed to resolve local machine's hostname", e);
+      logger.info("Failed to resolve local machine's hostname", e);
       return null;
     }
   }

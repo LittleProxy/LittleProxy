@@ -5,7 +5,7 @@ import io.netty.util.concurrent.Future;
 
 /** Represents a phase in a {@link ConnectionFlow}. */
 abstract class ConnectionFlowStep<T extends HttpObject> {
-  private final ProxyConnectionLogger LOG;
+  private final ProxyConnectionLogger logger;
   private final ProxyConnection<T> connection;
   private final ConnectionState state;
 
@@ -18,7 +18,7 @@ abstract class ConnectionFlowStep<T extends HttpObject> {
   ConnectionFlowStep(ProxyConnection<T> connection, ConnectionState state) {
     this.connection = connection;
     this.state = state;
-    LOG = connection.getLOG();
+    logger = connection.getLOG();
   }
 
   ProxyConnection<T> getConnection() {
@@ -71,7 +71,7 @@ abstract class ConnectionFlowStep<T extends HttpObject> {
    * @param msg the message read from the underlying connection
    */
   void read(ConnectionFlow flow, Object msg) {
-    LOG.debug("Received message while in the middle of connecting: {}", msg);
+    logger.debug("Received message while in the middle of connecting: {}", msg);
   }
 
   @Override

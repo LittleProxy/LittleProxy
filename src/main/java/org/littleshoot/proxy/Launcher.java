@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 public class Launcher {
 
   public static final int DEFAULT_PORT = 8080;
-  private static final Logger LOG = LoggerFactory.getLogger(Launcher.class);
+  private static final Logger logger = LoggerFactory.getLogger(Launcher.class);
 
   private static final String OPTION_DNSSEC = "dnssec";
 
@@ -108,7 +108,7 @@ public class Launcher {
 
     configureLogging(cmd);
 
-    LOG.info("Running LittleProxy with args: {}", Arrays.asList(args));
+    logger.info("Running LittleProxy with args: {}", Arrays.asList(args));
 
     if (cmd.hasOption(OPTION_HELP)) {
       printHelp(options, null);
@@ -118,7 +118,7 @@ public class Launcher {
     HttpProxyServerBootstrap bootstrap;
     if (cmd.hasOption(OPTION_CONFIG)) {
       String proxyConfigurationPath = cmd.getOptionValue(OPTION_CONFIG);
-      LOG.info("Using configuration file: {}", proxyConfigurationPath);
+      logger.info("Using configuration file: {}", proxyConfigurationPath);
       cmd.getOptionValue(OPTION_CONFIG);
       bootstrap = bootstrapFromFile(proxyConfigurationPath);
     } else {
@@ -138,7 +138,7 @@ public class Launcher {
       port = DEFAULT_PORT;
     }
     bootstrap.withPort(port);
-    LOG.info("About to start server on port: '{}'", port);
+    logger.info("About to start server on port: '{}'", port);
 
     if (cmd.hasOption(OPTION_NIC)) {
       final String val = cmd.getOptionValue(OPTION_NIC);
@@ -146,7 +146,7 @@ public class Launcher {
     }
 
     if (cmd.hasOption(OPTION_MITM)) {
-      LOG.info("Running as Man in the Middle");
+      logger.info("Running as Man in the Middle");
       String keyStorePath = DEFAULT_JKS_KEYSTORE_PATH;
       if (cmd.hasOption(OPTION_SSL_CLIENTS_KEYSTORE_PATH)) {
         keyStorePath = cmd.getOptionValue(OPTION_SSL_CLIENTS_KEYSTORE_PATH);
@@ -157,10 +157,10 @@ public class Launcher {
     if (cmd.hasOption(OPTION_DNSSEC)) {
       final String val = cmd.getOptionValue(OPTION_DNSSEC);
       if (ProxyUtils.isTrue(val)) {
-        LOG.info("Using DNSSEC");
+        logger.info("Using DNSSEC");
         bootstrap.withUseDnsSec(true);
       } else if (ProxyUtils.isFalse(val)) {
-        LOG.info("Not using DNSSEC");
+        logger.info("Not using DNSSEC");
         bootstrap.withUseDnsSec(false);
       } else {
         printHelp(options, "Unexpected value for " + OPTION_DNSSEC + "=:" + val);
@@ -170,13 +170,13 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_NAME)) {
       final String val = cmd.getOptionValue(OPTION_NAME);
-      LOG.info("Running with name: '{}'", val);
+      logger.info("Running with name: '{}'", val);
       bootstrap.withName(val);
     }
 
     if (cmd.hasOption(OPTION_ADDRESS)) {
       final String val = cmd.getOptionValue(OPTION_ADDRESS);
-      LOG.info("Binding to address: '{}'", val);
+      logger.info("Binding to address: '{}'", val);
       InetSocketAddress address = ProxyUtils.resolveSocketAddress(val);
       if (address != null) {
         bootstrap.withAddress(address);
@@ -185,7 +185,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_PROXY_ALIAS)) {
       final String val = cmd.getOptionValue(OPTION_PROXY_ALIAS);
-      LOG.info("Using proxy alias: '{}'", val);
+      logger.info("Using proxy alias: '{}'", val);
       if (val != null) {
         bootstrap.withProxyAlias(val);
       }
@@ -193,7 +193,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_ALLOW_LOCAL_ONLY)) {
       final String val = cmd.getOptionValue(OPTION_ALLOW_LOCAL_ONLY);
-      LOG.info("Setting allow local only to: '{}'", val);
+      logger.info("Setting allow local only to: '{}'", val);
       if (val != null) {
         bootstrap.withAllowLocalOnly(Boolean.parseBoolean(val));
       }
@@ -201,7 +201,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_AUTHENTICATE_SSL_CLIENTS)) {
       final String val = cmd.getOptionValue(OPTION_AUTHENTICATE_SSL_CLIENTS);
-      LOG.info("Setting authenticate SSL clients with a selfSigned cert : '{}'", val);
+      logger.info("Setting authenticate SSL clients with a selfSigned cert : '{}'", val);
       if (val != null) {
         boolean trustAllServers =
             Boolean.parseBoolean(cmd.getOptionValue(OPTION_SSL_CLIENTS_TRUST_ALL_SERVERS, "false"));
@@ -231,7 +231,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_TRANSPARENT)) {
       String optionValue = cmd.getOptionValue(OPTION_TRANSPARENT);
-      LOG.info("Transparent proxy enabled :'{}'", optionValue);
+      logger.info("Transparent proxy enabled :'{}'", optionValue);
       if (optionValue != null) {
         bootstrap.withTransparent(Boolean.parseBoolean(optionValue));
       }
@@ -247,7 +247,7 @@ public class Launcher {
           Long.parseLong(cmd.getOptionValue(OPTION_THROTTLE_WRITE_BYTES_PER_SECOND));
     }
     if (throttlingReadBytesPerSecond > 0 || throttlingWriteBytesPerSecond > 0) {
-      LOG.info(
+      logger.info(
           "Throttling enabled : read {} bytes/s, write {} bytes/s",
           throttlingReadBytesPerSecond,
           throttlingWriteBytesPerSecond);
@@ -256,7 +256,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER)) {
       String optionValue = cmd.getOptionValue(OPTION_ALLOW_REQUEST_TO_ORIGIN_SERVER);
-      LOG.info("Allow request to origin server :'{}'", optionValue);
+      logger.info("Allow request to origin server :'{}'", optionValue);
       if (optionValue != null) {
         bootstrap.withAllowRequestToOriginServer(Boolean.parseBoolean(optionValue));
       }
@@ -264,7 +264,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_ALLOW_PROXY_PROTOCOL)) {
       String optionValue = cmd.getOptionValue(OPTION_ALLOW_PROXY_PROTOCOL);
-      LOG.info("Allow proxy protocol :'{}'", optionValue);
+      logger.info("Allow proxy protocol :'{}'", optionValue);
       if (optionValue != null) {
         bootstrap.withAcceptProxyProtocol(Boolean.parseBoolean(optionValue));
       }
@@ -272,7 +272,7 @@ public class Launcher {
 
     if (cmd.hasOption(OPTION_SEND_PROXY_PROTOCOL)) {
       String optionValue = cmd.getOptionValue(OPTION_SEND_PROXY_PROTOCOL);
-      LOG.info("Send proxy protocol header:'{}'", optionValue);
+      logger.info("Send proxy protocol header:'{}'", optionValue);
       if (optionValue != null) {
         bootstrap.withSendProxyProtocol(Boolean.parseBoolean(optionValue));
       }
@@ -284,7 +284,7 @@ public class Launcher {
     // options
     if (cmd.hasOption(OPTION_CLIENT_TO_PROXY_WORKER_THREADS)) {
       String optionValue = cmd.getOptionValue(OPTION_CLIENT_TO_PROXY_WORKER_THREADS);
-      LOG.info("Setting client to proxy worker threads to :'{}'", optionValue);
+      logger.info("Setting client to proxy worker threads to :'{}'", optionValue);
       if (optionValue != null) {
         threadPoolConfiguration.withClientToProxyWorkerThreads(Integer.parseInt(optionValue));
         threadPoolConfigSet = true;
@@ -292,7 +292,7 @@ public class Launcher {
     }
     if (cmd.hasOption(OPTION_PROXY_TO_SERVER_WORKER_THREADS)) {
       String optionValue = cmd.getOptionValue(OPTION_PROXY_TO_SERVER_WORKER_THREADS);
-      LOG.info("Setting proxy to server worker threads to :'{}'", optionValue);
+      logger.info("Setting proxy to server worker threads to :'{}'", optionValue);
       if (optionValue != null) {
         threadPoolConfiguration.withProxyToServerWorkerThreads(Integer.parseInt(optionValue));
         threadPoolConfigSet = true;
@@ -300,7 +300,7 @@ public class Launcher {
     }
     if (cmd.hasOption(OPTION_ACCEPTOR_THREADS)) {
       String optionValue = cmd.getOptionValue(OPTION_ACCEPTOR_THREADS);
-      LOG.info("Setting acceptor threads to :'{}'", optionValue);
+      logger.info("Setting acceptor threads to :'{}'", optionValue);
       if (optionValue != null) {
         threadPoolConfiguration.withAcceptorThreads(Integer.parseInt(optionValue));
         threadPoolConfigSet = true;
@@ -315,14 +315,14 @@ public class Launcher {
       try {
         LogFormat logFormat = LogFormat.valueOf(format.toUpperCase());
         bootstrap.plusActivityTracker(new ActivityLogger(logFormat));
-        LOG.info("Using activity log format: {}", logFormat);
+        logger.info("Using activity log format: {}", logFormat);
       } catch (IllegalArgumentException e) {
         printHelp(options, "Unknown activity log format: " + format);
         return;
       }
     }
 
-    LOG.info("About to start...");
+    logger.info("About to start...");
     httpProxyServer = bootstrap.start();
     if (cmd.hasOption(OPTION_SERVER)) {
       Runtime.getRuntime().addShutdownHook(new Thread(() -> stop()));
@@ -342,10 +342,10 @@ public class Launcher {
   public void stop() {
     HttpProxyServer server = httpProxyServer;
     if (server != null) {
-      LOG.info("Shutting down...");
+      logger.info("Shutting down...");
       server.stop();
       httpProxyServer = null;
-      LOG.info("Shut down.");
+      logger.info("Shut down.");
     }
   }
 
@@ -463,7 +463,7 @@ public class Launcher {
   @SuppressWarnings("java:S106")
   private void printHelp(final Options options, final String errorMessage) {
     if (!StringUtils.isBlank(errorMessage)) {
-      LOG.error(errorMessage);
+      logger.error(errorMessage);
       // log4j is not yet loaded at this point in some cases
       System.err.println(errorMessage);
     }
