@@ -101,11 +101,7 @@ class SelfSignedSslEngineSourceTest {
   void testNewSslEngineWithPeerInfo() {
     String keystorePath = new File(tempDir, "peer_test.jks").getAbsolutePath();
     SelfSignedSslEngineSource source;
-    try {
-      source = new SelfSignedSslEngineSource(keystorePath);
-    } catch (Exception e) {
-      return;
-    }
+    source = new SelfSignedSslEngineSource(keystorePath);
 
     SSLEngine engine = source.newSslEngine("example.com", -1);
 
