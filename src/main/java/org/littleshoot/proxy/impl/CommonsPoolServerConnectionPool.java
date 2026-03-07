@@ -7,6 +7,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.pool2.BaseKeyedPooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
@@ -31,6 +32,11 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
   private final ConcurrentMap<Channel, Queue<PendingRequest>> pendingRequestsByChannel =
       new ConcurrentHashMap<>();
   private final ThreadLocal<ConnectionContext> creationContext = new ThreadLocal<>();
+
+  private final AtomicLong borrowCount = new AtomicLong(0);
+  private final AtomicLong returnCount = new AtomicLong(0);
+  private final AtomicLong evictionCount = new AtomicLong(0);
+  private final AtomicLong validationFailureCount = new AtomicLong(0);
 
   public CommonsPoolServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
@@ -69,7 +75,9 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
         new ConnectionContext(clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {
-      return pool.borrowObject(serverHostAndPort);
+      ProxyToServerConnection connection = pool.borrowObject(serverHostAndPort);
+      borrowCount.incrementAndGet();
+      return connection;
     } catch (Exception e) {
       LOG.warn("Failed to borrow connection for {}", serverHostAndPort, e);
       return null;
@@ -93,6 +101,7 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
         connectionKeys.remove(connection);
       } else {
         pool.returnObject(key, connection);
+        returnCount.incrementAndGet();
       }
     } catch (Exception e) {
       LOG.debug("Failed to return connection for {}", key, e);
@@ -159,6 +168,57 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
   @Override
   public int getMaxConnections() {
     return maxConnections;
+  }
+
+  @Override
+  public void setIdleTimeout(@Nullable Duration idleTimeout) {
+    if (idleTimeout != null && idleTimeout.toMillis() > 0) {
+      pool.setTimeBetweenEvictionRuns(Duration.ofMillis(idleTimeout.toMillis() / 2));
+      pool.setSoftMinEvictableIdleTimeMillis(idleTimeout.toMillis());
+      pool.setTestWhileIdle(true);
+      LOG.info(
+          "Enabled CommonsPool2 idle eviction: timeout={}ms, evict={}ms",
+          idleTimeout.toMillis(),
+          idleTimeout.toMillis() / 2);
+    } else {
+      pool.setTimeBetweenEvictionRuns(Duration.ZERO);
+      pool.setTestWhileIdle(false);
+      LOG.info("Disabled CommonsPool2 idle eviction");
+    }
+  }
+
+  @Override
+  @Nullable
+  public Duration getIdleTimeout() {
+    long timeBetweenRuns = pool.getTimeBetweenEvictionRuns().toMillis();
+    return timeBetweenRuns > 0 ? Duration.ofMillis(timeBetweenRuns * 2) : null;
+  }
+
+  @Override
+  public void setConnectionValidationEnabled(boolean validationEnabled) {
+    pool.setTestOnBorrow(validationEnabled);
+    pool.setTestOnReturn(validationEnabled);
+    LOG.info("CommonsPool2 connection validation enabled: {}", validationEnabled);
+  }
+
+  @Override
+  public boolean isConnectionValidationEnabled() {
+    return pool.getTestOnBorrow();
+  }
+
+  @Override
+  public PoolMetrics getMetrics() {
+    int total = pool.getNumActive() + pool.getNumIdle();
+    int active = pool.getNumActive();
+    int idle = pool.getNumIdle();
+    return new PoolMetrics(
+        total,
+        active,
+        idle,
+        borrowCount.get(),
+        returnCount.get(),
+        evictionCount.get(),
+        validationFailureCount.get());
   }
 
   private class ConnectionFactory

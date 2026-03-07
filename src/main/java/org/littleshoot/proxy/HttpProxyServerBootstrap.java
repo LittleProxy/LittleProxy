@@ -258,4 +258,15 @@ public interface HttpProxyServerBootstrap {
    * @param maxConnections the maximum total number of pooled connections
    */
   HttpProxyServerBootstrap withMaxConnections(int maxConnections);
+
+  /**
+   * Sets the idle timeout for pooled connections. Connections that remain idle (available in the
+   * pool) for longer than this duration will be evicted.
+   *
+   * <p>Default is null (no eviction based on idle time). When set, connections will be evicted
+   * after being idle for the specified duration.
+   *
+   * @param idleTimeout the idle timeout duration, or null to disable idle eviction
+   */
+  HttpProxyServerBootstrap withPoolIdleTimeout(Duration idleTimeout);
 }

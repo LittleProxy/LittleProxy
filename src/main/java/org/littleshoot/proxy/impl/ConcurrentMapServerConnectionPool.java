@@ -2,57 +2,62 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** ConcurrentHashMap-based implementation of {@link ServerConnectionPool}. */
 public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   private static final Logger LOG =
       LoggerFactory.getLogger(ConcurrentMapServerConnectionPool.class);
 
-  /** Default maximum number of pooled connections per host:port. */
   static final int DEFAULT_MAX_CONNECTIONS_PER_HOST = 10;
-
-  /** Default maximum total connections in the pool. */
   static final int DEFAULT_MAX_TOTAL_CONNECTIONS = 200;
 
-  /** The map of server host:port to set of ProxyToServerConnection. */
   private final ConcurrentMap<String, ConcurrentMap<ProxyToServerConnection, Boolean>>
       connectionsByHostAndPort = new ConcurrentHashMap<>();
-
-  /** Available connections per host:port. */
-  private final ConcurrentMap<String, Queue<ProxyToServerConnection>>
-      availableConnectionsByHostAndPort = new ConcurrentHashMap<>();
-
-  /** Track the number of connections per host:port. */
+  private final ConcurrentMap<String, Queue<PooledConnection>> availableConnectionsByHostAndPort =
+      new ConcurrentHashMap<>();
   private final ConcurrentMap<String, AtomicInteger> connectionCountByHostAndPort =
       new ConcurrentHashMap<>();
-
-  /** Track pending requests by channel to support HTTP pipelining. */
   private final ConcurrentMap<Channel, Queue<PendingRequest>> pendingRequestsByChannel =
       new ConcurrentHashMap<>();
-
-  /** Track the number of connections created from this pool to prevent exhaustion. */
   private final AtomicInteger totalConnectionsCreated = new AtomicInteger(0);
 
-  /** Maximum number of connections allowed per host:port. */
+  @Nullable private volatile Duration idleTimeout;
+  private volatile boolean connectionValidationEnabled = false;
+  private final ScheduledExecutorService evictionScheduler =
+      Executors.newSingleThreadScheduledExecutor(
+          r -> {
+            Thread t = new Thread(r, "connection-pool-eviction");
+            t.setDaemon(true);
+            return t;
+          });
+  @Nullable private volatile ScheduledFuture<?> evictionTask;
+
   private final int maxConnectionsPerHost;
-
-  /** Maximum total connections allowed in the pool. */
   private final int maxConnections;
-
-  /** The proxy server that owns this pool. */
   private final DefaultHttpProxyServer proxyServer;
-
-  /** The global traffic shaping handler. */
   private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
+
+  private final java.util.concurrent.atomic.AtomicLong borrowCount =
+      new java.util.concurrent.atomic.AtomicLong(0);
+  private final java.util.concurrent.atomic.AtomicLong returnCount =
+      new java.util.concurrent.atomic.AtomicLong(0);
+  private final java.util.concurrent.atomic.AtomicLong evictionCount =
+      new java.util.concurrent.atomic.AtomicLong(0);
+  private final java.util.concurrent.atomic.AtomicLong validationFailureCount =
+      new java.util.concurrent.atomic.AtomicLong(0);
 
   public ConcurrentMapServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
@@ -96,6 +101,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       HttpRequest initialHttpRequest) {
     ProxyToServerConnection available = borrowAvailableConnection(serverHostAndPort);
     if (available != null) {
+      borrowCount.incrementAndGet();
       return available;
     }
 
@@ -168,13 +174,13 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
               .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
               .incrementAndGet();
           totalConnectionsCreated.incrementAndGet();
+          borrowCount.incrementAndGet();
           return newConnection;
         }
       } catch (java.net.UnknownHostException e) {
         LOG.warn("Failed to resolve host for {}", serverHostAndPort, e);
       }
     }
-
     return null;
   }
 
@@ -193,9 +199,10 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       removeConnection(serverHostAndPort, connection);
       return;
     }
+    returnCount.incrementAndGet();
     availableConnectionsByHostAndPort
         .computeIfAbsent(serverHostAndPort, k -> new ConcurrentLinkedQueue<>())
-        .offer(connection);
+        .add(new PooledConnection(connection, System.currentTimeMillis()));
   }
 
   @Override
@@ -248,15 +255,16 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
         totalConnectionsCreated.decrementAndGet();
       }
     }
-    Queue<ProxyToServerConnection> available =
-        availableConnectionsByHostAndPort.get(serverHostAndPort);
+    Queue<PooledConnection> available =
+        (Queue<PooledConnection>) availableConnectionsByHostAndPort.get(serverHostAndPort);
     if (available != null) {
-      available.remove(connection);
+      available.removeIf(p -> p.connection == connection);
     }
   }
 
   @Override
   public void closeAll() {
+    stopEvictionTask();
     for (ConcurrentMap<ProxyToServerConnection, Boolean> connections :
         connectionsByHostAndPort.values()) {
       for (ProxyToServerConnection connection : connections.keySet()) {
@@ -280,24 +288,138 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     return maxConnections;
   }
 
+  @Override
+  public void setIdleTimeout(@Nullable Duration idleTimeout) {
+    this.idleTimeout = idleTimeout;
+    if (idleTimeout != null && idleTimeout.toMillis() > 0) {
+      startEvictionTask();
+    } else {
+      stopEvictionTask();
+    }
+  }
+
+  @Override
+  @Nullable
+  public Duration getIdleTimeout() {
+    return idleTimeout;
+  }
+
+  @Override
+  public void setConnectionValidationEnabled(boolean validationEnabled) {
+    this.connectionValidationEnabled = validationEnabled;
+    LOG.info("Connection validation enabled: {}", validationEnabled);
+  }
+
+  @Override
+  public boolean isConnectionValidationEnabled() {
+    return connectionValidationEnabled;
+  }
+
+  @Override
+  public PoolMetrics getMetrics() {
+    int total = totalConnectionsCreated.get();
+    int idle = availableConnectionsByHostAndPort.values().stream().mapToInt(q -> q.size()).sum();
+    return new PoolMetrics(
+        total,
+        total - idle,
+        idle,
+        borrowCount.get(),
+        returnCount.get(),
+        evictionCount.get(),
+        validationFailureCount.get());
+  }
+
+  private void startEvictionTask() {
+    if (evictionTask != null && !evictionTask.isCancelled()) {
+      return;
+    }
+    long intervalMillis = idleTimeout != null ? idleTimeout.toMillis() / 2 : 30_000;
+    evictionTask =
+        evictionScheduler.scheduleAtFixedRate(
+            this::evictIdleConnections, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
+    LOG.info("Started idle connection eviction task with interval {}ms", intervalMillis);
+  }
+
+  private void stopEvictionTask() {
+    if (evictionTask != null) {
+      evictionTask.cancel(false);
+      evictionTask = null;
+      LOG.info("Stopped idle connection eviction task");
+    }
+  }
+
+  private void evictIdleConnections() {
+    if (idleTimeout == null || idleTimeout.toMillis() <= 0) {
+      return;
+    }
+    long now = System.currentTimeMillis();
+    long idleThreshold = now - idleTimeout.toMillis();
+    int evicted = 0;
+
+    for (String serverHostAndPort : availableConnectionsByHostAndPort.keySet()) {
+      Queue<PooledConnection> queue = availableConnectionsByHostAndPort.get(serverHostAndPort);
+      if (queue == null) {
+        continue;
+      }
+      Queue<PooledConnection> toRemove = new ConcurrentLinkedQueue<>();
+      for (PooledConnection pooled : queue) {
+        if (pooled.releasedAt < idleThreshold) {
+          toRemove.add(pooled);
+          evicted++;
+        }
+      }
+      for (PooledConnection pooled : toRemove) {
+        queue.remove(pooled);
+        removeConnection(serverHostAndPort, pooled.connection);
+        pooled.connection.close();
+      }
+    }
+    if (evicted > 0) {
+      evictionCount.addAndGet(evicted);
+      LOG.debug("Evicted {} idle connections", evicted);
+    }
+  }
+
   @Nullable
   private ProxyToServerConnection borrowAvailableConnection(String serverHostAndPort) {
-    Queue<ProxyToServerConnection> available =
-        availableConnectionsByHostAndPort.get(serverHostAndPort);
-    if (available == null || available.isEmpty()) {
+    Queue<PooledConnection> queue =
+        (Queue<PooledConnection>) availableConnectionsByHostAndPort.get(serverHostAndPort);
+    if (queue == null || queue.isEmpty()) {
       return null;
     }
     while (true) {
-      ProxyToServerConnection conn = available.poll();
-      if (conn == null) {
+      PooledConnection pooled = queue.poll();
+      if (pooled == null) {
         return null;
       }
-      if (conn.isConnected() && conn.isAvailableForNewRequest()) {
-        return conn;
+      if (!pooled.connection.isConnected()) {
+        removeConnection(serverHostAndPort, pooled.connection);
+        continue;
       }
-      if (!conn.isConnected()) {
-        removeConnection(serverHostAndPort, conn);
+      if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
+        validationFailureCount.incrementAndGet();
+        removeConnection(serverHostAndPort, pooled.connection);
+        pooled.connection.close();
+        LOG.debug("Connection validation failed, removing connection to {}", serverHostAndPort);
+        continue;
       }
+      if (pooled.connection.isAvailableForNewRequest()) {
+        return pooled.connection;
+      }
+    }
+  }
+
+  private boolean isConnectionValid(ProxyToServerConnection connection) {
+    return connection.isConnected() && connection.isAvailableForNewRequest();
+  }
+
+  private static class PooledConnection {
+    final ProxyToServerConnection connection;
+    final long releasedAt;
+
+    PooledConnection(ProxyToServerConnection connection, long releasedAt) {
+      this.connection = connection;
+      this.releasedAt = releasedAt;
     }
   }
 }

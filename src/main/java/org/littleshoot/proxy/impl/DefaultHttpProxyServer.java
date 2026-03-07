@@ -175,6 +175,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   /** Selected server connection pool implementation. */
   private final ServerConnectionPoolType serverConnectionPoolType;
 
+  /** Configuration for the server connection pool. */
+  private final ServerConnectionPoolConfig serverConnectionPoolConfig;
+
   /**
    * JVM shutdown hook to shut down this proxy server. Declared as a class-level variable to allow
    * removing the shutdown hook when the proxy server is stopped normally.
@@ -265,7 +268,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       boolean useSharedServerConnectionPool,
       int maxConnectionsPerHost,
       ServerConnectionPoolType serverConnectionPoolType,
-      int maxConnections) {
+      int maxConnections,
+      ServerConnectionPoolConfig serverConnectionPoolConfig) {
     this.serverGroup = serverGroup;
     this.transportProtocol = transportProtocol;
     this.requestedAddress = requestedAddress;
@@ -313,6 +317,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     this.maxConnectionsPerHost = maxConnectionsPerHost;
     this.serverConnectionPoolType = serverConnectionPoolType;
     this.maxConnections = maxConnections;
+    this.serverConnectionPoolConfig = serverConnectionPoolConfig;
   }
 
   /**
@@ -435,21 +440,31 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   }
 
   private ServerConnectionPool createServerConnectionPool() {
-    ServerConnectionPoolType poolType =
-        serverConnectionPoolType != null
-            ? serverConnectionPoolType
-            : ServerConnectionPoolType.CONCURRENT_MAP;
+    ServerConnectionPoolType poolType = serverConnectionPoolConfig.getPoolType();
+    Duration idleTimeout = serverConnectionPoolConfig.getIdleTimeout();
+    int maxConnPerHost = serverConnectionPoolConfig.getMaxConnectionsPerHost();
+    int maxConn = serverConnectionPoolConfig.getMaxConnections();
+
     switch (poolType) {
       case COMMONS_POOL2:
-        return new CommonsPoolServerConnectionPool(
-            this, globalTrafficShapingHandler, maxConnectionsPerHost, maxConnections);
+        CommonsPoolServerConnectionPool commonsPool =
+            new CommonsPoolServerConnectionPool(
+                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
+        commonsPool.setIdleTimeout(idleTimeout);
+        return commonsPool;
       case STORMPOT:
-        return new StormpotServerConnectionPool(
-            this, globalTrafficShapingHandler, maxConnectionsPerHost, maxConnections);
+        StormpotServerConnectionPool stormpotPool =
+            new StormpotServerConnectionPool(
+                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
+        stormpotPool.setIdleTimeout(idleTimeout);
+        return stormpotPool;
       case CONCURRENT_MAP:
       default:
-        return new ConcurrentMapServerConnectionPool(
-            this, globalTrafficShapingHandler, maxConnectionsPerHost, maxConnections);
+        ConcurrentMapServerConnectionPool concurrentMapPool =
+            new ConcurrentMapServerConnectionPool(
+                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
+        concurrentMapPool.setIdleTimeout(idleTimeout);
+        return concurrentMapPool;
     }
   }
 
@@ -721,6 +736,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
     private ServerConnectionPoolType serverConnectionPoolType =
         ServerConnectionPoolType.CONCURRENT_MAP;
+    @Nullable private Duration poolIdleTimeout;
 
     private DefaultHttpProxyServerBootstrap() {}
 
@@ -1126,6 +1142,12 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     }
 
     @Override
+    public HttpProxyServerBootstrap withPoolIdleTimeout(Duration idleTimeout) {
+      this.poolIdleTimeout = idleTimeout;
+      return this;
+    }
+
+    @Override
     public HttpProxyServer start() {
       return build().start();
     }
@@ -1149,6 +1171,14 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                       clientToProxyAcceptorThreads,
                       clientToProxyWorkerThreads,
                       proxyToServerWorkerThreads));
+
+      ServerConnectionPoolConfig poolConfig =
+          new ServerConnectionPoolConfig()
+              .setEnabled(useSharedServerConnectionPool)
+              .setPoolType(serverConnectionPoolType)
+              .setMaxConnectionsPerHost(maxConnectionsPerHost)
+              .setMaxConnections(maxConnections)
+              .setIdleTimeout(poolIdleTimeout);
 
       return new DefaultHttpProxyServer(
           serverGroup,
@@ -1178,7 +1208,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
           useSharedServerConnectionPool,
           maxConnectionsPerHost,
           serverConnectionPoolType,
-          maxConnections);
+          maxConnections,
+          poolConfig);
     }
 
     private InetSocketAddress determineListenAddress() {

@@ -2,6 +2,7 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.time.Duration;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
 
@@ -82,4 +83,33 @@ public interface ServerConnectionPool {
 
   /** Returns the maximum total number of connections allowed in the pool. */
   int getMaxConnections();
+
+  /**
+   * Sets the idle timeout for connections. Connections idle for longer than this duration will be
+   * evicted.
+   *
+   * @param idleTimeout the idle timeout duration, or null to disable
+   */
+  void setIdleTimeout(@Nullable Duration idleTimeout);
+
+  /** Returns the configured idle timeout, or null if not set. */
+  @Nullable Duration getIdleTimeout();
+
+  /**
+   * Enables or disables connection validation. When enabled, connections are validated before being
+   * borrowed from the pool to ensure they are still functional.
+   *
+   * @param validationEnabled true to enable validation, false to disable
+   */
+  void setConnectionValidationEnabled(boolean validationEnabled);
+
+  /** Returns true if connection validation is enabled. */
+  boolean isConnectionValidationEnabled();
+
+  /**
+   * Returns current pool metrics.
+   *
+   * @return PoolMetrics with current statistics
+   */
+  PoolMetrics getMetrics();
 }

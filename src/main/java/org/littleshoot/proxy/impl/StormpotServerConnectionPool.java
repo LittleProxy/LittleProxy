@@ -2,12 +2,14 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
@@ -39,6 +41,13 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       new ConcurrentHashMap<>();
   private final ThreadLocal<ConnectionContext> creationContext = new ThreadLocal<>();
   private final Semaphore totalConnectionPermits;
+  @Nullable private volatile Duration idleTimeout;
+  private volatile boolean connectionValidationEnabled = false;
+
+  private final AtomicLong borrowCount = new AtomicLong(0);
+  private final AtomicLong returnCount = new AtomicLong(0);
+  private final AtomicLong evictionCount = new AtomicLong(0);
+  private final AtomicLong validationFailureCount = new AtomicLong(0);
 
   public StormpotServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
@@ -77,6 +86,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
         return null;
       }
       poolablesByConnection.put(pooled.connection, pooled);
+      borrowCount.incrementAndGet();
       return pooled.connection;
     } catch (PoolException e) {
       LOG.warn("Failed to claim Stormpot connection for {}", serverHostAndPort, e);
@@ -98,6 +108,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     StormpotPooledConnection pooled = poolablesByConnection.get(connection);
     if (pooled != null) {
       pooled.release();
+      returnCount.incrementAndGet();
     }
   }
 
@@ -174,6 +185,44 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   @Override
   public int getMaxConnections() {
     return maxConnections;
+  }
+
+  @Override
+  public void setIdleTimeout(@Nullable Duration idleTimeout) {
+    this.idleTimeout = idleTimeout;
+    LOG.info("Stormpot idle timeout set to {}", idleTimeout);
+  }
+
+  @Override
+  @Nullable
+  public Duration getIdleTimeout() {
+    return idleTimeout;
+  }
+
+  @Override
+  public void setConnectionValidationEnabled(boolean validationEnabled) {
+    this.connectionValidationEnabled = validationEnabled;
+    LOG.info("Stormpot connection validation enabled: {}", validationEnabled);
+  }
+
+  @Override
+  public boolean isConnectionValidationEnabled() {
+    return connectionValidationEnabled;
+  }
+
+  @Override
+  public PoolMetrics getMetrics() {
+    int total = poolablesByConnection.size();
+    int idle = 0;
+    int active = total;
+    return new PoolMetrics(
+        total,
+        active,
+        idle,
+        borrowCount.get(),
+        returnCount.get(),
+        evictionCount.get(),
+        validationFailureCount.get());
   }
 
   private LifecycledPool<StormpotPooledConnection> createPool(String serverHostAndPort) {
