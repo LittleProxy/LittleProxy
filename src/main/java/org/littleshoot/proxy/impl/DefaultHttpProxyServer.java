@@ -482,35 +482,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
   @Override
   public HttpProxyServerBootstrap clone() {
-    return new DefaultHttpProxyServerBootstrap(
-        serverGroup,
-        transportProtocol,
+    InetSocketAddress clonedAddress =
         new InetSocketAddress(
             requestedAddress.getAddress(),
-            requestedAddress.getPort() == 0 ? 0 : requestedAddress.getPort() + 1),
-        sslEngineSource,
-        authenticateSslClients,
-        proxyAuthenticator,
-        chainProxyManager,
-        mitmManager,
-        filtersSource,
-        transparent,
-        idleConnectionTimeout,
-        activityTrackers,
-        connectTimeout,
-        serverResolver,
-        globalTrafficShapingHandler != null ? globalTrafficShapingHandler.getReadLimit() : 0,
-        globalTrafficShapingHandler != null ? globalTrafficShapingHandler.getWriteLimit() : 0,
-        localAddress,
-        proxyAlias,
-        maxInitialLineLength,
-        maxHeaderSize,
-        maxChunkSize,
-        allowRequestsToOriginServer,
-        useSharedServerConnectionPool,
-        maxConnectionsPerHost,
-        serverConnectionPoolType,
-        maxConnections);
+            requestedAddress.getPort() == 0 ? 0 : requestedAddress.getPort() + 1);
+    return new DefaultHttpProxyServerBootstrap(this, clonedAddress);
   }
 
   @Override
@@ -741,61 +717,40 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private DefaultHttpProxyServerBootstrap() {}
 
     private DefaultHttpProxyServerBootstrap(
-        ServerGroup serverGroup,
-        TransportProtocol transportProtocol,
-        InetSocketAddress requestedAddress,
-        SslEngineSource sslEngineSource,
-        boolean authenticateSslClients,
-        ProxyAuthenticator proxyAuthenticator,
-        ChainedProxyManager chainProxyManager,
-        MitmManager mitmManager,
-        HttpFiltersSource filtersSource,
-        boolean transparent,
-        Duration idleConnectionTimeout,
-        @Nullable Collection<ActivityTracker> activityTrackers,
-        int connectTimeout,
-        HostResolver serverResolver,
-        long readThrottleBytesPerSecond,
-        long writeThrottleBytesPerSecond,
-        InetSocketAddress localAddress,
-        String proxyAlias,
-        int maxInitialLineLength,
-        int maxHeaderSize,
-        int maxChunkSize,
-        boolean allowRequestToOriginServer,
-        boolean useSharedServerConnectionPool,
-        int maxConnectionsPerHost,
-        ServerConnectionPoolType serverConnectionPoolType,
-        int maxConnections) {
-      this.serverGroup = serverGroup;
-      this.transportProtocol = transportProtocol;
+        DefaultHttpProxyServer existingServer, InetSocketAddress requestedAddress) {
+      this.serverGroup = existingServer.serverGroup;
+      this.transportProtocol = existingServer.transportProtocol;
       this.requestedAddress = requestedAddress;
       this.port = requestedAddress.getPort();
-      this.sslEngineSource = sslEngineSource;
-      this.authenticateSslClients = authenticateSslClients;
-      this.proxyAuthenticator = proxyAuthenticator;
-      this.chainProxyManager = chainProxyManager;
-      this.mitmManager = mitmManager;
-      this.filtersSource = filtersSource;
-      this.transparent = transparent;
-      this.idleConnectionTimeout = idleConnectionTimeout;
-      if (activityTrackers != null) {
-        this.activityTrackers.addAll(activityTrackers);
-      }
-      this.connectTimeout = connectTimeout;
-      this.serverResolver = serverResolver;
-      this.readThrottleBytesPerSecond = readThrottleBytesPerSecond;
-      this.writeThrottleBytesPerSecond = writeThrottleBytesPerSecond;
-      this.localAddress = localAddress;
-      this.proxyAlias = proxyAlias;
-      this.maxInitialLineLength = maxInitialLineLength;
-      this.maxHeaderSize = maxHeaderSize;
-      this.maxChunkSize = maxChunkSize;
-      this.allowRequestToOriginServer = allowRequestToOriginServer;
-      this.useSharedServerConnectionPool = useSharedServerConnectionPool;
-      this.maxConnectionsPerHost = maxConnectionsPerHost;
-      this.serverConnectionPoolType = serverConnectionPoolType;
-      this.maxConnections = maxConnections;
+      this.sslEngineSource = existingServer.sslEngineSource;
+      this.authenticateSslClients = existingServer.authenticateSslClients;
+      this.proxyAuthenticator = existingServer.proxyAuthenticator;
+      this.chainProxyManager = existingServer.chainProxyManager;
+      this.mitmManager = existingServer.mitmManager;
+      this.filtersSource = existingServer.filtersSource;
+      this.transparent = existingServer.transparent;
+      this.idleConnectionTimeout = existingServer.idleConnectionTimeout;
+      this.activityTrackers.addAll(existingServer.activityTrackers);
+      this.connectTimeout = existingServer.connectTimeout;
+      this.serverResolver = existingServer.serverResolver;
+      this.readThrottleBytesPerSecond =
+          existingServer.globalTrafficShapingHandler != null
+              ? existingServer.globalTrafficShapingHandler.getReadLimit()
+              : 0;
+      this.writeThrottleBytesPerSecond =
+          existingServer.globalTrafficShapingHandler != null
+              ? existingServer.globalTrafficShapingHandler.getWriteLimit()
+              : 0;
+      this.localAddress = existingServer.localAddress;
+      this.proxyAlias = existingServer.proxyAlias;
+      this.maxInitialLineLength = existingServer.maxInitialLineLength;
+      this.maxHeaderSize = existingServer.maxHeaderSize;
+      this.maxChunkSize = existingServer.maxChunkSize;
+      this.allowRequestToOriginServer = existingServer.allowRequestsToOriginServer;
+      this.useSharedServerConnectionPool = existingServer.useSharedServerConnectionPool;
+      this.maxConnectionsPerHost = existingServer.maxConnectionsPerHost;
+      this.serverConnectionPoolType = existingServer.serverConnectionPoolType;
+      this.maxConnections = existingServer.maxConnections;
     }
 
     private DefaultHttpProxyServerBootstrap(Properties props) {
