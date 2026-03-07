@@ -1,7 +1,5 @@
 package org.littleshoot.proxy.impl;
 
-import static java.util.Objects.requireNonNullElseGet;
-
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -24,11 +22,8 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.*;
-import org.littleshoot.proxy.extras.ActivityLogger;
-import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +31,8 @@ import org.slf4j.LoggerFactory;
  * Primary implementation of an {@link HttpProxyServer}.
  *
  * <p>{@link DefaultHttpProxyServer} is bootstrapped by calling {@link #bootstrap()} or {@link
- * #bootstrapFromFile(String)}, and then calling {@link DefaultHttpProxyServerBootstrap#start()}.
- * For example:
+ * #bootstrapFromFile(String)}, and then calling {@link
+ * org.littleshoot.proxy.impl.DefaultHttpProxyServerBootstrap#start()}. For example:
  *
  * <pre>
  * DefaultHttpProxyServer server = DefaultHttpProxyServer
@@ -185,7 +180,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
   /** Bootstrap a new {@link DefaultHttpProxyServer} starting from scratch. */
   public static HttpProxyServerBootstrap bootstrap() {
-    return new DefaultHttpProxyServerBootstrap();
+    return new org.littleshoot.proxy.impl.DefaultHttpProxyServerBootstrap();
   }
 
   /** Bootstrap a new {@link DefaultHttpProxyServer} using defaults from the given file. */
@@ -206,10 +201,10 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       throw new IllegalArgumentException("Could not load props file. file is " + (cause));
     }
 
-    return new DefaultHttpProxyServerBootstrap(props);
+    return new org.littleshoot.proxy.impl.DefaultHttpProxyServerBootstrap(props);
   }
 
-  private DefaultHttpProxyServer(ServerGroup serverGroup, DefaultHttpProxyServerConfig config) {
+  DefaultHttpProxyServer(ServerGroup serverGroup, DefaultHttpProxyServerConfig config) {
     this.serverGroup = serverGroup;
     this.transportProtocol = config.getTransportProtocol();
     this.requestedAddress = config.getRequestedAddress();
@@ -429,7 +424,50 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         new InetSocketAddress(
             requestedAddress.getAddress(),
             requestedAddress.getPort() == 0 ? 0 : requestedAddress.getPort() + 1);
-    return new DefaultHttpProxyServerBootstrap(this, clonedAddress);
+
+    ServerConnectionPoolConfig poolConfig =
+        new ServerConnectionPoolConfig()
+            .setEnabled(useSharedServerConnectionPool)
+            .setPoolType(serverConnectionPoolType)
+            .setMaxConnectionsPerHost(maxConnectionsPerHost)
+            .setMaxConnections(maxConnections)
+            .setIdleTimeout(serverConnectionPoolConfig.getIdleTimeout());
+
+    DefaultHttpProxyServerConfig serverConfig =
+        new DefaultHttpProxyServerConfig()
+            .setTransportProtocol(transportProtocol)
+            .setRequestedAddress(clonedAddress)
+            .setSslEngineSource(sslEngineSource)
+            .setAuthenticateSslClients(authenticateSslClients)
+            .setProxyAuthenticator(proxyAuthenticator)
+            .setChainProxyManager(chainProxyManager)
+            .setMitmManager(mitmManager)
+            .setFiltersSource(filtersSource)
+            .setTransparent(transparent)
+            .setIdleConnectionTimeout(idleConnectionTimeout)
+            .setActivityTrackers(activityTrackers)
+            .setConnectTimeout(connectTimeout)
+            .setServerResolver(serverResolver)
+            .setReadThrottleBytesPerSecond(
+                globalTrafficShapingHandler != null
+                    ? globalTrafficShapingHandler.getReadLimit()
+                    : 0)
+            .setWriteThrottleBytesPerSecond(
+                globalTrafficShapingHandler != null
+                    ? globalTrafficShapingHandler.getWriteLimit()
+                    : 0)
+            .setLocalAddress(localAddress)
+            .setProxyAlias(proxyAlias)
+            .setMaxInitialLineLength(maxInitialLineLength)
+            .setMaxHeaderSize(maxHeaderSize)
+            .setMaxChunkSize(maxChunkSize)
+            .setAllowRequestsToOriginServer(allowRequestsToOriginServer)
+            .setAcceptProxyProtocol(acceptProxyProtocol)
+            .setSendProxyProtocol(sendProxyProtocol)
+            .setServerConnectionPoolConfig(poolConfig);
+
+    return new org.littleshoot.proxy.impl.DefaultHttpProxyServerBootstrap(
+        serverGroup, serverConfig);
   }
 
   @Override
@@ -526,7 +564,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     }
   }
 
-  private HttpProxyServer start() {
+  HttpProxyServer start() {
     if (!serverGroup.isStopped()) {
       LOG.info("Starting proxy at address: {}", requestedAddress);
 
@@ -614,512 +652,5 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
 
   protected EventLoopGroup getProxyToServerWorkerFor(TransportProtocol transportProtocol) {
     return serverGroup.getProxyToServerWorkerPoolForTransport(transportProtocol);
-  }
-
-  // TODO: refactor bootstrap into a separate class
-  @NullMarked
-  private static class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
-    private String name = DEFAULT_LITTLE_PROXY_NAME;
-    @Nullable private ServerGroup serverGroup;
-    private TransportProtocol transportProtocol = TransportProtocol.TCP;
-    @Nullable private InetSocketAddress requestedAddress;
-    private int port = DEFAULT_PORT;
-    private boolean allowLocalOnly = true;
-    @Nullable private SslEngineSource sslEngineSource;
-    private boolean authenticateSslClients = true;
-    @Nullable private ProxyAuthenticator proxyAuthenticator;
-    @Nullable private ChainedProxyManager chainProxyManager;
-    @Nullable private MitmManager mitmManager;
-    private HttpFiltersSource filtersSource = new HttpFiltersSourceAdapter();
-    private boolean transparent;
-    private Duration idleConnectionTimeout = Duration.ofSeconds(70);
-    private final Collection<ActivityTracker> activityTrackers = new ConcurrentLinkedQueue<>();
-    private int connectTimeout = 40000;
-    private HostResolver serverResolver = new DefaultHostResolver();
-    private long readThrottleBytesPerSecond;
-    private long writeThrottleBytesPerSecond;
-    @Nullable private InetSocketAddress localAddress;
-    @Nullable private String proxyAlias;
-    private int clientToProxyAcceptorThreads = ServerGroup.DEFAULT_INCOMING_ACCEPTOR_THREADS;
-    private int clientToProxyWorkerThreads = ServerGroup.DEFAULT_INCOMING_WORKER_THREADS;
-    private int proxyToServerWorkerThreads = ServerGroup.DEFAULT_OUTGOING_WORKER_THREADS;
-    private int maxInitialLineLength = MAX_INITIAL_LINE_LENGTH_DEFAULT;
-    private int maxHeaderSize = MAX_HEADER_SIZE_DEFAULT;
-    private int maxChunkSize = MAX_CHUNK_SIZE_DEFAULT;
-    private boolean allowRequestToOriginServer;
-    private boolean acceptProxyProtocol;
-    private boolean sendProxyProtocol;
-    private boolean useSharedServerConnectionPool =
-        false; // Disabled by default for backwards compatibility
-    private int maxConnectionsPerHost = 10; // Default max connections per host
-    private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
-    private ServerConnectionPoolType serverConnectionPoolType =
-        ServerConnectionPoolType.CONCURRENT_MAP;
-    @Nullable private Duration poolIdleTimeout;
-
-    private DefaultHttpProxyServerBootstrap() {}
-
-    private DefaultHttpProxyServerBootstrap(
-        DefaultHttpProxyServer existingServer, InetSocketAddress requestedAddress) {
-      this.serverGroup = existingServer.serverGroup;
-      this.transportProtocol = existingServer.transportProtocol;
-      this.requestedAddress = requestedAddress;
-      this.port = requestedAddress.getPort();
-      this.sslEngineSource = existingServer.sslEngineSource;
-      this.authenticateSslClients = existingServer.authenticateSslClients;
-      this.proxyAuthenticator = existingServer.proxyAuthenticator;
-      this.chainProxyManager = existingServer.chainProxyManager;
-      this.mitmManager = existingServer.mitmManager;
-      this.filtersSource = existingServer.filtersSource;
-      this.transparent = existingServer.transparent;
-      this.idleConnectionTimeout = existingServer.idleConnectionTimeout;
-      this.activityTrackers.addAll(existingServer.activityTrackers);
-      this.connectTimeout = existingServer.connectTimeout;
-      this.serverResolver = existingServer.serverResolver;
-      this.readThrottleBytesPerSecond =
-          existingServer.globalTrafficShapingHandler != null
-              ? existingServer.globalTrafficShapingHandler.getReadLimit()
-              : 0;
-      this.writeThrottleBytesPerSecond =
-          existingServer.globalTrafficShapingHandler != null
-              ? existingServer.globalTrafficShapingHandler.getWriteLimit()
-              : 0;
-      this.localAddress = existingServer.localAddress;
-      this.proxyAlias = existingServer.proxyAlias;
-      this.maxInitialLineLength = existingServer.maxInitialLineLength;
-      this.maxHeaderSize = existingServer.maxHeaderSize;
-      this.maxChunkSize = existingServer.maxChunkSize;
-      this.allowRequestToOriginServer = existingServer.allowRequestsToOriginServer;
-      this.useSharedServerConnectionPool = existingServer.useSharedServerConnectionPool;
-      this.maxConnectionsPerHost = existingServer.maxConnectionsPerHost;
-      this.serverConnectionPoolType = existingServer.serverConnectionPoolType;
-      this.maxConnections = existingServer.maxConnections;
-    }
-
-    private DefaultHttpProxyServerBootstrap(Properties props) {
-      withUseDnsSec(ProxyUtils.extractBooleanDefaultFalse(props, "dnssec"));
-      transparent = ProxyUtils.extractBooleanDefaultFalse(props, TRANSPARENT);
-      idleConnectionTimeout =
-          Duration.ofSeconds(ProxyUtils.extractInt(props, "idle_connection_timeout"));
-      connectTimeout = ProxyUtils.extractInt(props, "connect_timeout", 0);
-      maxInitialLineLength =
-          ProxyUtils.extractInt(props, "max_initial_line_length", MAX_INITIAL_LINE_LENGTH_DEFAULT);
-      maxHeaderSize = ProxyUtils.extractInt(props, "max_header_size", MAX_HEADER_SIZE_DEFAULT);
-      maxChunkSize = ProxyUtils.extractInt(props, "max_chunk_size", MAX_CHUNK_SIZE_DEFAULT);
-      if (props.containsKey(NAME)) {
-        name = props.getProperty(NAME, DEFAULT_LITTLE_PROXY_NAME);
-      }
-      if (props.containsKey(ADDRESS)) {
-        requestedAddress = ProxyUtils.resolveSocketAddress(props.getProperty(ADDRESS));
-      }
-      if (props.containsKey(PORT)) {
-        port = ProxyUtils.extractInt(props, PORT, Launcher.DEFAULT_PORT);
-      }
-      if (props.containsKey(NIC)) {
-        localAddress = new InetSocketAddress(props.getProperty(NIC, DEFAULT_NIC_VALUE), 0);
-      }
-      if (props.containsKey(PROXY_ALIAS)) {
-        proxyAlias = props.getProperty(PROXY_ALIAS);
-      }
-      if (props.containsKey(ALLOW_LOCAL_ONLY)) {
-        allowLocalOnly = ProxyUtils.extractBooleanDefaultFalse(props, ALLOW_LOCAL_ONLY);
-      }
-      if (props.containsKey(AUTHENTICATE_SSL_CLIENTS)) {
-        authenticateSslClients =
-            ProxyUtils.extractBooleanDefaultFalse(props, AUTHENTICATE_SSL_CLIENTS);
-        boolean trustAllServers =
-            ProxyUtils.extractBooleanDefaultFalse(props, SSL_CLIENTS_TRUST_ALL_SERVERS);
-        boolean sendCerts = ProxyUtils.extractBooleanDefaultFalse(props, SSL_CLIENTS_SEND_CERTS);
-
-        if (authenticateSslClients && props.containsKey(SSL_CLIENTS_KEYSTORE_PATH)) {
-          String keyStorePath = props.getProperty(SSL_CLIENTS_KEYSTORE_PATH);
-          if (props.containsKey(SSL_CLIENTS_KEYSTORE_PASSWORD)) {
-            String keyStoreAlias = props.getProperty(SSL_CLIENTS_KEYSTORE_ALIAS, "");
-            String keyStorePassword = props.getProperty(SSL_CLIENTS_KEYSTORE_PASSWORD, "");
-            sslEngineSource =
-                new SelfSignedSslEngineSource(
-                    keyStorePath, trustAllServers, sendCerts, keyStoreAlias, keyStorePassword);
-          } else {
-            sslEngineSource =
-                new SelfSignedSslEngineSource(keyStorePath, trustAllServers, sendCerts);
-          }
-        } else {
-          sslEngineSource =
-              new SelfSignedSslEngineSource(DEFAULT_JKS_KEYSTORE_PATH, trustAllServers, sendCerts);
-        }
-      }
-      if (props.containsKey(TRANSPARENT)) {
-        transparent = ProxyUtils.extractBooleanDefaultFalse(props, TRANSPARENT);
-      }
-
-      if (props.containsKey(THROTTLE_READ_BYTES_PER_SECOND)) {
-        readThrottleBytesPerSecond =
-            ProxyUtils.extractLong(props, THROTTLE_READ_BYTES_PER_SECOND, 0L);
-      }
-      if (props.containsKey(THROTTLE_WRITE_BYTES_PER_SECOND)) {
-        writeThrottleBytesPerSecond =
-            ProxyUtils.extractLong(props, THROTTLE_WRITE_BYTES_PER_SECOND, 0L);
-      }
-
-      if (props.containsKey(ALLOW_REQUESTS_TO_ORIGIN_SERVER)) {
-        allowRequestToOriginServer =
-            ProxyUtils.extractBooleanDefaultFalse(props, ALLOW_REQUESTS_TO_ORIGIN_SERVER);
-      }
-      if (props.containsKey(ALLOW_PROXY_PROTOCOL)) {
-        acceptProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, ALLOW_PROXY_PROTOCOL);
-      }
-      if (props.containsKey(SEND_PROXY_PROTOCOL)) {
-        sendProxyProtocol = ProxyUtils.extractBooleanDefaultFalse(props, SEND_PROXY_PROTOCOL);
-      }
-      if (props.containsKey(SERVER_CONNECTION_POOL_TYPE)) {
-        String poolTypeValue = props.getProperty(SERVER_CONNECTION_POOL_TYPE, "CONCURRENT_MAP");
-        try {
-          serverConnectionPoolType =
-              ServerConnectionPoolType.valueOf(poolTypeValue.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-          LOG.warn("Unknown server connection pool type: {}", poolTypeValue);
-        }
-      }
-      if (props.containsKey(MAX_CONNECTIONS_PER_HOST)) {
-        maxConnectionsPerHost =
-            ProxyUtils.extractInt(props, MAX_CONNECTIONS_PER_HOST, maxConnectionsPerHost);
-      }
-      if (props.containsKey(MAX_TOTAL_CONNECTIONS)) {
-        maxConnections = ProxyUtils.extractInt(props, MAX_TOTAL_CONNECTIONS, maxConnections);
-      }
-      if (props.containsKey(CLIENT_TO_PROXY_WORKER_THREADS)) {
-        clientToProxyWorkerThreads =
-            ProxyUtils.extractInt(props, CLIENT_TO_PROXY_WORKER_THREADS, 0);
-      }
-      if (props.containsKey(PROXY_TO_SERVER_WORKER_THREADS)) {
-        proxyToServerWorkerThreads =
-            ProxyUtils.extractInt(props, PROXY_TO_SERVER_WORKER_THREADS, 0);
-      }
-      if (props.containsKey(ACCEPTOR_THREADS)) {
-        clientToProxyAcceptorThreads = ProxyUtils.extractInt(props, ACCEPTOR_THREADS, 0);
-      }
-      if (props.containsKey(ACTIVITY_LOG_FORMAT)) {
-        String format = props.getProperty(ACTIVITY_LOG_FORMAT);
-        try {
-          org.littleshoot.proxy.extras.LogFormat logFormat =
-              org.littleshoot.proxy.extras.LogFormat.valueOf(format.toUpperCase());
-          plusActivityTracker(new ActivityLogger(logFormat));
-        } catch (IllegalArgumentException e) {
-          LOG.warn("Unknown activity log format requested in properties: {}", format);
-        }
-      }
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withName(String name) {
-      this.name = name;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withAddress(InetSocketAddress address) {
-      requestedAddress = address;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withPort(int port) {
-      requestedAddress = null;
-      this.port = port;
-      return this;
-    }
-
-    @Override
-    @NullMarked
-    public HttpProxyServerBootstrap withNetworkInterface(InetSocketAddress inetSocketAddress) {
-      localAddress = inetSocketAddress;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withProxyAlias(String alias) {
-      proxyAlias = alias;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withAllowLocalOnly(boolean allowLocalOnly) {
-      this.allowLocalOnly = allowLocalOnly;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withSslEngineSource(SslEngineSource sslEngineSource) {
-      this.sslEngineSource = sslEngineSource;
-      if (mitmManager != null) {
-        LOG.warn(
-            "Enabled encrypted inbound connections with man in the middle. "
-                + "These are mutually exclusive - man in the middle will be disabled.");
-        mitmManager = null;
-      }
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withAuthenticateSslClients(boolean authenticateSslClients) {
-      this.authenticateSslClients = authenticateSslClients;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withProxyAuthenticator(ProxyAuthenticator proxyAuthenticator) {
-      this.proxyAuthenticator = proxyAuthenticator;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withChainProxyManager(ChainedProxyManager chainProxyManager) {
-      this.chainProxyManager = chainProxyManager;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withManInTheMiddle(MitmManager mitmManager) {
-      this.mitmManager = mitmManager;
-      if (sslEngineSource != null) {
-        LOG.warn(
-            "Enabled man in the middle with encrypted inbound connections. "
-                + "These are mutually exclusive - encrypted inbound connections will be disabled.");
-        sslEngineSource = null;
-      }
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withFiltersSource(HttpFiltersSource filtersSource) {
-      this.filtersSource = filtersSource;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withUseDnsSec(boolean useDnsSec) {
-      if (useDnsSec) {
-        serverResolver = new DnsSecServerResolver();
-      } else {
-        serverResolver = new DefaultHostResolver();
-      }
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withTransparent(boolean transparent) {
-      this.transparent = transparent;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withIdleConnectionTimeout(int idleConnectionTimeoutInSeconds) {
-      this.idleConnectionTimeout = Duration.ofSeconds(idleConnectionTimeoutInSeconds);
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withIdleConnectionTimeout(Duration idleConnectionTimeout) {
-      this.idleConnectionTimeout = idleConnectionTimeout;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withConnectTimeout(int connectTimeout) {
-      this.connectTimeout = connectTimeout;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withServerResolver(HostResolver serverResolver) {
-      this.serverResolver = serverResolver;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withServerGroup(ServerGroup group) {
-      serverGroup = group;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap plusActivityTracker(ActivityTracker activityTracker) {
-      activityTrackers.add(activityTracker);
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withThrottling(
-        long readThrottleBytesPerSecond, long writeThrottleBytesPerSecond) {
-      this.readThrottleBytesPerSecond = readThrottleBytesPerSecond;
-      this.writeThrottleBytesPerSecond = writeThrottleBytesPerSecond;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withMaxInitialLineLength(int maxInitialLineLength) {
-      this.maxInitialLineLength = maxInitialLineLength;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withMaxHeaderSize(int maxHeaderSize) {
-      this.maxHeaderSize = maxHeaderSize;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withMaxChunkSize(int maxChunkSize) {
-      this.maxChunkSize = maxChunkSize;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withAllowRequestToOriginServer(
-        boolean allowRequestToOriginServer) {
-      this.allowRequestToOriginServer = allowRequestToOriginServer;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withAcceptProxyProtocol(boolean acceptProxyProtocol) {
-      this.acceptProxyProtocol = acceptProxyProtocol;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withSendProxyProtocol(boolean sendProxyProtocol) {
-      this.sendProxyProtocol = sendProxyProtocol;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withServerConnectionPoolType(
-        ServerConnectionPoolType poolType) {
-      this.serverConnectionPoolType =
-          poolType != null ? poolType : ServerConnectionPoolType.CONCURRENT_MAP;
-      return this;
-    }
-
-    /**
-     * Enable or disable the shared server connection pool.
-     *
-     * <p>When enabled, all client connections share a common pool of server connections, allowing
-     * connections to the same server to be reused across different client connections. This
-     * addresses connection explosion when many clients connect to the same servers.
-     *
-     * <p>Disabled by default for backwards compatibility.
-     *
-     * @param useSharedServerConnectionPool true to enable the shared pool
-     * @return this bootstrap
-     */
-    public HttpProxyServerBootstrap withSharedServerConnectionPool(
-        boolean useSharedServerConnectionPool) {
-      this.useSharedServerConnectionPool = useSharedServerConnectionPool;
-      return this;
-    }
-
-    /**
-     * Sets the maximum number of connections per host:port when using the shared connection pool.
-     *
-     * <p>Default is 10. This allows multiple connections to the same server for high concurrency
-     * scenarios.
-     *
-     * @param maxConnectionsPerHost the maximum number of connections per host:port
-     * @return this bootstrap
-     */
-    public HttpProxyServerBootstrap withMaxConnectionsPerHost(int maxConnectionsPerHost) {
-      this.maxConnectionsPerHost = maxConnectionsPerHost;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withMaxConnections(int maxConnections) {
-      this.maxConnections = maxConnections;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withPoolIdleTimeout(Duration idleTimeout) {
-      this.poolIdleTimeout = idleTimeout;
-      return this;
-    }
-
-    @Override
-    public HttpProxyServer start() {
-      return build().start();
-    }
-
-    @Override
-    public HttpProxyServerBootstrap withThreadPoolConfiguration(
-        ThreadPoolConfiguration configuration) {
-      clientToProxyAcceptorThreads = configuration.getAcceptorThreads();
-      clientToProxyWorkerThreads = configuration.getClientToProxyWorkerThreads();
-      proxyToServerWorkerThreads = configuration.getProxyToServerWorkerThreads();
-      return this;
-    }
-
-    private DefaultHttpProxyServer build() {
-      final ServerGroup serverGroup =
-          requireNonNullElseGet(
-              this.serverGroup,
-              () ->
-                  new ServerGroup(
-                      name,
-                      clientToProxyAcceptorThreads,
-                      clientToProxyWorkerThreads,
-                      proxyToServerWorkerThreads));
-
-      ServerConnectionPoolConfig poolConfig =
-          new ServerConnectionPoolConfig()
-              .setEnabled(useSharedServerConnectionPool)
-              .setPoolType(serverConnectionPoolType)
-              .setMaxConnectionsPerHost(maxConnectionsPerHost)
-              .setMaxConnections(maxConnections)
-              .setIdleTimeout(poolIdleTimeout);
-
-      DefaultHttpProxyServerConfig serverConfig =
-          new DefaultHttpProxyServerConfig()
-              .setTransportProtocol(transportProtocol)
-              .setRequestedAddress(determineListenAddress())
-              .setSslEngineSource(sslEngineSource)
-              .setAuthenticateSslClients(authenticateSslClients)
-              .setProxyAuthenticator(proxyAuthenticator)
-              .setChainProxyManager(chainProxyManager)
-              .setMitmManager(mitmManager)
-              .setFiltersSource(filtersSource)
-              .setTransparent(transparent)
-              .setIdleConnectionTimeout(idleConnectionTimeout)
-              .setActivityTrackers(activityTrackers)
-              .setConnectTimeout(connectTimeout)
-              .setServerResolver(serverResolver)
-              .setReadThrottleBytesPerSecond(readThrottleBytesPerSecond)
-              .setWriteThrottleBytesPerSecond(writeThrottleBytesPerSecond)
-              .setLocalAddress(localAddress)
-              .setProxyAlias(proxyAlias)
-              .setMaxInitialLineLength(maxInitialLineLength)
-              .setMaxHeaderSize(maxHeaderSize)
-              .setMaxChunkSize(maxChunkSize)
-              .setAllowRequestsToOriginServer(allowRequestToOriginServer)
-              .setAcceptProxyProtocol(acceptProxyProtocol)
-              .setSendProxyProtocol(sendProxyProtocol)
-              .setServerConnectionPoolConfig(poolConfig);
-
-      return new DefaultHttpProxyServer(serverGroup, serverConfig);
-    }
-
-    private InetSocketAddress determineListenAddress() {
-      if (requestedAddress != null) {
-        return requestedAddress;
-      } else {
-        // Binding only to localhost can significantly improve the
-        // security of the proxy.
-        if (allowLocalOnly) {
-          return new InetSocketAddress(LOCAL_ADDRESS, port);
-        } else {
-          return new InetSocketAddress(port);
-        }
-      }
-    }
   }
 }
