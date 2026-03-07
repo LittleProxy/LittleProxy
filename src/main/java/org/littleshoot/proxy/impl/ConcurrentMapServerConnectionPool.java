@@ -382,8 +382,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
 
   @Nullable
   private ProxyToServerConnection borrowAvailableConnection(String serverHostAndPort) {
-    Queue<PooledConnection> queue =
-        (Queue<PooledConnection>) availableConnectionsByHostAndPort.get(serverHostAndPort);
+    Queue<PooledConnection> queue = availableConnectionsByHostAndPort.get(serverHostAndPort);
     if (queue == null || queue.isEmpty()) {
       return null;
     }
