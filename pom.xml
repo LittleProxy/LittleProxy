@@ -33,7 +33,7 @@
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.0.3</junit.version>
         <log4j.version>2.25.3</log4j.version>
-        <mockito.version>5.21.0</mockito.version>
+        <mockito.version>5.22.0</mockito.version>
         <netty.version>4.2.10.Final</netty.version>
         <selenium.version>4.41.0</selenium.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -85,8 +85,8 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
-                          <groups>slow-test</groups>
-                          <argLine>-ea -Xmx256m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=target/slow-tests.hprof</argLine>
+                            <groups>slow-test</groups>
+                            <argLine>-ea -Xmx256m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=target/slow-tests.hprof</argLine>
                         </configuration>
                     </plugin>
                 </plugins>
@@ -535,7 +535,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
-                    <version>3.4.0</version>
+                    <version>3.5.0</version>
                 </plugin>
 
                 <plugin>
@@ -569,22 +569,6 @@
                     <artifactId>maven-gpg-plugin</artifactId>
                     <version>3.2.8</version>
                 </plugin>
-                <plugin>
-                    <groupId>com.diffplug.spotless</groupId>
-                    <artifactId>spotless-maven-plugin</artifactId>
-                    <version>3.2.1</version>
-                    <configuration>
-                        <java>
-                            <includes>
-                                <include>src/main/java/**/*.java</include> <!-- Check application code -->
-                                <include>src/test/java/**/*.java</include> <!-- Check application tests code -->
-                            </includes>
-                            <googleJavaFormat/>
-                            <importOrder />
-                            <removeUnusedImports />
-                        </java>
-                    </configuration>
-                </plugin>
             </plugins>
         </pluginManagement>
 
@@ -610,7 +594,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.6.1</version>
+                <version>3.6.2</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -649,7 +633,7 @@
                                         <Multi-Release>true</Multi-Release>
                                     </manifestEntries>
                                 </transformer>
-                                
+
                                 <!-- Log4j2 plugin transformer to handle shaded environment -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
                                     <resource>META-INF/log4j2-plugin.dat</resource>
@@ -698,6 +682,33 @@
                     <autoPublish>true</autoPublish>
                     <waitUntil>published</waitUntil>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include> <!-- Check application code -->
+                            <include>src/test/java/**/*.java</include> <!-- Check application tests code -->
+                        </includes>
+                        <googleJavaFormat>
+                            <version>1.28.0</version>
+                        </googleJavaFormat>
+                        <importOrder/>
+                        <removeUnusedImports />
+                        <trimTrailingWhitespace/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>apply</goal>
+                        </goals>
+                        <phase>compile</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
@@ -826,7 +837,6 @@
             </plugin>
         </plugins>
     </reporting>
-
     <developers>
         <developer>
             <id>mrogers</id>
