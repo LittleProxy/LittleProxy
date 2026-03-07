@@ -83,8 +83,8 @@ class InternalRedirectTest {
   @Test
   @Timeout(10)
   void testInternalRedirectFollowsRedirectTransparently() throws IOException {
-      assert wireMockServer != null;
-      int wireMockPort = wireMockServer.port();
+    assert wireMockServer != null;
+    int wireMockPort = wireMockServer.port();
 
     // Create a filter that follows redirects internally
     HttpFiltersSource filtersSource =
@@ -98,7 +98,7 @@ class InternalRedirectTest {
                 if (httpObject instanceof HttpResponse) {
                   HttpResponse response = (HttpResponse) httpObject;
                   if (HttpResponseStatus.FOUND.equals(response.status())
-                          && response.headers().contains(HttpHeaderNames.LOCATION)) {
+                      && response.headers().contains(HttpHeaderNames.LOCATION)) {
                     String location = response.headers().get(HttpHeaderNames.LOCATION);
                     return followRedirect(originalRequest, location);
                   }
@@ -110,7 +110,10 @@ class InternalRedirectTest {
         };
 
     proxyServer =
-        DefaultHttpProxyServer.bootstrap().withPort(FREE_PORT).withFiltersSource(filtersSource).start();
+        DefaultHttpProxyServer.bootstrap()
+            .withPort(FREE_PORT)
+            .withFiltersSource(filtersSource)
+            .start();
 
     int proxyPort = proxyServer.getListenAddress().getPort();
 
@@ -190,8 +193,8 @@ class InternalRedirectTest {
   /**
    * Resolves a redirect Location header to a full URL.
    *
-   * <p>Handles both:- Absolute URLs (<a href="http://example.com/path">...</a>) - returned as-is - Relative URLs
-   * (/path) - combined with the original host
+   * <p>Handles both:- Absolute URLs (<a href="http://example.com/path">...</a>) - returned as-is -
+   * Relative URLs (/path) - combined with the original host
    *
    * @param location The Location header value
    * @param originalHost The original request's Host header
