@@ -15,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 class SelfSignedSslEngineSourceTest {
 
   private static final String DEFAULT_KEYSTORE = "littleproxy_keystore.jks";
+  public static final int BUFFER_CAPACITY = 32768;
 
   @TempDir File tempDir;
 
@@ -41,9 +42,11 @@ class SelfSignedSslEngineSourceTest {
     // Clean up any existing keystore first to ensure the test is deterministic
     File keystore = new File(DEFAULT_KEYSTORE);
     if (keystore.exists()) {
-      boolean deleted = keystore.delete();
-      assertThat(deleted).isTrue();
+      // Attempt to delete, but don't fail test if delete fails (file may be locked)
+      // The assertion on doesNotExist() below will catch if cleanup failed
+      keystore.delete();
     }
+    assertThat(keystore).as("Keystore should not exist before test").doesNotExist();
 
     // Create instance using default constructor (generates the keystore via keytool)
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource();
@@ -62,99 +65,255 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testConstructorWithKeyStorePath() {
+  void testConstructorWithKeyStorePathGeneratesNewKeystore() {
+    // Test that a new keystore is generated when the specified file doesn't exist
     String keystorePath = new File(tempDir, "test_keystore.jks").getAbsolutePath();
-    Assertions.assertDoesNotThrow(() -> new SelfSignedSslEngineSource(keystorePath));
-  }
+    File keystoreFile = new File(keystorePath);
+    // Verify keystore doesn't exist before instantiation
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
-  @Test
-  void testConstructorWithTrustAllServers() {
-    Assertions.assertDoesNotThrow(() -> new SelfSignedSslEngineSource(true));
-  }
-
-  @Test
-  void testConstructorWithAllParameters() {
-    String keystorePath = new File(tempDir, "test.jks").getAbsolutePath();
-    Assertions.assertDoesNotThrow(() -> new SelfSignedSslEngineSource(keystorePath, true, false));
-  }
-
-  @Test
-  void testConstructorWithFullParameters() {
-    String keystorePath = new File(tempDir, "test_full.jks").getAbsolutePath();
-    Assertions.assertDoesNotThrow(
-        () ->
-            new SelfSignedSslEngineSource(
-                keystorePath, true, false, "test_alias", "test_password"));
-  }
-
-  @Test
-  void testNewSslEngine() {
-    String keystorePath = new File(tempDir, "engine_test.jks").getAbsolutePath();
+    // Create source - this should generate a new keystore
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
-    SSLEngine engine = source.newSslEngine();
 
+    // Verify source is properly initialized
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    // Verify keystore was created with content
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+
+    // Verify SSLEngine is created in server mode
+    SSLEngine engine = source.newSslEngine();
     assertThat(engine).isNotNull();
     assertThat(engine.getUseClientMode()).isFalse();
   }
 
   @Test
-  void testNewSslEngineWithPeerInfo() {
+  void testConstructorWithKeyStorePathReusesExistingKeystore() {
+    // Test that existing keystore is reused when file already exists
+    String keystorePath = new File(tempDir, "test_keystore_existing.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+
+    // First instantiation creates the keystore
+    SelfSignedSslEngineSource first = new SelfSignedSslEngineSource(keystorePath);
+    long originalSize = keystoreFile.length();
+    assertThat(originalSize).as("Original keystore should have content").isGreaterThan(0);
+
+    // Second instantiation should reuse existing keystore without modification
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
+
+    // Verify source is functional and keystore wasn't regenerated
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(keystoreFile.length())
+        .as("Keystore size should not change when reusing")
+        .isEqualTo(originalSize);
+
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+  }
+
+  @Test
+  void testConstructorWithTrustAllServersGeneratesDefaultKeystore() {
+    // Test trustAllServers=true with default keystore path
+    // Delete any existing default keystore to test generation
+    File defaultKeystore = new File(DEFAULT_KEYSTORE);
+    if (defaultKeystore.exists()) {
+      // Attempt to delete, but don't fail test if delete fails (file may be locked)
+      defaultKeystore.delete();
+    }
+    assertThat(defaultKeystore).as("Default keystore should not exist before test").doesNotExist();
+
+    // Create source with trustAllServers enabled
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(true);
+
+    // Verify source and SSLContext are initialized
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    // Verify default keystore was created
+    assertThat(defaultKeystore).as("Default keystore should be created").exists();
+    assertThat(defaultKeystore.length())
+        .as("Default keystore should not be empty")
+        .isGreaterThan(0);
+
+    // Verify SSLEngine is functional
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+    assertThat(engine.getUseClientMode()).isFalse();
+  }
+
+  @Test
+  void testConstructorWithTrustAllServersReusesExistingKeystore() {
+    // Test that existing default keystore is reused
+    File defaultKeystore = new File(DEFAULT_KEYSTORE);
+    // Ensure keystore exists before testing reuse
+    if (!defaultKeystore.exists()) {
+      new SelfSignedSslEngineSource(true);
+    }
+    long originalSize = defaultKeystore.length();
+    assertThat(originalSize).as("Original keystore should have content").isGreaterThan(0);
+
+    // Create another instance - should reuse existing keystore
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(true);
+
+    // Verify keystore wasn't regenerated
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(defaultKeystore.length())
+        .as("Keystore size should not change when reusing")
+        .isEqualTo(originalSize);
+
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+  }
+
+  @Test
+  void testConstructorWithAllParametersGeneratesNewKeystore() {
+    String keystorePath = new File(tempDir, "test.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, true, false);
+
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+    assertThat(engine.getUseClientMode()).isFalse();
+  }
+
+  @Test
+  void testConstructorWithFullParametersGeneratesNewKeystore() {
+    // Test constructor with custom alias and password parameters
+    String keystorePath = new File(tempDir, "test_full.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
+    SelfSignedSslEngineSource source =
+        new SelfSignedSslEngineSource(keystorePath, true, false, "test_alias", "test_password");
+
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+    assertThat(engine.getUseClientMode()).isFalse();
+  }
+
+  @Test
+  void testNewSslEngineGeneratesNewKeystore() {
+    // Test that newSslEngine() works and keystore is generated on demand
+    String keystorePath = new File(tempDir, "engine_test.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
+    SSLEngine engine = source.newSslEngine();
+
+    assertThat(engine).isNotNull();
+    assertThat(engine.getUseClientMode()).isFalse();
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+  }
+
+  @Test
+  void testNewSslEngineWithPeerInfoGeneratesNewKeystore() {
+    // Test newSslEngine(peerHost, peerPort) with custom peer information
     String keystorePath = new File(tempDir, "peer_test.jks").getAbsolutePath();
-    SelfSignedSslEngineSource source;
-    source = new SelfSignedSslEngineSource(keystorePath);
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
 
     SSLEngine engine = source.newSslEngine("example.com", -1);
 
     assertThat(engine).isNotNull();
     assertThat(engine.getPeerHost()).isEqualTo("example.com");
     assertThat(engine.getPeerPort()).isEqualTo(-1);
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
   }
 
   @Test
-  void testGetSslContext() {
+  void testGetSslContextGeneratesNewKeystore() {
+    // Test getSslContext() returns valid SSLContext and generates keystore
     String keystorePath = new File(tempDir, "context_test.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
 
     SSLContext context = source.getSslContext();
 
     assertThat(context).isNotNull();
     assertThat(context.getProtocol()).isEqualTo("TLS");
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
   }
 
   @Test
-  void testTrustAllServersOption() {
+  void testTrustAllServersOptionGeneratesNewKeystore() {
+    // Test trustAllServers=true option with sendCerts=true
     String keystorePath = new File(tempDir, "trust_test.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, true, true);
 
-    assertThat(source).isNotNull();
     assertThat(source.getSslContext()).isNotNull();
-  }
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
 
-  @Test
-  void testSendCertsOption() {
-    String keystorePath = new File(tempDir, "certs_test.jks").getAbsolutePath();
-    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, false, false);
-    assertThat(source).isNotNull();
     SSLEngine engine = source.newSslEngine();
     assertThat(engine).isNotNull();
   }
 
   @Test
-  void testTlsHandshake() throws Exception {
+  void testSendCertsOptionGeneratesNewKeystore() {
+    // Test sendCerts=false option (trustAllServers=false)
+    String keystorePath = new File(tempDir, "certs_test.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
+    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, false, false);
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+  }
+
+  @Test
+  void testTlsHandshakeGeneratesNewKeystore() throws Exception {
+    // Test that generated keystore enables successful TLS handshake
     String keystorePath = new File(tempDir, "handshake_test.jks").getAbsolutePath();
+    File keystoreFile = new File(keystorePath);
+    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
+
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
 
+    assertThat(keystoreFile).as("Keystore should be created").exists();
+    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+
+    // Create server-side SSLEngine
     SSLEngine serverEngine = source.newSslEngine();
     serverEngine.setUseClientMode(false);
 
+    // Create client-side SSLEngine using same SSLContext
     SSLContext clientContext = source.getSslContext();
-    // Port -1 is just session metadata - no actual network connection is made
-    // The handshake happens entirely in-memory via ByteBuffers
     SSLEngine clientEngine = clientContext.createSSLEngine("localhost", -1);
     clientEngine.setUseClientMode(true);
 
+    // Perform TLS handshake in-memory
     performHandshake(clientEngine, serverEngine);
 
+    // Verify handshake completed successfully
     assertThat(clientEngine.getSession()).isNotNull();
     assertThat(serverEngine.getSession()).isNotNull();
   }
@@ -162,8 +321,8 @@ class SelfSignedSslEngineSourceTest {
   // Performs an in-memory TLS handshake between two SSLEngines using ByteBuffers
   // This validates that the keystore produces valid certificates without needing a real network
   private void performHandshake(SSLEngine client, SSLEngine server) throws Exception {
-    ByteBuffer clientOut = ByteBuffer.allocate(32768);
-    ByteBuffer serverOut = ByteBuffer.allocate(32768);
+    ByteBuffer clientOut = ByteBuffer.allocate(BUFFER_CAPACITY);
+    ByteBuffer serverOut = ByteBuffer.allocate(BUFFER_CAPACITY);
     clientOut.flip();
     serverOut.flip();
 
@@ -194,19 +353,19 @@ class SelfSignedSslEngineSourceTest {
 
       if (client.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
         if (serverOut.hasRemaining()) {
-          ByteBuffer temp = ByteBuffer.allocate(32768);
+          ByteBuffer temp = ByteBuffer.allocate(BUFFER_CAPACITY);
           temp.put(serverOut);
           temp.flip();
-          client.unwrap(temp, ByteBuffer.allocate(32768));
+          client.unwrap(temp, ByteBuffer.allocate(BUFFER_CAPACITY));
         }
       }
 
       if (server.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
         if (clientOut.hasRemaining()) {
-          ByteBuffer temp = ByteBuffer.allocate(32768);
+          ByteBuffer temp = ByteBuffer.allocate(BUFFER_CAPACITY);
           temp.put(clientOut);
           temp.flip();
-          server.unwrap(temp, ByteBuffer.allocate(32768));
+          server.unwrap(temp, ByteBuffer.allocate(BUFFER_CAPACITY));
         }
       }
 
