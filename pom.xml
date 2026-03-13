@@ -37,6 +37,8 @@
         <netty.version>4.2.10.Final</netty.version>
         <selenium.version>4.41.0</selenium.version>
         <slf4j.version>2.0.17</slf4j.version>
+        <ulid.version>5.2.3</ulid.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <wiremock.version>3.13.2</wiremock.version>
     </properties>
 
@@ -272,6 +274,21 @@
             <scope>optional</scope>
         </dependency>
 
+        <!-- Jackson for JSON configuration parsing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ULID for unique flow IDs -->
+        <dependency>
+            <groupId>com.github.f4b6a3</groupId>
+            <artifactId>ulid-creator</artifactId>
+            <version>${ulid.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Optional DNS dependencies -->
         <dependency>
             <groupId>org.littleshoot</groupId>
@@ -326,6 +343,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
 

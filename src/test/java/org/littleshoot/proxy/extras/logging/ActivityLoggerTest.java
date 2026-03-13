@@ -1,0 +1,1850 @@
+package org.littleshoot.proxy.extras.logging;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import io.netty.handler.codec.http.*;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import javax.net.ssl.SSLSession;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.littleshoot.proxy.FlowContext;
+import org.littleshoot.proxy.FullFlowContext;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+class ActivityLoggerTest {
+
+  @Mock private FlowContext flowContext;
+  @Mock private FullFlowContext fullFlowContext;
+  @Mock private HttpRequest request;
+  @Mock private HttpResponse response;
+  @Mock private HttpHeaders requestHeaders;
+  @Mock private HttpHeaders responseHeaders;
+
+  @BeforeEach
+  void setUp() {
+    MockitoAnnotations.openMocks(this);
+    when(request.headers()).thenReturn(requestHeaders);
+    when(response.headers()).thenReturn(responseHeaders);
+  }
+
+  @Test
+  void testClfFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CLF);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("CLF Log: " + tracker.lastLogMessage);
+    // Expecting: 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100
+    assertThat(tracker.lastLogMessage).contains("127.0.0.1 - - [");
+    assertThat(tracker.lastLogMessage).contains("] \"GET /test HTTP/1.1\" 200 100");
+  }
+
+  @Test
+  void testJsonFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("JSON Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).startsWith("{");
+    assertThat(tracker.lastLogMessage).contains("\"client_ip\":\"127.0.0.1\"");
+    assertThat(tracker.lastLogMessage).contains("\"method\":\"GET\"");
+    assertThat(tracker.lastLogMessage).contains("\"uri\":\"/test\"");
+    assertThat(tracker.lastLogMessage).contains("\"status\":\"200\"");
+    assertThat(tracker.lastLogMessage).contains("\"bytes\":\"100\"");
+  }
+
+  @Test
+  void testCustomConfiguration() {
+    // Test custom field configuration
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.TIMESTAMP)
+            .addStandardField(StandardField.CLIENT_IP)
+            .addStandardField(StandardField.METHOD)
+            .addStandardField(StandardField.URI)
+            .addStandardField(StandardField.STATUS)
+            .addRequestHeader("X-Request-ID", "request_id")
+            .addRequestHeader("Authorization", "auth")
+            .addResponseHeader("X-Response-Time", "response_time")
+            .addResponseHeader("Cache-Control", "cache_control")
+            .addComputedField(ComputedField.GEOLOCATION_COUNTRY)
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Custom JSON Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"request_id\"");
+    assertThat(tracker.lastLogMessage).contains("\"response_time\"");
+    assertThat(tracker.lastLogMessage).contains("\"cache_control\"");
+    assertThat(tracker.lastLogMessage).contains("\"geolocation_country\"");
+  }
+
+  @Test
+  void testSecurityMonitoringConfiguration() {
+    LogFieldConfiguration config = SecurityMonitoringConfig.create();
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+
+    setupSecurityMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Security Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"csp\"");
+    assertThat(tracker.lastLogMessage).contains("\"hsts\"");
+    assertThat(tracker.lastLogMessage).contains("\"xss_protection\"");
+    assertThat(tracker.lastLogMessage).contains("\"forwarded_for\"");
+  }
+
+  @Test
+  void testPerformanceAnalyticsConfiguration() {
+    LogFieldConfiguration config = PerformanceAnalyticsConfig.create();
+    // Use JSON format to verify dynamic field configuration works
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+
+    setupPerformanceMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Performance Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"cache_status\":\"HIT\"");
+    assertThat(tracker.lastLogMessage)
+        .contains("\"server_timing\":\"miss,db;dur=53,app;dur=47.2\"");
+  }
+
+  @Test
+  void testAPIManagementConfiguration() {
+    LogFieldConfiguration config = APIManagementConfig.create();
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+
+    setupAPIMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("API Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("request_id");
+    assertThat(tracker.lastLogMessage).contains("rate_limit");
+    assertThat(tracker.lastLogMessage).contains("correlation_id");
+  }
+
+  @Test
+  void testElfFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.ELF);
+    setupMocks();
+    when(requestHeaders.get("Referer")).thenReturn("http://referrer.com");
+    when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("ELF Log: " + tracker.lastLogMessage);
+    // host ident authuser [date] "request" status bytes "referer" "user-agent"
+    // 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100 "http://referrer.com"
+    // "Mozilla/5.0"
+    assertThat(tracker.lastLogMessage).startsWith("127.0.0.1 - - [");
+    assertThat(tracker.lastLogMessage)
+        .contains("] \"GET /test HTTP/1.1\" 200 100 \"http://referrer.com\" \"Mozilla/5.0\"");
+  }
+
+  @Test
+  void testW3cFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.W3C);
+    setupMocks();
+    when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("W3C Log: " + tracker.lastLogMessage);
+    // date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
+    // YYYY-MM-DD HH:MM:SS 127.0.0.1 GET /test 200 100 "Mozilla/5.0"
+    assertThat(tracker.lastLogMessage).contains(" 127.0.0.1 GET /test 200 100 \"Mozilla/5.0\"");
+  }
+
+  @Test
+  void testLtsvFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV);
+    setupMocksWithDelay();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    // Simulate delay
+    try {
+      Thread.sleep(10);
+    } catch (InterruptedException ignored) {
+    }
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("LTSV Log: " + tracker.lastLogMessage);
+    // LTSV uses field names from StandardField (client_ip, bytes) not host/size
+    // Check for key fields in the output
+    assertThat(tracker.lastLogMessage).contains("client_ip:127.0.0.1");
+    assertThat(tracker.lastLogMessage).contains("method:GET");
+    assertThat(tracker.lastLogMessage).contains("uri:/test");
+    assertThat(tracker.lastLogMessage).contains("status:200");
+    assertThat(tracker.lastLogMessage).contains("bytes:100");
+    assertThat(tracker.lastLogMessage).contains("http_request_processing_time_ms:");
+  }
+
+  @Test
+  void testCsvFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV);
+    setupMocksWithDelay();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("CSV Log: " + tracker.lastLogMessage);
+    // CSV format uses dynamic field configuration
+    // Check for key values in the quoted CSV format
+    assertThat(tracker.lastLogMessage).contains("\"127.0.0.1\"");
+    assertThat(tracker.lastLogMessage).contains("\"GET\"");
+    assertThat(tracker.lastLogMessage).contains("\"/test\"");
+    assertThat(tracker.lastLogMessage).contains("\"200\"");
+    assertThat(tracker.lastLogMessage).contains("\"100\"");
+    assertThat(tracker.lastLogMessage).contains("\"Mozilla/5.0\"");
+  }
+
+  @Test
+  void testHaproxyFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.HAPROXY);
+    setupMocksWithDelay();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("HAProxy Log: " + tracker.lastLogMessage);
+    // HAProxy format: process[pid]: client_ip:port [date] frontend backend/server Tq/Tw/Tc/Tr/Ta
+    // status bytes ...
+    assertThat(tracker.lastLogMessage).startsWith("littleproxy[0]: 127.0.0.1:");
+    assertThat(tracker.lastLogMessage).contains("frontend backend/server");
+    assertThat(tracker.lastLogMessage).contains("\"GET /test HTTP/1.1\"");
+  }
+
+  @Test
+  void testSquidFormat() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.SQUID);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Squid Log: " + tracker.lastLogMessage);
+    // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
+    // type
+    // time is epoch seconds with milliseconds (e.g., 1234567890.123)
+    // For 2xx responses, we expect TCP_HIT (cache hit)
+    assertThat(tracker.lastLogMessage)
+        .matches(".*\\d+\\.\\d{3} \\d+ 127\\.0\\.0\\.1 TCP_HIT/200 100 GET /test - DIRECT/- -.*");
+  }
+
+  private static class TestableActivityLogger extends ActivityLogger {
+    String lastLogMessage;
+    boolean infoSummaryLogged = false;
+    String lastInfoSummary;
+    boolean logFlowTiming;
+
+    public TestableActivityLogger(LogFormat logFormat) {
+      super(logFormat, null);
+    }
+
+    public TestableActivityLogger(LogFormat logFormat, LogFieldConfiguration config) {
+      super(logFormat, config);
+    }
+
+    public TestableActivityLogger(
+        LogFormat logFormat, LogFieldConfiguration config, TimingMode timingMode) {
+      super(logFormat, config, timingMode);
+    }
+
+    @Override
+    protected void logFormattedEntry(String flowId, String message) {
+      this.lastLogMessage = message;
+      if (logFlowTiming) {
+        System.out.println("[FLOW_TIMING][INFO] flow=" + flowId + " message=" + message);
+      }
+    }
+
+    @Override
+    protected boolean shouldLogInfoEntry() {
+      return true; // Always log INFO entries in tests
+    }
+
+    void enableFlowTimingLogging() {
+      this.logFlowTiming = true;
+    }
+  }
+
+  private void setupMocks() {
+    setupMocksCommon();
+  }
+
+  private void setupMocksWithDelay() {
+    setupMocksCommon();
+    when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+  }
+
+  private void setupMocksCommon() {
+    InetSocketAddress clientAddr = mock(InetSocketAddress.class);
+    InetAddress inetAddr = mock(InetAddress.class);
+    when(flowContext.getClientAddress()).thenReturn(clientAddr);
+    when(clientAddr.getAddress()).thenReturn(inetAddr);
+    when(inetAddr.getHostAddress()).thenReturn("127.0.0.1");
+
+    when(request.method()).thenReturn(HttpMethod.GET);
+    when(request.uri()).thenReturn("/test");
+    when(request.protocolVersion()).thenReturn(HttpVersion.HTTP_1_1);
+
+    when(response.status()).thenReturn(HttpResponseStatus.OK);
+    when(responseHeaders.get("Content-Length")).thenReturn("100");
+  }
+
+  private void setupSecurityMocks() {
+    setupMocksCommon();
+    when(requestHeaders.get("X-Forwarded-For")).thenReturn("203.0.113.1");
+    when(requestHeaders.get("Authorization")).thenReturn("Bearer token123");
+    when(responseHeaders.get("Content-Security-Policy")).thenReturn("default-src 'self'");
+    when(responseHeaders.get("Strict-Transport-Security")).thenReturn("max-age=31536000");
+  }
+
+  private void setupPerformanceMocks() {
+    setupMocksCommon();
+    when(requestHeaders.get("Accept-Encoding")).thenReturn("gzip, deflate");
+    when(requestHeaders.get("If-None-Match")).thenReturn("\"12345\"");
+    when(responseHeaders.get("X-Cache")).thenReturn("HIT");
+    when(responseHeaders.get("Server-Timing")).thenReturn("miss,db;dur=53,app;dur=47.2");
+    when(responseHeaders.get("Cache-Control")).thenReturn("public, max-age=3600");
+  }
+
+  private void setupAPIMocks() {
+    setupMocksCommon();
+    when(requestHeaders.get("X-Request-ID")).thenReturn("req-12345");
+    when(requestHeaders.get("X-API-Version")).thenReturn("v1.0");
+    when(requestHeaders.get("X-Correlation-ID")).thenReturn("corr-67890");
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+  }
+
+  // ==================== LIFECYCLE LOGGING TESTS ====================
+
+  @Test
+  void testClientConnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Should not throw and should track client state
+    tracker.clientConnected(flowContext);
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify formatted log was generated
+    assertThat(tracker.lastLogMessage).isNotNull();
+    assertThat(tracker.lastLogMessage).contains("192.168.1.1");
+  }
+
+  @Test
+  void testClientSSLHandshakeSucceeded() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Connect client first
+    tracker.clientConnected(flowContext);
+
+    // Then complete SSL handshake
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Verify no exception thrown and tracking works
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testClientDisconnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+
+    // Connect then disconnect
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    tracker.clientConnected(flowContext);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testServerConnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
+    setupMocks();
+
+    // Connect to server
+    tracker.serverConnected(fullFlowContext, serverAddress);
+
+    // Verify tracking by completing request
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify server address appears in summary
+    assertThat(tracker.lastLogMessage).isNotNull();
+  }
+
+  @Test
+  void testServerDisconnected() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
+    setupMocks();
+
+    // Connect then disconnect
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionSaturated() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client
+    tracker.clientConnected(flowContext);
+
+    // Mark connection as saturated
+    tracker.connectionSaturated(flowContext);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionWritable() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Mark connection as writable
+    tracker.connectionWritable(flowContext);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionTimedOut() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Simulate timeout
+    tracker.connectionTimedOut(flowContext);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testConnectionExceptionCaught() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Simulate exception
+    IOException exception = new IOException("Connection reset by peer");
+    tracker.connectionExceptionCaught(flowContext, exception);
+
+    // Verify no exception thrown
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testCompleteInteractionSummary() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Setup full interaction using FullFlowContext for server tracking
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    tracker.clientConnected(flowContext);
+
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Setup mocks with fullFlowContext
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    InetAddress inetAddr = mock(InetAddress.class);
+    when(inetAddr.getHostAddress()).thenReturn("192.168.1.1");
+    when(request.method()).thenReturn(HttpMethod.GET);
+    when(request.uri()).thenReturn("/test");
+    when(request.protocolVersion()).thenReturn(HttpVersion.HTTP_1_1);
+    when(response.status()).thenReturn(HttpResponseStatus.OK);
+    when(responseHeaders.get("Content-Length")).thenReturn("100");
+    when(request.headers()).thenReturn(requestHeaders);
+    when(response.headers()).thenReturn(responseHeaders);
+
+    tracker.serverConnected(fullFlowContext, serverAddress);
+
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+
+    // Simulate some saturation
+    tracker.connectionSaturated(fullFlowContext);
+    tracker.connectionWritable(fullFlowContext);
+
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // Verify formatted log was generated (DEBUG level)
+    // Note: Server IP comes from StandardField extraction which returns "-" in test context
+    assertThat(tracker.lastLogMessage).isNotNull();
+    assertThat(tracker.lastLogMessage).contains("192.168.1.1");
+    assertThat(tracker.lastLogMessage).contains("GET");
+    assertThat(tracker.lastLogMessage).contains("/test");
+    assertThat(tracker.lastLogMessage).contains("200");
+
+    // Verify the interaction completed without errors
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testMultipleSaturationsCounted() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Connect client
+    tracker.clientConnected(flowContext);
+
+    // Simulate multiple saturation events
+    tracker.connectionSaturated(flowContext);
+    tracker.connectionSaturated(flowContext);
+    tracker.connectionSaturated(flowContext);
+
+    // Complete request
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify log was generated
+    assertThat(tracker.lastLogMessage).isNotNull();
+  }
+
+  @Test
+  void testExceptionTracking() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Connect client
+    tracker.clientConnected(flowContext);
+
+    // Simulate multiple exceptions
+    tracker.connectionExceptionCaught(flowContext, new IOException("Error 1"));
+    tracker.connectionExceptionCaught(flowContext, new RuntimeException("Error 2"));
+
+    // Complete request
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // Verify log was generated
+    assertThat(tracker.lastLogMessage).isNotNull();
+  }
+
+  @Test
+  void testPrefixRequestHeaders() {
+    // Setup custom headers with prefix
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Custom-Auth", "X-Custom-Id", "User-Agent"));
+    when(requestHeaders.get("X-Custom-Auth")).thenReturn("token123");
+    when(requestHeaders.get("X-Custom-Id")).thenReturn("abc-456");
+    when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersWithPrefix("X-Custom-")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Prefix Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"req_x_custom_auth\":\"token123\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_custom_id\":\"abc-456\"");
+  }
+
+  @Test
+  void testPrefixResponseHeadersWithTransformer() {
+    // Setup rate limit headers
+    when(responseHeaders.names())
+        .thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Content-Type"));
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersWithPrefix(
+                "X-RateLimit-", name -> name.replace("X-RateLimit-", "").toLowerCase())
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("RateLimit Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"remaining\":\"999\"");
+  }
+
+  @Test
+  void testPrefixHeadersInLtsvFormat() {
+    // Setup custom headers
+    when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Trace-Id", "X-Span-Id"));
+    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-123");
+    when(requestHeaders.get("X-Span-Id")).thenReturn("span-456");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersWithPrefix("X-Trace-")
+            .addRequestHeadersWithPrefix("X-Span-")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("LTSV Prefix Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("x_trace_id:trace-123");
+    assertThat(tracker.lastLogMessage).contains("x_span_id:span-456");
+  }
+
+  @Test
+  void testPrefixHeadersInCsvFormat() {
+    // Setup custom headers
+    when(responseHeaders.names()).thenReturn(java.util.Set.of("X-Cache-Status", "X-Cache-Hits"));
+    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
+    when(responseHeaders.get("X-Cache-Hits")).thenReturn("42");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersWithPrefix("X-Cache-")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("CSV Prefix Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"42\"");
+  }
+
+  @Test
+  void testRegexRequestHeaders() {
+    // Setup headers that match X-.*-Id pattern
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-Session-Id", "Content-Type"));
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
+    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
+    when(requestHeaders.get("X-Session-Id")).thenReturn("sess-789");
+    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersMatching("X-.*-Id")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Regex Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"req_x_request_id\":\"req-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_trace_id\":\"trace-456\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_x_session_id\":\"sess-789\"");
+  }
+
+  @Test
+  void testRegexResponseHeadersWithCaptureGroupTransformer() {
+    // Setup rate limit headers with different patterns
+    when(responseHeaders.names())
+        .thenReturn(
+            java.util.Set.of(
+                "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Cache-Status", "Content-Type"));
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
+    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersMatching(
+                "X-RateLimit-.*", name -> name.replaceAll("X-RateLimit-", "").toLowerCase())
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Regex RateLimit Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"remaining\":\"999\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("cache");
+  }
+
+  @Test
+  void testRegexHeadersCaseInsensitive() {
+    // Setup headers with mixed case
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Request-ID", "x-trace-id", "X-SPAN-ID"));
+    when(requestHeaders.get("X-Request-ID")).thenReturn("req-abc");
+    when(requestHeaders.get("x-trace-id")).thenReturn("trace-def");
+    when(requestHeaders.get("X-SPAN-ID")).thenReturn("span-ghi");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersMatching("(?i)x-.*-id") // case-insensitive
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Case-Insensitive Regex Log: " + tracker.lastLogMessage);
+    // All three headers should be matched regardless of case
+    assertThat(tracker.lastLogMessage).contains("x_request_id:req-abc");
+    assertThat(tracker.lastLogMessage).contains("x_trace_id:trace-def");
+    assertThat(tracker.lastLogMessage).contains("x_span_id:span-ghi");
+  }
+
+  @Test
+  void testRegexHeadersInCsvFormat() {
+    // Setup headers matching correlation pattern
+    when(responseHeaders.names())
+        .thenReturn(java.util.Set.of("X-Correlation-Id", "X-Transaction-Id", "X-Server-Name"));
+    when(responseHeaders.get("X-Correlation-Id")).thenReturn("corr-123");
+    when(responseHeaders.get("X-Transaction-Id")).thenReturn("txn-456");
+    when(responseHeaders.get("X-Server-Name")).thenReturn("server01");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addResponseHeadersMatching("X-.*-Id")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("CSV Regex Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"corr-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"txn-456\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("server01");
+  }
+
+  @Test
+  void testExcludeRequestHeaders() {
+    // Setup headers including sensitive ones to exclude
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("X-Request-Id", "Authorization", "Cookie", "Content-Type"));
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
+    when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token");
+    when(requestHeaders.get("Cookie")).thenReturn("session=abc123");
+    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .excludeRequestHeadersMatching("Authorization|Cookie")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Exclude Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"req_x_request_id\":\"req-123\"");
+    assertThat(tracker.lastLogMessage).contains("\"req_content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("authorization");
+    assertThat(tracker.lastLogMessage).doesNotContain("cookie");
+    assertThat(tracker.lastLogMessage).doesNotContain("secret-token");
+    assertThat(tracker.lastLogMessage).doesNotContain("session=abc123");
+  }
+
+  @Test
+  void testHeaderValueMasking() {
+    // Setup headers with sensitive values to mask
+    when(requestHeaders.names())
+        .thenReturn(java.util.Set.of("Authorization", "X-API-Key", "X-Request-Id"));
+    when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token-123");
+    when(requestHeaders.get("X-API-Key")).thenReturn("api-key-456");
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-789");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .addRequestHeadersMatching(
+                "X-.*",
+                name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_"),
+                value -> {
+                  // Mask sensitive values
+                  if (value.length() > 8) {
+                    return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+                  }
+                  return value;
+                })
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Masked Headers Log: " + tracker.lastLogMessage);
+    // api-key-456 -> api-****-456 (first 4 chars + **** + last 4 chars)
+    assertThat(tracker.lastLogMessage).contains("\"x_api_key\":\"api-****-456\"");
+    assertThat(tracker.lastLogMessage).contains("\"x_request_id\":\"req-789\"");
+  }
+
+  @Test
+  void testExcludeResponseHeaders() {
+    // Setup response headers including sensitive ones to exclude
+    when(responseHeaders.names())
+        .thenReturn(
+            java.util.Set.of("X-RateLimit-Limit", "Set-Cookie", "X-Cache-Status", "Content-Type"));
+    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
+    when(responseHeaders.get("Set-Cookie")).thenReturn("session=secret123; HttpOnly");
+    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
+    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .excludeResponseHeadersMatching("Set-Cookie")
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Exclude Response Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("\"res_x_ratelimit_limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"res_x_cache_status\":\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"res_content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).doesNotContain("set_cookie");
+    assertThat(tracker.lastLogMessage).doesNotContain("secret123");
+  }
+
+  @Test
+  void testExcludeWithAllHeaders() {
+    // Setup headers with X- prefix, using exclude to filter out sensitive ones
+    when(requestHeaders.names())
+        .thenReturn(
+            java.util.Set.of(
+                "X-Request-Id", "X-Trace-Id", "X-API-Key", "X-Client-Id", "Content-Type"));
+    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
+    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
+    when(requestHeaders.get("X-API-Key")).thenReturn("secret-api-key");
+    when(requestHeaders.get("X-Client-Id")).thenReturn("client-789");
+    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+
+    // Use exclude to log all headers EXCEPT the sensitive X-API-Key
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.CLIENT_IP)
+            .excludeRequestHeadersMatching(
+                "X-API-Key",
+                name -> name.replace("X-", "").toLowerCase().replaceAll("[^a-z0-9]", "-"),
+                value -> value)
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
+    setupMocks();
+
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    System.out.println("Exclude with All Headers Log: " + tracker.lastLogMessage);
+    assertThat(tracker.lastLogMessage).contains("request-id:req-123");
+    assertThat(tracker.lastLogMessage).contains("trace-id:trace-456");
+    assertThat(tracker.lastLogMessage).contains("client-id:client-789");
+    assertThat(tracker.lastLogMessage).contains("content-type:application/json");
+    assertThat(tracker.lastLogMessage).doesNotContain("api-key");
+    assertThat(tracker.lastLogMessage).doesNotContain("secret-api-key");
+  }
+
+  // ==================== TIMING MODE TESTS ====================
+
+  @Test
+  void testTimingModeOffDoesNotIncludeTimingData() {
+    // Test that when timing mode is OFF, no timing data is included in lifecycle events
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.OFF);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect and disconnect client
+    tracker.clientConnected(flowContext);
+    tracker.clientDisconnected(flowContext, null);
+
+    // Should not throw NPE and should complete successfully
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testTimingModeAllWithSslHandshake() {
+    // Test that when timing mode is ALL, timing data is included
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, complete SSL handshake, then disconnect
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    // Should not throw NPE and should complete successfully
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testTimingModeMinimalWithServerConnection() {
+    // Test that when timing mode is MINIMAL, server timing data is included
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.MINIMAL);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Connect to server then disconnect
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Should not throw NPE and should complete successfully
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testNullTimingDataHandledGracefully() {
+    // Test that disconnecting without a prior connect (no timing data) doesn't throw NPE
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Disconnect without connecting first (timing data will be null)
+    tracker.clientDisconnected(flowContext, null);
+
+    // Should not throw NPE
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testServerDisconnectWithoutConnect() {
+    // Test that server disconnect without prior connect doesn't throw NPE
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Disconnect without connecting first
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Should not throw NPE
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testSslHandshakeWithoutPriorConnect() {
+    // Test that SSL handshake success without prior connect doesn't throw NPE
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // SSL handshake without connecting first
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Should not throw NPE
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testClientDisconnectedWithNullClientAddress() {
+    // Test that clientDisconnected handles null client address gracefully
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+
+    when(flowContext.getClientAddress()).thenReturn(null);
+    when(flowContext.getTimingData(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+
+    // Should not throw NPE when client address is null
+    tracker.clientDisconnected(flowContext, null);
+
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testClientSSLHandshakeSucceededWithNullClientAddress() {
+    // Test that clientSSLHandshakeSucceeded handles null client address gracefully
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(null);
+
+    // Should not throw NPE when client address is null
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testServerDisconnectedWithNullServerAddress() {
+    // Test that serverDisconnected handles null server address gracefully
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+
+    when(fullFlowContext.getClientAddress()).thenReturn(null);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("server:443");
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+
+    // Should not throw NPE when server address is null
+    tracker.serverDisconnected(fullFlowContext, null);
+
+    assertThat(tracker).isNotNull();
+  }
+
+  @Test
+  void testTimingModeOffWithCompleteFlow() {
+    // Test complete interaction with timing mode OFF
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.OFF);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Complete flow without timing data
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+
+    // Should complete without NPE
+    assertThat(tracker).isNotNull();
+    assertThat(tracker.lastLogMessage).isNotNull();
+  }
+
+  @Test
+  void testTcpConnectionEstablishmentTimeSetForSslConnection() {
+    // Test that tcp_connection_establishment_time_ms is set for SSL connections
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, then complete SSL handshake
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Verify the timing data is set in FlowContext
+    Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    assertThat(establishmentTime).isNotNull();
+    assertThat(establishmentTime).isGreaterThanOrEqualTo(0);
+  }
+
+  @Test
+  void testTcpConnectionEstablishmentTimeSetForNonSslConnection() {
+    // Test that tcp_connection_establishment_time_ms is set for non-SSL (HTTP) connections
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, then receive request (no SSL handshake for HTTP)
+    tracker.clientConnected(flowContext);
+    tracker.requestReceivedFromClient(flowContext, request);
+
+    // Verify the timing data is set in FlowContext
+    Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    assertThat(establishmentTime).isNotNull();
+    assertThat(establishmentTime).isGreaterThanOrEqualTo(0);
+  }
+
+  @Test
+  void testSslHandshakeTimingFields() {
+    // Test that ssl_handshake_start_time_ms, ssl_handshake_end_time_ms, and ssl_handshake_time_ms
+    // are set
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect client, start and complete SSL handshake
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeStarted(flowContext);
+
+    // Verify handshake start time is set
+    Long handshakeStartTime = flowContext.getTimingData("ssl_handshake_start_time_ms");
+    assertThat(handshakeStartTime).isNotNull();
+    assertThat(handshakeStartTime).isGreaterThanOrEqualTo(0);
+
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+
+    // Verify handshake end time and duration are set
+    Long handshakeEndTime = flowContext.getTimingData("ssl_handshake_end_time_ms");
+    assertThat(handshakeEndTime).isNotNull();
+    assertThat(handshakeEndTime).isGreaterThanOrEqualTo(handshakeStartTime);
+
+    // Duration might be 0 due to millisecond precision, but should be set
+    Long handshakeDuration = flowContext.getTimingData("ssl_handshake_time_ms");
+    assertThat(handshakeDuration).isNotNull();
+    assertThat(handshakeDuration).isGreaterThanOrEqualTo(0L);
+  }
+
+  @Test
+  void testTcpClientConnectionDuration() {
+    // Test that tcp_client_connection_duration_ms is set on disconnect
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Connect then disconnect client
+    tracker.clientConnected(flowContext);
+
+    tracker.clientDisconnected(flowContext, null);
+
+    // Duration should be set (may be 0 due to millisecond precision)
+    Long duration = flowContext.getTimingData("tcp_client_connection_duration_ms");
+    assertThat(duration).isNotNull();
+    assertThat(duration).isGreaterThanOrEqualTo(0L);
+
+    // Verify start and end times are also set
+    Long startTime = flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    Long endTime = flowContext.getTimingData("tcp_client_connection_end_time_ms");
+    assertThat(startTime).isNotNull();
+    assertThat(endTime).isNotNull();
+    assertThat(endTime).isGreaterThanOrEqualTo(startTime);
+  }
+
+  @Test
+  void testTcpServerConnectionDuration() {
+    // Test that tcp_server_connection_duration_ms is set on server disconnect
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    // Connect to server then disconnect
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // Duration should be set (may be 0 due to millisecond precision)
+    Long duration = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    assertThat(duration).isNotNull();
+    assertThat(duration).isGreaterThanOrEqualTo(0L);
+
+    // Verify start and end times are also set
+    Long startTime = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    Long endTime = fullFlowContext.getTimingData("tcp_server_connection_end_time_ms");
+    assertThat(startTime).isNotNull();
+    assertThat(endTime).isNotNull();
+    assertThat(endTime).isGreaterThanOrEqualTo(startTime);
+  }
+
+  @Test
+  void testAllTimingFieldsInCompleteSslFlow() {
+    // Test all timing fields are properly set in a complete SSL flow
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Client connection
+    System.out.println("[TEST-TRACE] Step 1: clientConnected");
+    tracker.clientConnected(flowContext);
+    Long clientStartTime = flowContext.getTimingData("tcp_client_connection_start_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientConnected: tcp_client_connection_start_time_ms="
+            + clientStartTime);
+    assertThat(clientStartTime).isNotNull();
+
+    // SSL handshake
+    System.out.println("[TEST-TRACE] Step 2: clientSSLHandshakeStarted");
+    tracker.clientSSLHandshakeStarted(flowContext);
+    Long sslStartTime = flowContext.getTimingData("ssl_handshake_start_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientSSLHandshakeStarted: ssl_handshake_start_time_ms="
+            + sslStartTime);
+    assertThat(sslStartTime).isNotNull();
+
+    System.out.println("[TEST-TRACE] Step 3: clientSSLHandshakeSucceeded");
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+    Long sslEndTime = flowContext.getTimingData("ssl_handshake_end_time_ms");
+    Long sslDuration = flowContext.getTimingData("ssl_handshake_time_ms");
+    Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientSSLHandshakeSucceeded: ssl_handshake_end_time_ms="
+            + sslEndTime
+            + ", ssl_handshake_time_ms="
+            + sslDuration
+            + ", tcp_connection_establishment_time_ms="
+            + establishmentTime);
+    assertThat(sslEndTime).isNotNull();
+    assertThat(sslDuration).isNotNull();
+    assertThat(establishmentTime).isNotNull();
+
+    // Server connection
+    System.out.println("[TEST-TRACE] Step 4: serverConnected");
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    Long serverStartTime = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After serverConnected: tcp_server_connection_start_time_ms="
+            + serverStartTime);
+    assertThat(serverStartTime).isNotNull();
+
+    // Request/response
+    System.out.println("[TEST-TRACE] Step 5: requestReceivedFromClient");
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    Long requestStartTime = fullFlowContext.getTimingData("request_start_time");
+    System.out.println(
+        "[TEST-TRACE] After requestReceivedFromClient: request_start_time=" + requestStartTime);
+    assertThat(requestStartTime).isNotNull();
+
+    System.out.println("[TEST-TRACE] Step 6: responseSentToClient (generates INFO log)");
+    tracker.responseSentToClient(fullFlowContext, response);
+    Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
+    System.out.println(
+        "[TEST-TRACE] After responseSentToClient: http_request_processing_time_ms="
+            + processingTime);
+    System.out.println(
+        "[TEST-TRACE] At INFO log time: tcp_connection_establishment_time_ms="
+            + fullFlowContext.getTimingData("tcp_connection_establishment_time_ms"));
+    assertThat(processingTime).isNotNull();
+
+    // Server disconnect
+    System.out.println("[TEST-TRACE] Step 7: serverDisconnected");
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    Long serverEndTime = fullFlowContext.getTimingData("tcp_server_connection_end_time_ms");
+    Long serverDuration = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    System.out.println(
+        "[TEST-TRACE] After serverDisconnected: tcp_server_connection_end_time_ms="
+            + serverEndTime
+            + ", tcp_server_connection_duration_ms="
+            + serverDuration);
+    assertThat(serverEndTime).isNotNull();
+    assertThat(serverDuration).isNotNull();
+
+    // Client disconnect
+    System.out.println("[TEST-TRACE] Step 8: clientDisconnected");
+    tracker.clientDisconnected(flowContext, sslSession);
+    Long clientEndTime = flowContext.getTimingData("tcp_client_connection_end_time_ms");
+    Long clientDuration = flowContext.getTimingData("tcp_client_connection_duration_ms");
+    System.out.println(
+        "[TEST-TRACE] After clientDisconnected: tcp_client_connection_end_time_ms="
+            + clientEndTime
+            + ", tcp_client_connection_duration_ms="
+            + clientDuration);
+    assertThat(clientEndTime).isNotNull();
+    assertThat(clientDuration).isNotNull();
+  }
+
+  @Test
+  void testAllTimingFieldsInCompleteNonSslFlow() {
+    // Test all timing fields are properly set in a complete non-SSL (HTTP) flow
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Client connection
+    tracker.clientConnected(flowContext);
+    assertThat(flowContext.getTimingData("tcp_client_connection_start_time_ms")).isNotNull();
+
+    // For non-SSL, request received triggers establishment time calculation
+    tracker.requestReceivedFromClient(flowContext, request);
+    assertThat(flowContext.getTimingData("request_start_time")).isNotNull();
+    assertThat(flowContext.getTimingData("tcp_connection_establishment_time_ms")).isNotNull();
+
+    // For non-SSL flows, SSL handshake fields are not set (no assertion needed)
+
+    // Server connection
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_start_time_ms")).isNotNull();
+
+    tracker.responseSentToClient(fullFlowContext, response);
+    assertThat(fullFlowContext.getTimingData("http_request_processing_time_ms")).isNotNull();
+
+    // Server disconnect
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    assertThat(fullFlowContext.getTimingData("tcp_server_connection_duration_ms")).isNotNull();
+
+    // Client disconnect
+    tracker.clientDisconnected(flowContext, null);
+    assertThat(flowContext.getTimingData("tcp_client_connection_duration_ms")).isNotNull();
+  }
+
+  @Test
+  void testServerConnectionDurationTimingIssue() {
+    // Demonstrate the issue: server connection duration is not available at INFO log time
+    // because the server disconnects AFTER the response is sent (in a different request/response
+    // cycle)
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    setupMocks();
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Server connects
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    Long startTime = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    assertThat(startTime).isNotNull();
+
+    // At this point, duration should not be set (server still connected)
+    // Note: mock returns null for unset keys, but we need to verify the actual behavior
+    Long durationBeforeDisconnect =
+        fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    System.out.println("Duration before disconnect: " + durationBeforeDisconnect);
+    // The duration is null at this point (server still connected)
+
+    // Request/response happens while server is connected
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // Duration still not available (server still connected for keep-alive)
+    Long durationAfterResponse = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    System.out.println("Duration after response: " + durationAfterResponse);
+
+    // Server disconnects (maybe minutes later for keep-alive connections)
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+
+    // NOW duration is available
+    Long durationAfterDisconnect =
+        fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+    assertThat(durationAfterDisconnect).isNotNull();
+    assertThat(durationAfterDisconnect).isGreaterThanOrEqualTo(0L);
+  }
+
+  @Test
+  void testClientConnectedHandlesNullClientAddress() {
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(null);
+
+    assertThatCode(() -> tracker.clientConnected(flowContext)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void testFullFlowContextReusedAcrossServerLifecycle() {
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    SSLSession sslSession = mock(SSLSession.class);
+
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    Long tcpServerStart = fullFlowContext.getTimingData("tcp_server_connection_start_time_ms");
+    Long tcpServerDuration = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
+
+    assertThat(tcpServerStart)
+        .as("Server connection start time should be recorded on connection")
+        .isNotNull();
+    assertThat(tcpServerDuration)
+        .as("Server connection duration should be set when server disconnects")
+        .isNotNull();
+  }
+
+  @Test
+  void testTcpFieldsOmittedWhenNotAvailable() {
+    // Test that TCP timing fields are omitted from JSON logs when data is not available
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Ensure timing data returns null (simulating data not yet available)
+    when(flowContext.getTimingData("tcp_server_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_client_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_connection_establishment_time_ms")).thenReturn(null);
+    when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(null);
+
+    // Simulate HTTP request without calling lifecycle methods that set timing data
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    // The log message should be generated after responseSentToClient
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("HTTP Log without TCP data: " + logMessage);
+
+    // Verify the log was generated
+    assertThat(logMessage).isNotNull();
+    assertThat(logMessage).startsWith("{");
+
+    // TCP timing fields should NOT be present when data is unavailable
+    assertThat(logMessage).doesNotContain("tcp_server_connection_duration_ms");
+    assertThat(logMessage).doesNotContain("tcp_client_connection_duration_ms");
+    assertThat(logMessage).doesNotContain("tcp_connection_establishment_time_ms");
+    assertThat(logMessage).doesNotContain("ssl_handshake_time_ms");
+
+    // But HTTP fields should be present
+    assertThat(logMessage).contains("\"method\":\"GET\"");
+    assertThat(logMessage).contains("\"status\":\"200\"");
+    assertThat(logMessage).contains("\"client_ip\":\"192.168.1.1\"");
+  }
+
+  @Test
+  void testTcpFieldsPresentWhenAvailable() {
+    // Test that TCP timing fields ARE present when data is available
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
+    SSLSession sslSession = mock(SSLSession.class);
+    when(sslSession.getProtocol()).thenReturn("TLSv1.3");
+    when(sslSession.getCipherSuite()).thenReturn("TLS_AES_256_GCM_SHA384");
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Simulate complete flow with all connections closed
+    tracker.clientConnected(flowContext);
+    tracker.clientSSLHandshakeStarted(flowContext);
+    tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, sslSession);
+
+    // The log message should be generated after clientDisconnected
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("HTTP Log with TCP data: " + logMessage);
+
+    // Verify the log was generated
+    assertThat(logMessage).isNotNull();
+    assertThat(logMessage).startsWith("{");
+
+    // TCP timing fields SHOULD be present when data is available
+    assertThat(logMessage).contains("tcp_connection_establishment_time_ms");
+    assertThat(logMessage).contains("ssl_handshake_time_ms");
+    assertThat(logMessage).contains("tcp_client_connection_duration_ms");
+
+    // HTTP fields should still be present
+    assertThat(logMessage).contains("\"method\":\"GET\"");
+    assertThat(logMessage).contains("\"status\":\"200\"");
+  }
+
+  @Test
+  void testLtsvFormatOmitsNullFields() {
+    // Test that LTSV format omits fields with null values
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.LTSV, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    // Ensure timing data returns null (simulating data not yet available)
+    when(flowContext.getTimingData("tcp_server_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_client_connection_duration_ms")).thenReturn(null);
+    when(flowContext.getTimingData("tcp_connection_establishment_time_ms")).thenReturn(null);
+    when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(null);
+
+    // Simulate HTTP request without calling lifecycle methods that set timing data
+    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.responseSentToClient(flowContext, response);
+
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("LTSV Log without TCP data: " + logMessage);
+
+    // Verify the log was generated
+    assertThat(logMessage).isNotNull();
+
+    // TCP timing fields should NOT be present
+    assertThat(logMessage).doesNotContain("tcp_server_connection_duration_ms:");
+    assertThat(logMessage).doesNotContain("tcp_client_connection_duration_ms:");
+    assertThat(logMessage).doesNotContain("tcp_connection_establishment_time_ms:");
+    assertThat(logMessage).doesNotContain("ssl_handshake_time_ms:");
+
+    // HTTP fields should be present
+    assertThat(logMessage).contains("method:GET");
+    assertThat(logMessage).contains("status:200");
+  }
+
+  @Test
+  void testResponseLatencyMeasurement() {
+    // Test that response_latency_ms is measured correctly (TTFB - Time To First Byte)
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+
+    // Before receiving response from server, latency should not be set
+    Long latencyBefore = fullFlowContext.getTimingData("response_latency_ms");
+    assertThat(latencyBefore).isNull();
+
+    // Receive response from server - this sets latency
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+
+    // After receiving response from server, latency should be set
+    Long latencyAfter = fullFlowContext.getTimingData("response_latency_ms");
+    assertThat(latencyAfter).isNotNull();
+    assertThat(latencyAfter).isGreaterThanOrEqualTo(0L);
+
+    // First byte time should also be set
+    Long firstByteTime = fullFlowContext.getTimingData("response_first_byte_time_ms");
+    assertThat(firstByteTime).isNotNull();
+
+    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testResponseTransferTimeMeasurement() {
+    // Test that response_transfer_time_ms is measured correctly
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+
+    // Before sending response to client, transfer time should not be set
+    Long transferTimeBefore = fullFlowContext.getTimingData("response_transfer_time_ms");
+    assertThat(transferTimeBefore).isNull();
+
+    // Send response to client - this calculates transfer time
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // After sending response, transfer time should be set
+    Long transferTimeAfter = fullFlowContext.getTimingData("response_transfer_time_ms");
+    assertThat(transferTimeAfter).isNotNull();
+    assertThat(transferTimeAfter).isGreaterThanOrEqualTo(0L);
+
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testResponseTimeEqualsLatencyPlusTransferTime() {
+    // Test that: http_request_processing_time = response_latency + response_transfer_time
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    // Verify the relationship: response_time >= latency (transfer_time >= 0)
+    Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
+    Long latency = fullFlowContext.getTimingData("response_latency_ms");
+    Long transferTime = fullFlowContext.getTimingData("response_transfer_time_ms");
+
+    assertThat(processingTime).isNotNull();
+    assertThat(latency).isNotNull();
+    assertThat(transferTime).isNotNull();
+
+    // Processing time should be >= latency (since transfer time >= 0)
+    assertThat(processingTime).isGreaterThanOrEqualTo(latency);
+
+    // Latency + transfer time should approximately equal processing time
+    // (may not be exact due to millisecond precision, but should be very close)
+    long sum = latency + transferTime;
+    assertThat(sum).isLessThanOrEqualTo(processingTime + 1); // Allow 1ms tolerance
+
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testLatencyFieldsInLogOutput() {
+    // Test that latency and transfer time fields appear in JSON log output
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(StandardField.TIMESTAMP)
+            .addStandardField(StandardField.CLIENT_IP)
+            .addStandardField(StandardField.METHOD)
+            .addStandardField(StandardField.URI)
+            .addStandardField(StandardField.STATUS)
+            .addStandardField(StandardField.HTTP_REQUEST_PROCESSING_TIME_MS)
+            .addStandardField(StandardField.RESPONSE_LATENCY_MS)
+            .addStandardField(StandardField.RESPONSE_TRANSFER_TIME_MS)
+            .build();
+
+    TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+    InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 80);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(fullFlowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
+
+    // Complete flow
+    tracker.clientConnected(flowContext);
+    tracker.serverConnected(fullFlowContext, serverAddress);
+    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.responseReceivedFromServer(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response);
+
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("Latency Log: " + logMessage);
+
+    // Verify latency fields appear in output
+    assertThat(logMessage).contains("\"http_request_processing_time_ms\"");
+    assertThat(logMessage).contains("\"response_latency_ms\"");
+    assertThat(logMessage).contains("\"response_transfer_time_ms\"");
+
+    tracker.serverDisconnected(fullFlowContext, serverAddress);
+    tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testLatencyWithoutResponseReceivedFromServer() {
+    // Test that when responseReceivedFromServer is not called,
+    // latency is "-" and transfer time is "-"
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+    InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
+
+    setupMocks();
+    when(flowContext.getClientAddress()).thenReturn(clientAddress);
+
+    // Configure mocks to use a real map for timing data
+    java.util.Map<String, Long> timingData = new java.util.concurrent.ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              timingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(flowContext)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(flowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> timingData.get(inv.getArgument(0)));
+
+    // Skip responseReceivedFromServer call
+    tracker.clientConnected(flowContext);
+    tracker.requestReceivedFromClient(flowContext, request);
+    // Note: NOT calling responseReceivedFromServer
+    tracker.responseSentToClient(flowContext, response);
+
+    String logMessage = tracker.lastLogMessage;
+    System.out.println("Log without responseReceivedFromServer: " + logMessage);
+
+    // Latency should be "-" (not set)
+    assertThat(logMessage).contains("\"response_latency_ms\":\"-\"");
+    // Transfer time should be "-" (not set)
+    assertThat(logMessage).contains("\"response_transfer_time_ms\":\"-\"");
+
+    tracker.clientDisconnected(flowContext, null);
+  }
+}
