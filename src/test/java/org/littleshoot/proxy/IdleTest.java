@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 
 /**
  * Note - this test only works on UNIX systems because it checks file descriptor counts.
@@ -20,6 +21,7 @@ import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
  * <p>It also fails on macOS (tested on 10.14 Mojave). It works on Ubuntu, and presumably most other
  * *nix systems.
  */
+@EnableThreadDump
 public final class IdleTest {
   private static final int NUMBER_OF_CONNECTIONS_TO_OPEN = 2000;
 
