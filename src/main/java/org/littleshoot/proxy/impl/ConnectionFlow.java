@@ -1,14 +1,9 @@
 package org.littleshoot.proxy.impl;
 
-import io.netty.handler.codec.haproxy.HAProxyCommand;
-import io.netty.handler.codec.haproxy.HAProxyMessage;
-import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
-import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.util.concurrent.Future;
-import java.net.InetSocketAddress;
+
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import org.littleshoot.proxy.extras.ProxyProtocolMessage;
 
 /**
  * Coordinates the various steps involved in establishing a connection, such as establishing a
@@ -142,36 +137,8 @@ class ConnectionFlow {
     synchronized (connectLock) {
       serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
       serverConnection.connectionSucceeded(!suppressInitialRequest);
-      relayProxyInformation();
       notifyThreadsWaitingForConnection();
     }
-  }
-
-  private void relayProxyInformation() {
-    if (clientConnection.isSendProxyProtocol()) {
-      ProxyProtocolMessage proxyProtocolMessage =
-          getHAProxyMessage(
-              clientConnection.getClientAddress(), serverConnection.getRemoteAddress());
-      if (proxyProtocolMessage != null) {
-        serverConnection.writeToChannel(proxyProtocolMessage);
-      }
-    }
-  }
-
-  private ProxyProtocolMessage getHAProxyMessage(
-      InetSocketAddress clientAddress, InetSocketAddress remoteAddress) {
-    HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
-    if (haProxyMessage != null) {
-      return new ProxyProtocolMessage(haProxyMessage);
-    }
-    return new ProxyProtocolMessage(
-        HAProxyProtocolVersion.V1,
-        HAProxyCommand.PROXY,
-        HAProxyProxiedProtocol.TCP4,
-        clientAddress.getAddress().getHostAddress(),
-        remoteAddress.getAddress().getHostAddress(),
-        clientAddress.getPort(),
-        remoteAddress.getPort());
   }
 
   /**
