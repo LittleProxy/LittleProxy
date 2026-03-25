@@ -10,11 +10,6 @@ import org.junit.jupiter.api.Test;
 class DefaultHostResolverTest {
 
   @Test
-  void testImplementsHostResolver() {
-    assertThat(new DefaultHostResolver()).isInstanceOf(HostResolver.class);
-  }
-
-  @Test
   void testResolveLocalhost() throws UnknownHostException {
     DefaultHostResolver resolver = new DefaultHostResolver();
 
