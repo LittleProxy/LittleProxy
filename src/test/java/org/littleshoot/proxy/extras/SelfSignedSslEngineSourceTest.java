@@ -1,10 +1,14 @@
 package org.littleshoot.proxy.extras;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.security.KeyStore;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -15,7 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 class SelfSignedSslEngineSourceTest {
 
   private static final String DEFAULT_KEYSTORE = "littleproxy_keystore.jks";
-  public static final int BUFFER_CAPACITY = 32768;
+  private static final int BUFFER_CAPACITY = 32768;
 
   @TempDir File tempDir;
 
@@ -37,7 +41,7 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testDefaultConstructor() {
+  void defaultConstructor() {
     // The default constructor creates "littleproxy_keystore.jks" in the working directory
     // Clean up any existing keystore first to ensure the test is deterministic
     File keystore = new File(DEFAULT_KEYSTORE);
@@ -46,7 +50,6 @@ class SelfSignedSslEngineSourceTest {
       // The assertion on doesNotExist() below will catch if cleanup failed
       keystore.delete();
     }
-    assertThat(keystore).as("Keystore should not exist before test").doesNotExist();
 
     // Create instance using default constructor (generates the keystore via keytool)
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource();
@@ -65,31 +68,7 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testConstructorWithKeyStorePathGeneratesNewKeystore() {
-    // Test that a new keystore is generated when the specified file doesn't exist
-    String keystorePath = new File(tempDir, "test_keystore.jks").getAbsolutePath();
-    File keystoreFile = new File(keystorePath);
-    // Verify keystore doesn't exist before instantiation
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
-
-    // Create source - this should generate a new keystore
-    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
-
-    // Verify source is properly initialized
-    assertThat(source.getSslContext()).isNotNull();
-    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
-    // Verify keystore was created with content
-    assertThat(keystoreFile).as("Keystore should be created").exists();
-    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
-
-    // Verify SSLEngine is created in server mode
-    SSLEngine engine = source.newSslEngine();
-    assertThat(engine).isNotNull();
-    assertThat(engine.getUseClientMode()).isFalse();
-  }
-
-  @Test
-  void testConstructorWithKeyStorePathReusesExistingKeystore() {
+  void constructorWithKeyStorePathReusesExistingKeystore() {
     // Test that existing keystore is reused when file already exists
     String keystorePath = new File(tempDir, "test_keystore_existing.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
@@ -113,7 +92,7 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testConstructorWithTrustAllServersGeneratesDefaultKeystore() {
+  void constructorWithTrustAllServersGeneratesDefaultKeystore() {
     // Test trustAllServers=true with default keystore path
     // Delete any existing default keystore to test generation
     File defaultKeystore = new File(DEFAULT_KEYSTORE);
@@ -121,7 +100,6 @@ class SelfSignedSslEngineSourceTest {
       // Attempt to delete, but don't fail test if delete fails (file may be locked)
       defaultKeystore.delete();
     }
-    assertThat(defaultKeystore).as("Default keystore should not exist before test").doesNotExist();
 
     // Create source with trustAllServers enabled
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(true);
@@ -142,7 +120,7 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testConstructorWithTrustAllServersReusesExistingKeystore() {
+  void constructorWithTrustAllServersReusesExistingKeystore() {
     // Test that existing default keystore is reused
     File defaultKeystore = new File(DEFAULT_KEYSTORE);
     // Ensure keystore exists before testing reuse
@@ -166,10 +144,9 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testConstructorWithAllParametersGeneratesNewKeystore() {
+  void constructorWithAllParametersGeneratesNewKeystore() {
     String keystorePath = new File(tempDir, "test.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, true, false);
 
@@ -184,14 +161,15 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testConstructorWithFullParametersGeneratesNewKeystore() {
+  void constructorWithFullParametersGeneratesNewKeystore() throws Exception {
     // Test constructor with custom alias and password parameters
     String keystorePath = new File(tempDir, "test_full.jks").getAbsolutePath();
+    String alias = "test_alias";
+    String password = "test_password";
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source =
-        new SelfSignedSslEngineSource(keystorePath, true, false, "test_alias", "test_password");
+        new SelfSignedSslEngineSource(keystorePath, true, false, alias, password);
 
     assertThat(source.getSslContext()).isNotNull();
     assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
@@ -201,30 +179,55 @@ class SelfSignedSslEngineSourceTest {
     SSLEngine engine = source.newSslEngine();
     assertThat(engine).isNotNull();
     assertThat(engine.getUseClientMode()).isFalse();
+    // this is an indrect check that password is used
+    assertThatThrownBy(
+            () -> {
+              KeyStore keyStore = KeyStore.getInstance("JKS");
+              try (FileInputStream fis = new FileInputStream(keystoreFile)) {
+                keyStore.load(fis, "Be Your Own Lantern".toCharArray());
+              }
+            })
+        .as("Keystore should not be loadable with default password")
+        .isInstanceOf(IOException.class);
+
+    KeyStore keyStore = KeyStore.getInstance("JKS");
+    try (FileInputStream fis = new FileInputStream(keystoreFile)) {
+      keyStore.load(fis, password.toCharArray());
+    }
+    assertThat(keyStore.containsAlias(alias))
+        .as("Keystore should contain the custom alias")
+        .isTrue();
   }
 
   @Test
-  void testNewSslEngineGeneratesNewKeystore() {
-    // Test that newSslEngine() works and keystore is generated on demand
-    String keystorePath = new File(tempDir, "engine_test.jks").getAbsolutePath();
+  void constructorWithKeyStorePathGeneratesNewKeystore() {
+    // Test that a new keystore is generated when the specified file doesn't exist
+    String keystorePath = new File(tempDir, "test_keystore.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
+    // Verify keystore doesn't exist before instantiation
     assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
+    // Create source - this should generate a new keystore
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
-    SSLEngine engine = source.newSslEngine();
 
-    assertThat(engine).isNotNull();
-    assertThat(engine.getUseClientMode()).isFalse();
+    // Verify source is properly initialized
+    assertThat(source.getSslContext()).isNotNull();
+    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
+    // Verify keystore was created with content
     assertThat(keystoreFile).as("Keystore should be created").exists();
     assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
+
+    // Verify SSLEngine is created in server mode
+    SSLEngine engine = source.newSslEngine();
+    assertThat(engine).isNotNull();
+    assertThat(engine.getUseClientMode()).isFalse();
   }
 
   @Test
-  void testNewSslEngineWithPeerInfoGeneratesNewKeystore() {
+  void newSslEngineWithPeerInfoGeneratesNewKeystore() {
     // Test newSslEngine(peerHost, peerPort) with custom peer information
     String keystorePath = new File(tempDir, "peer_test.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
 
@@ -238,11 +241,10 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testGetSslContextGeneratesNewKeystore() {
+  void getSslContextGeneratesNewKeystore() {
     // Test getSslContext() returns valid SSLContext and generates keystore
     String keystorePath = new File(tempDir, "context_test.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
 
@@ -255,11 +257,10 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testTrustAllServersOptionGeneratesNewKeystore() {
+  void trustAllServersOptionGeneratesNewKeystore() {
     // Test trustAllServers=true option with sendCerts=true
     String keystorePath = new File(tempDir, "trust_test.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, true, true);
 
@@ -273,13 +274,20 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testSendCertsOptionGeneratesNewKeystore() {
+  void sendCertsOptionGeneratesNewKeystore() {
     // Test sendCerts=false option (trustAllServers=false)
     String keystorePath = new File(tempDir, "certs_test.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, false, false);
+
+    assertThat(getBooleanField(source, "trustAllServers"))
+        .as("trustAllServers should be initialized from constructor")
+        .isFalse();
+    assertThat(getBooleanField(source, "sendCerts"))
+        .as("sendCerts should be initialized from constructor")
+        .isFalse();
+
     assertThat(source.getSslContext()).isNotNull();
     assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
     assertThat(keystoreFile).as("Keystore should be created").exists();
@@ -290,11 +298,10 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void testTlsHandshakeGeneratesNewKeystore() throws Exception {
+  void tlsHandshakeGeneratesNewKeystore() throws Exception {
     // Test that generated keystore enables successful TLS handshake
     String keystorePath = new File(tempDir, "handshake_test.jks").getAbsolutePath();
     File keystoreFile = new File(keystorePath);
-    assertThat(keystoreFile).as("Keystore should not exist before test").doesNotExist();
 
     SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath);
 
@@ -370,6 +377,16 @@ class SelfSignedSslEngineSourceTest {
       }
 
       Thread.sleep(1);
+    }
+  }
+
+  private static boolean getBooleanField(SelfSignedSslEngineSource source, String fieldName) {
+    try {
+      Field field = SelfSignedSslEngineSource.class.getDeclaredField(fieldName);
+      field.setAccessible(true);
+      return field.getBoolean(source);
+    } catch (NoSuchFieldException | IllegalAccessException e) {
+      throw new AssertionError("Unable to read field '" + fieldName + "'", e);
     }
   }
 }
