@@ -37,7 +37,7 @@ class DefaultHostResolverTest {
   void testResolveUnknownHost() {
     DefaultHostResolver resolver = new DefaultHostResolver();
 
-    assertThatThrownBy(() -> resolver.resolve("this-host-does-not-exist-12345.xyz", 80))
+    assertThatThrownBy(() -> resolver.resolve("this-host.invalid", 80))
         .isInstanceOf(UnknownHostException.class);
   }
 
