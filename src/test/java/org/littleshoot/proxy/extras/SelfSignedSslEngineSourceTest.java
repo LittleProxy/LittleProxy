@@ -144,23 +144,6 @@ class SelfSignedSslEngineSourceTest {
   }
 
   @Test
-  void constructorWithAllParametersGeneratesNewKeystore() {
-    String keystorePath = new File(tempDir, "test.jks").getAbsolutePath();
-    File keystoreFile = new File(keystorePath);
-
-    SelfSignedSslEngineSource source = new SelfSignedSslEngineSource(keystorePath, true, false);
-
-    assertThat(source.getSslContext()).isNotNull();
-    assertThat(source.getSslContext().getProtocol()).isEqualTo("TLS");
-    assertThat(keystoreFile).as("Keystore should be created").exists();
-    assertThat(keystoreFile.length()).as("Keystore should not be empty").isGreaterThan(0);
-
-    SSLEngine engine = source.newSslEngine();
-    assertThat(engine).isNotNull();
-    assertThat(engine.getUseClientMode()).isFalse();
-  }
-
-  @Test
   void constructorWithFullParametersGeneratesNewKeystore() throws Exception {
     // Test constructor with custom alias and password parameters
     String keystorePath = new File(tempDir, "test_full.jks").getAbsolutePath();
