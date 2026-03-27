@@ -3,6 +3,8 @@ package org.littleshoot.proxy;
 import java.net.InetSocketAddress;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSession;
+
+import io.netty.handler.codec.haproxy.HAProxyMessage;
 import org.littleshoot.proxy.impl.ClientToProxyConnection;
 
 /**
@@ -15,7 +17,12 @@ public class FlowContext {
   private final long connectionId;
 
   public FlowContext(ClientToProxyConnection clientConnection) {
-    clientAddress = clientConnection.getClientAddress();
+    HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
+    if (haProxyMessage != null) {
+      clientAddress = new InetSocketAddress(haProxyMessage.sourceAddress(), haProxyMessage.sourcePort());
+    } else {
+      clientAddress = clientConnection.getClientAddress();
+    }
     SSLEngine sslEngine = clientConnection.getSslEngine();
     clientSslSession = sslEngine != null ? sslEngine.getSession() : null;
     this.connectionId = clientConnection.getId();
