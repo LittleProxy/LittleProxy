@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
  * href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
  */
 public final class EndToEndStoppingTest {
-  private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
+  private static final Logger logger = LoggerFactory.getLogger(EndToEndStoppingTest.class);
 
   private WireMockServer mockServer;
   private int mockServerPort;
@@ -132,10 +132,10 @@ public final class EndToEndStoppingTest {
       final String body = IOUtils.toString(entity.getContent(), StandardCharsets.US_ASCII);
       EntityUtils.consume(entity);
 
-      log.info("Consuming entity -- got body: {}", body);
+      logger.info("Consuming entity -- got body: {}", body);
       EntityUtils.consume(response.getEntity());
 
-      log.info("Stopping proxy");
+      logger.info("Stopping proxy");
     } finally {
       proxy.abort();
     }
@@ -146,7 +146,7 @@ public final class EndToEndStoppingTest {
   @Timeout(60)
   public void testWithWebDriver() {
     String os = System.getProperty("os.name", "unknown").toLowerCase(ROOT);
-    log.info("OS: {} (is windows: {})", os, os.contains("win"));
+    logger.info("OS: {} (is windows: {})", os, os.contains("win"));
     assumeThat(os.contains("win")).isFalse();
 
     HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();

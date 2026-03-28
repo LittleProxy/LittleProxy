@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 /** An {@link org.littleshoot.proxy.ActivityTracker} that logs HTTP activity. */
 public class ActivityLogger extends ActivityTrackerAdapter {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ActivityLogger.class);
+  private static final Logger logger = LoggerFactory.getLogger(ActivityLogger.class);
   private static final String DATE_FORMAT_CLF = "dd/MMM/yyyy:HH:mm:ss Z";
   public static final String UTC = "UTC";
   public static final String USER_AGENT = "User-Agent";
@@ -61,7 +61,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   protected void log(String message) {
-    LOG.info(message);
+    logger.info(message);
   }
 
   // Cleanup on disconnect just in case
