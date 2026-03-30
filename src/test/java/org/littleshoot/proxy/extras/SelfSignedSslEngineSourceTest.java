@@ -9,14 +9,19 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class SelfSignedSslEngineSourceTest {
+final class SelfSignedSslEngineSourceTest {
 
   private static final String DEFAULT_KEYSTORE = "littleproxy_keystore.jks";
   private static final int BUFFER_CAPACITY = 32768;
@@ -162,7 +167,7 @@ class SelfSignedSslEngineSourceTest {
     SSLEngine engine = source.newSslEngine();
     assertThat(engine).isNotNull();
     assertThat(engine.getUseClientMode()).isFalse();
-    // this is an indrect check that password is used
+    // this is an indirect check that password is used
     assertThatThrownBy(
             () -> {
               KeyStore keyStore = KeyStore.getInstance("JKS");
@@ -171,14 +176,15 @@ class SelfSignedSslEngineSourceTest {
               }
             })
         .as("Keystore should not be loadable with default password")
-        .isInstanceOf(IOException.class);
+        .isInstanceOf(IOException.class)
+        .hasMessageStartingWith("keystore password was incorrect");
 
     KeyStore keyStore = KeyStore.getInstance("JKS");
     try (FileInputStream fis = new FileInputStream(keystoreFile)) {
       keyStore.load(fis, password.toCharArray());
     }
     assertThat(keyStore.containsAlias(alias))
-        .as("Keystore should contain the custom alias")
+        .as(() -> "Keystore should contain the custom alias, but received: " + aliasesOf(keyStore))
         .isTrue();
   }
 
@@ -308,6 +314,14 @@ class SelfSignedSslEngineSourceTest {
     assertThat(serverEngine.getSession()).isNotNull();
   }
 
+  private List<String> aliasesOf(KeyStore keyStore) {
+    try {
+      return Collections.list(keyStore.aliases());
+    } catch (KeyStoreException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   // Performs an in-memory TLS handshake between two SSLEngines using ByteBuffers
   // This validates that the keystore produces valid certificates without needing a real network
   private void performHandshake(SSLEngine client, SSLEngine server) throws Exception {
@@ -319,26 +333,21 @@ class SelfSignedSslEngineSourceTest {
     int maxIterations = 100;
     while (client.getHandshakeStatus() != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING
         || server.getHandshakeStatus() != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
-      if (maxIterations-- <= 0) {
-        throw new AssertionError("TLS handshake did not complete");
-      }
+      maxIterations--;
+      assertThat(maxIterations).isPositive();
 
       if (client.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
         clientOut.clear();
         SSLEngineResult cr = client.wrap(ByteBuffer.allocate(0), clientOut);
         clientOut.flip();
-        if (cr.getStatus() != SSLEngineResult.Status.OK) {
-          throw new AssertionError("Client wrap failed: " + cr.getStatus());
-        }
+        assertThat(cr.getStatus()).isEqualTo(SSLEngineResult.Status.OK);
       }
 
       if (server.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
         serverOut.clear();
         SSLEngineResult sr = server.wrap(ByteBuffer.allocate(0), serverOut);
         serverOut.flip();
-        if (sr.getStatus() != SSLEngineResult.Status.OK) {
-          throw new AssertionError("Server wrap failed: " + sr.getStatus());
-        }
+        assertThat(sr.getStatus()).isEqualTo(SSLEngineResult.Status.OK);
       }
 
       if (client.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {

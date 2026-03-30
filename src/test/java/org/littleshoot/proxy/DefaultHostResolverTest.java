@@ -7,25 +7,23 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import org.junit.jupiter.api.Test;
 
-class DefaultHostResolverTest {
+final class DefaultHostResolverTest {
+  private final DefaultHostResolver resolver = new DefaultHostResolver();
 
   @Test
-  void testResolveLocalhost() throws UnknownHostException {
-    DefaultHostResolver resolver = new DefaultHostResolver();
-
+  void resolveLocalhost() throws UnknownHostException {
     InetSocketAddress address = resolver.resolve("localhost", 8080);
 
     assertThat(address).isNotNull();
     assertThat(address.getPort()).isEqualTo(8080);
     assertThat(address.getAddress()).isNotNull();
-    // localhost should resolve to 127.0.0.1
-    assertThat(address.getAddress().isLoopbackAddress()).isTrue();
+    assertThat(address.getAddress().isLoopbackAddress())
+        .as("localhost should resolve to 127.0.0.1")
+        .isTrue();
   }
 
   @Test
-  void testResolveWithIpAddress() throws UnknownHostException {
-    DefaultHostResolver resolver = new DefaultHostResolver();
-
+  void resolveWithIpAddress() throws UnknownHostException {
     InetSocketAddress address = resolver.resolve("127.0.0.1", 9090);
 
     assertThat(address).isNotNull();
@@ -34,17 +32,13 @@ class DefaultHostResolverTest {
   }
 
   @Test
-  void testResolveUnknownHost() {
-    DefaultHostResolver resolver = new DefaultHostResolver();
-
+  void resolveUnknownHost() {
     assertThatThrownBy(() -> resolver.resolve("this-host.invalid", 80))
         .isInstanceOf(UnknownHostException.class);
   }
 
   @Test
-  void testResolveReturnsCorrectPort() throws UnknownHostException {
-    DefaultHostResolver resolver = new DefaultHostResolver();
-
+  void resolveReturnsCorrectPort() throws UnknownHostException {
     InetSocketAddress address = resolver.resolve("localhost", 443);
 
     assertThat(address.getPort()).isEqualTo(443);
