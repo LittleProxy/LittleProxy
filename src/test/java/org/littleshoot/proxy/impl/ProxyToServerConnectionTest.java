@@ -61,7 +61,8 @@ class ProxyToServerConnectionTest {
     connection.disconnected();
 
     // then
-    verify(throwingTracker).serverDisconnected(any(FullFlowContext.class), any(InetSocketAddress.class));
+    verify(throwingTracker)
+        .serverDisconnected(any(FullFlowContext.class), any(InetSocketAddress.class));
     verify(mockClientConnection).clearFlowContextForServerConnection(connection);
   }
 
@@ -69,7 +70,7 @@ class ProxyToServerConnectionTest {
   @DisplayName("disconnected should clear flow context when no exception occurs")
   void disconnectedShouldClearFlowContextWhenNoException() throws Exception {
 
-    //given
+    // given
     DefaultHttpProxyServer mockProxyServer = mock();
     ClientToProxyConnection mockClientConnection = mock();
     HttpFilters mockFilters = mock();
@@ -100,11 +101,12 @@ class ProxyToServerConnectionTest {
             mockTrafficHandler);
 
     assertThat(connection).isNotNull();
-    //when
+    // when
     connection.disconnected();
 
-    //then
-    verify(normalTracker).serverDisconnected(any(FullFlowContext.class), any(InetSocketAddress.class));
+    // then
+    verify(normalTracker)
+        .serverDisconnected(any(FullFlowContext.class), any(InetSocketAddress.class));
     verify(mockClientConnection).clearFlowContextForServerConnection(connection);
   }
 }

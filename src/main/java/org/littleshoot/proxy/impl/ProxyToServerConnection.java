@@ -1038,6 +1038,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    *     hostname
    */
   private void resetConnectionForRetry() throws UnknownHostException {
+    // Clear cached flow context so that setupConnectionParameters() creates a fresh one
+    clientConnection.clearFlowContextForServerConnection(this);
+
     // Remove ourselves as handler on the old context
     ctx.pipeline().remove(this);
     ctx.close();
