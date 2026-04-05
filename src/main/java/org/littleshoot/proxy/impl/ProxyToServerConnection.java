@@ -1342,14 +1342,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   private void recordServerDisconnected() {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.serverDisconnected(flowContext, remoteAddress);
       }
-      clientConnection.clearFlowContextForServerConnection(this);
     } catch (Exception e) {
       LOG.error("Unable to recordServerDisconnected", e);
+    } finally {
+      clientConnection.clearFlowContextForServerConnection(this);
     }
   }
 
