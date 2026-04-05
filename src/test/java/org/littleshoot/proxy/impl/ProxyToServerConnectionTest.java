@@ -21,7 +21,7 @@ class ProxyToServerConnectionTest {
   @Test
   @DisplayName("disconnected should clear flow context even when ActivityTracker throws exception")
   void disconnectedShouldClearFlowContextEvenWhenActivityTrackerThrowsException() throws Exception {
-    //given
+    // given
     DefaultHttpProxyServer mockProxyServer = mock();
     ClientToProxyConnection mockClientConnection = mock();
     HttpFilters mockFilters = mock();
@@ -56,11 +56,11 @@ class ProxyToServerConnectionTest {
             mockTrafficHandler);
 
     assertThat(connection).isNotNull();
-    //when
-    //recordServerDisconnected which is called in disconnected, clear FlowContext
+    // when
+    // recordServerDisconnected which is called in disconnected, clear FlowContext
     connection.disconnected();
 
-    //then
+    // then
     verify(mockClientConnection).clearFlowContextForServerConnection(connection);
   }
 

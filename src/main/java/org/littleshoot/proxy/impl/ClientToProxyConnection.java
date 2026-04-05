@@ -1615,13 +1615,13 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private void recordClientDisconnected() {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.clientDisconnected(flowContext, clientSslSession);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientDisconnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientDisconnected", e);
     }
   }
 
