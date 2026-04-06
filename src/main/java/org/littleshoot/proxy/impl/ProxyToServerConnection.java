@@ -1329,13 +1329,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       };
 
   private void recordServerConnected() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.serverConnected(flowContext, remoteAddress);
+      } catch (Exception e) {
+        LOG.error("Unable to recordServerConnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordServerConnected", e);
     }
   }
 
@@ -1343,56 +1343,58 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     try {
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        tracker.serverDisconnected(flowContext, remoteAddress);
+        try {
+          tracker.serverDisconnected(flowContext, remoteAddress);
+        } catch (Exception e) {
+          LOG.error("Unable to recordServerDisconnected", e);
+        }
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordServerDisconnected", e);
     } finally {
       clientConnection.clearFlowContextForServerConnection(this);
     }
   }
 
   private void recordConnectionSaturated() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionSaturated(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionSaturated", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionSaturated", e);
     }
   }
 
   private void recordConnectionWritable() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionWritable(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionWritable", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionWritable", e);
     }
   }
 
   private void recordConnectionTimedOut() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionTimedOut(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionTimedOut", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionTimedOut", e);
     }
   }
 
   private void recordConnectionExceptionCaught(Throwable cause) {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionExceptionCaught(flowContext, cause);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionExceptionCaught", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionExceptionCaught", e);
     }
   }
 }
