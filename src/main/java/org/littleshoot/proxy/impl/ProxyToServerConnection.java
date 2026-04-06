@@ -1069,9 +1069,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       // Report DNS resolution to HttpFilters
       long dnsStartTime = System.currentTimeMillis();
       clientConnection.flowContext().setTimingData("dns_resolution_start_time_ms", dnsStartTime);
-      clientConnection
-          .flowContextForServerConnection(this)
-          .setTimingData("dns_resolution_start_time_ms", dnsStartTime);
       remoteAddress = currentFilters.proxyToServerResolutionStarted(serverHostAndPort);
 
       // save the hostname and port of the unresolved address in hostAndPort, in case name
@@ -1103,16 +1100,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       currentFilters.proxyToServerResolutionSucceeded(serverHostAndPort, remoteAddress);
       long dnsEndTime = System.currentTimeMillis();
       FlowContext clientFlowContext = clientConnection.flowContext();
-      FlowContext serverFlowContext = clientConnection.flowContextForServerConnection(this);
+      // Only cache server flow context AFTER DNS resolution succeeds
+      FullFlowContext serverFlowContext = clientConnection.flowContextForServerConnection(this);
       clientFlowContext.setTimingData("dns_resolution_end_time_ms", dnsEndTime);
+      serverFlowContext.setTimingData("dns_resolution_start_time_ms", dnsStartTime);
       serverFlowContext.setTimingData("dns_resolution_end_time_ms", dnsEndTime);
-
-      Long startTime = clientFlowContext.getTimingData("dns_resolution_start_time_ms");
-      if (startTime != null) {
-        long duration = dnsEndTime - startTime;
-        clientFlowContext.setTimingData("dns_resolution_time_ms", duration);
-        serverFlowContext.setTimingData("dns_resolution_time_ms", duration);
-      }
+      serverFlowContext.setTimingData("dns_resolution_time_ms", dnsEndTime - dnsStartTime);
 
       localAddress = proxyServer.getLocalAddress();
     }
