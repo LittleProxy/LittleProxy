@@ -1,7 +1,15 @@
 # Release Notes
 
-- 2.6.1 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
-  - TBD
+- 2.7.0 (06.04.2026, https://github.com/LittleProxy/LittleProxy/milestone/50?closed=1)
+  - fix WebSocket proxying by Andrei Solntsev
+  - add WebSocket frame observation hook by Andrei Solntsev
+  - #464 fix authentication bug when forwarding request with "Proxy-Authorization" header to a chained proxy (#691) by Charles Lescot
+  - quickly resolve localhost name (#698) by Andrei Solntsev
+  - #56 #439 fix timeout detection logic in ClientToProxyConnection (#699) by Charles Lescot
+  - #680 fix issue with generated jks and cert at root (#681) by Charles Lescot
+  - migration to log4j2 and async logging available (#684) by Charles Lescot
+  - enhance ActivityTracker interface with new lifecycle methods (#708) by Charles Lescot
+  - add unit test demonstrating how to do "internal redirect" (#68) (#718) by Charles Lescot
 
 - 2.6.0 (19.01.2026, https://github.com/LittleProxy/LittleProxy/milestone/49?closed=1)
   - Feature/activity tracker logging (#668) by Charles Lescot

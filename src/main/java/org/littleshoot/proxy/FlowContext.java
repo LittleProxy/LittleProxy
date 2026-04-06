@@ -2,6 +2,9 @@ package org.littleshoot.proxy;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSession;
@@ -41,6 +44,8 @@ public class FlowContext {
    * @param value the timing value in milliseconds
    */
   public void setTimingData(String key, Long value) {
+    Objects.requireNonNull(key, "timing key must not be null");
+    Objects.requireNonNull(value, "timing value must not be null");
     timingData.put(key, value);
   }
 
