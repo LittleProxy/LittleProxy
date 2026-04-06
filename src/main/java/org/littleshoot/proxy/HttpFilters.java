@@ -7,6 +7,8 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import java.net.InetSocketAddress;
+import java.util.function.Supplier;
+
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.impl.ProxyUtils;
@@ -198,8 +200,14 @@ public interface HttpFilters {
    *
    * <p>This method is informational — the frame cannot be modified or suppressed here.
    *
+   * <p>
+   *   <b>Important:</b> The {@code frameBytes} supplier must be called synchronously within this
+   *   method. Storing the supplier for later invocation will result in undefined behavior as the
+   *   underlying buffer is released after this method returns.
+   * </p>
+   *
    * @param frameBytes the raw bytes of the WebSocket frame
    * @param fromClient true if the frame was sent by the client, false if sent by the server
    */
-  default void webSocketFrameReceived(byte[] frameBytes, boolean fromClient) {}
+  default void webSocketFrameReceived(Supplier<byte[]> frameBytes, boolean fromClient) {}
 }
