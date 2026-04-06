@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 
-public final class MmdbGeoCountryResolver implements GeoCountryResolver {
+public final class MmdbGeoCountryResolver implements GeoCountryResolver, AutoCloseable {
 
   private final Reader reader;
 
@@ -20,6 +20,13 @@ public final class MmdbGeoCountryResolver implements GeoCountryResolver {
       throw new IOException("MMDB database not found: " + databasePath);
     }
     this.reader = new Reader(databasePath.toFile());
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (reader != null) {
+      reader.close();
+    }
   }
 
   @Override
