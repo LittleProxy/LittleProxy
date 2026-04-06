@@ -471,6 +471,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
       fixHttpVersionHeaderIfNecessary(httpResponse);
       modifyResponseHeadersToReflectProxying(httpResponse);
+
+      // modifyResponseHeadersToReflectProxying strips hop-by-hop headers (Upgrade, Connection),
+      // but a WebSocket upgrade response requires both to be present for the client to switch
+      // protocols. Re-add them after the general stripping.
+      if (isSwitchingToWebSocketProtocol) {
+        httpResponse.headers().set(HttpHeaderNames.UPGRADE, "websocket");
+        httpResponse.headers().set(HttpHeaderNames.CONNECTION, "Upgrade");
+      }
     } else {
       isSwitchingToWebSocketProtocol = false;
     }
@@ -487,10 +495,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     write(filteredhttpObject)
         .addListener(
             l -> {
-              if (ProxyUtils.isLastChunk(filteredhttpObject)) {
-                writeEmptyBuffer();
-              } else if (isSwitchingToWebSocketProtocol) {
+              if (isSwitchingToWebSocketProtocol) {
                 switchToWebSocketProtocol(serverConnection);
+              } else if (ProxyUtils.isLastChunk(filteredhttpObject)) {
+                writeEmptyBuffer();
               }
 
               closeConnectionsAfterWriteIfNecessary(
@@ -519,7 +527,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
           .replace(
               MAIN_HANDLER_NAME,
               "pipe-to-server",
-              new ProxyConnectionPipeHandler(serverConnection));
+              new WebSocketFramePipeHandler(serverConnection, currentFilters, true));
     }
     orderedHandlersToRemove.forEach(this::removeHandlerIfPresent);
   }
