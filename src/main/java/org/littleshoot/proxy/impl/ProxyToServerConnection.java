@@ -475,7 +475,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void exceptionCaught(Throwable cause) {
     try {
-      recordConnectionExceptionCaught(cause);
+      if (!is(DISCONNECTED)) {
+        recordConnectionExceptionCaught(cause);
+      }
       if (cause instanceof ProxyConnectException) {
         LOG.info(
             "A ProxyConnectException occurred on ProxyToServerConnection: " + cause.getMessage());
