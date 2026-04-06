@@ -188,4 +188,18 @@ public interface HttpFilters {
    * @return true to allow mitm, false to not mitm the proxy to server connection.
    */
   boolean proxyToServerAllowMitm();
+
+  /**
+   * Notifies the filter that a WebSocket frame has been received and is about to be forwarded.
+   * Called after the HTTP connection has been upgraded to WebSocket.
+   *
+   * <p>The {@code frameBytes} contain the raw, unmodified WebSocket frame as received from the
+   * network. Client-to-server frames are masked per RFC 6455; server-to-client frames are not.
+   *
+   * <p>This method is informational — the frame cannot be modified or suppressed here.
+   *
+   * @param frameBytes the raw bytes of the WebSocket frame
+   * @param fromClient true if the frame was sent by the client, false if sent by the server
+   */
+  default void webSocketFrameReceived(byte[] frameBytes, boolean fromClient) {}
 }

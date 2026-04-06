@@ -1251,7 +1251,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           .replace(
               MAIN_HANDLER_NAME,
               "pipe-to-client",
-              new ProxyConnectionPipeHandler(clientConnection));
+              new WebSocketFramePipeHandler(clientConnection, currentFilters, false));
     }
     orderedHandlersToRemove.forEach(this::removeHandlerIfPresent);
     tunneling = true;
