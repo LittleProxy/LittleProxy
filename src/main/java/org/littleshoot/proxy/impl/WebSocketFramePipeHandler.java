@@ -6,15 +6,14 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import java.util.function.Supplier;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.function.Supplier;
-
 /**
- * A {@link ChannelInboundHandlerAdapter} that forwards raw WebSocket frame bytes to the peer connection
- * and optionally notifies an {@link HttpFilters} observer via {@link
+ * A {@link ChannelInboundHandlerAdapter} that forwards raw WebSocket frame bytes to the peer
+ * connection and optionally notifies an {@link HttpFilters} observer via {@link
  * HttpFilters#webSocketFrameReceived(Supplier, boolean)}.
  *
  * <p>Installed on both the client-to-proxy and proxy-to-server channels after a WebSocket upgrade,
@@ -38,8 +37,7 @@ public class WebSocketFramePipeHandler extends ChannelInboundHandlerAdapter {
     if (filters != null && msg instanceof ByteBuf) {
       try {
         filters.webSocketFrameReceived(new WebSocketFrameBytes((ByteBuf) msg), fromClient);
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         log.error("Failed to notify listeners that websocket frame received", e);
       }
     }
