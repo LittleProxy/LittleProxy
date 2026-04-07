@@ -1600,10 +1600,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       };
 
   private void recordClientConnected() {
-
     InetSocketAddress clientAddress = getClientAddress();
     clientDetails.setClientAddress(clientAddress);
-    FlowContext flowContext = flowContext();
+    FlowContext flowContext = clientFlowContext;
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientConnected(flowContext);
@@ -1615,7 +1614,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordClientSSLHandshakeStarted() {
 
-    FlowContext flowContext = flowContext();
+    FlowContext flowContext = clientFlowContext;
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientSSLHandshakeStarted(flowContext);
@@ -1627,7 +1626,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordClientSSLHandshakeSucceeded() {
 
-    FlowContext flowContext = flowContext();
+    FlowContext flowContext = clientFlowContext;
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientSSLHandshakeSucceeded(flowContext, clientSslSession);
@@ -1638,7 +1637,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private void recordClientDisconnected() {
-    FlowContext flowContext = flowContext();
+    FlowContext flowContext = clientFlowContext;
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientDisconnected(flowContext, clientSslSession);
@@ -1650,7 +1649,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordConnectionWritable() {
 
-    FlowContext flowContext = flowContext();
+    FlowContext flowContext = clientFlowContext;
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.connectionWritable(flowContext);
