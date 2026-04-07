@@ -27,7 +27,7 @@ public class ExcludeResponseHeaderField implements LogField {
       String excludeRegex,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.excludePattern = Pattern.compile(excludeRegex);
+    this.excludePattern = Pattern.compile(excludeRegex, Pattern.CASE_INSENSITIVE);
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
