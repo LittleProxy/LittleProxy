@@ -112,11 +112,13 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
     sb.append("\tclient_ip:").append(sanitizeLtsv(getClientIp(context)));
 
     // Add all event-specific attributes
-    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-      sb.append("\t")
-          .append(sanitizeLtsv(entry.getKey()))
-          .append(":")
-          .append(sanitizeLtsv(entry.getValue() != null ? entry.getValue().toString() : null));
+    if (attributes != null) {
+      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+        sb.append("\t")
+            .append(sanitizeLtsv(entry.getKey()))
+            .append(":")
+            .append(sanitizeLtsv(entry.getValue() != null ? entry.getValue().toString() : null));
+      }
     }
     return sb.toString();
   }
