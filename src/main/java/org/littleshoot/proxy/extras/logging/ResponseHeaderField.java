@@ -2,6 +2,7 @@ package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Objects;
 import org.littleshoot.proxy.FlowContext;
 
 /**
@@ -20,9 +21,12 @@ public class ResponseHeaderField implements LogField {
    * @param headerName the name of the HTTP header to extract
    */
   public ResponseHeaderField(String headerName) {
-    this.headerName = headerName;
-    this.fieldName = "resp_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
-    this.description = "Response header: " + headerName;
+    this.headerName = Objects.requireNonNull(headerName, "headerName must not be null");
+    if (this.headerName.isBlank()) {
+      throw new IllegalArgumentException("headerName must not be blank");
+    }
+    this.fieldName = "resp_" + this.headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
+    this.description = "Response header: " + this.headerName;
   }
 
   /**
@@ -32,9 +36,12 @@ public class ResponseHeaderField implements LogField {
    * @param fieldName the name to use for this field in logs
    */
   public ResponseHeaderField(String headerName, String fieldName) {
-    this.headerName = headerName;
-    this.fieldName = fieldName;
-    this.description = "Response header: " + headerName;
+    this.headerName = Objects.requireNonNull(headerName, "headerName must not be null");
+    this.fieldName = Objects.requireNonNull(fieldName, "fieldName must not be null");
+    if (this.headerName.isBlank() || this.fieldName.isBlank()) {
+      throw new IllegalArgumentException("headerName/fieldName must not be blank");
+    }
+    this.description = "Response header: " + this.headerName;
   }
 
   @Override
@@ -49,6 +56,9 @@ public class ResponseHeaderField implements LogField {
 
   @Override
   public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+    if (response == null || response.headers() == null) {
+      return "-";
+    }
     String value = response.headers().get(headerName);
     return value != null ? value : "-";
   }
