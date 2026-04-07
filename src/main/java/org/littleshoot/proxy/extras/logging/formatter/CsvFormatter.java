@@ -28,7 +28,7 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
     StringBuilder sb = new StringBuilder();
 
     // Comma-Separated Values
-    sb.append("\"").append(escapeJson(flowId)).append("\"");
+    sb.append("\"").append(escapeCsv(flowId)).append("\"");
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
@@ -36,42 +36,42 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append(",");
-          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
         }
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append(",");
-          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
         }
       } else if (field instanceof RegexRequestHeaderField) {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append(",");
-          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
         }
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append(",");
-          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append(",");
-          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append(",");
-          sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
         }
       } else {
         String value = field.extractValue(context, request, response);
@@ -79,7 +79,7 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
         String csvValue = value != null ? value : "";
         sb.append(",");
 
-        sb.append("\"").append(escapeJson(csvValue)).append("\"");
+        sb.append("\"").append(escapeCsv(csvValue)).append("\"");
       }
     }
 
@@ -95,15 +95,24 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("\"").append(escapeJson(flowId)).append("\"");
-    sb.append(",\"").append(event.getEventName()).append("\"");
-    sb.append(",\"").append(escapeJson(getClientIp(context))).append("\"");
+    sb.append("\"").append(escapeCsv(flowId)).append("\"");
+    sb.append(",\"").append(escapeCsv(event.getEventName())).append("\"");
+    sb.append(",\"").append(escapeCsv(getClientIp(context))).append("\"");
 
     // Add all event-specific attributes
-    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-      sb.append(",\"").append(escapeJson(String.valueOf(entry.getValue()))).append("\"");
+    if (attributes != null) {
+      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+        sb.append(",\"").append(escapeCsv(String.valueOf(entry.getValue()))).append("\"");
+      }
     }
 
     return sb.toString();
+  }
+
+  private String escapeCsv(String value) {
+    if (value == null) {
+      return "";
+    }
+    return value.replace("\"", "\"\"");
   }
 }
