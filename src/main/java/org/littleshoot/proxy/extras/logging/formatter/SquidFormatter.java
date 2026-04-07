@@ -32,6 +32,10 @@ public class SquidFormatter extends AbstractLogEntryFormatter {
 
     // Get timing data from flow context
     String durationMs = getTimingData(context, "http_request_processing_time_ms");
+    // Ensure elapsed field is always numeric
+    if ("-".equals(durationMs)) {
+      durationMs = "0";
+    }
 
     // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
     // type
@@ -62,11 +66,7 @@ public class SquidFormatter extends AbstractLogEntryFormatter {
    * @return cache result code (TCP_HIT or TCP_MISS)
    */
   private String determineCacheResult(HttpResponse response) {
-    int status = response.status().code();
-    // 2xx and 3xx are generally considered cacheable hits
-    if (status >= 200 && status < 400) {
-      return "TCP_HIT";
-    }
+    // LittleProxy is not a caching proxy; avoid implying cache hits.
     return "TCP_MISS";
   }
 
