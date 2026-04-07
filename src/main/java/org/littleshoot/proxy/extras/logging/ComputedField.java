@@ -63,6 +63,9 @@ public enum ComputedField implements LogField {
   }
 
   private String extractCacheHitRatio(HttpRequest request, HttpResponse response) {
+    if (response == null || response.headers() == null) {
+      return "0.5";
+    }
     // Simplified implementation - in reality this would integrate with cache system
     String cacheControl = response.headers().get("Cache-Control");
     String age = response.headers().get("Age");
@@ -79,6 +82,9 @@ public enum ComputedField implements LogField {
   }
 
   private String extractCompressionRatio(HttpRequest request, HttpResponse response) {
+    if (response == null || response.headers() == null) {
+      return "1.0";
+    }
     String contentEncoding = response.headers().get("Content-Encoding");
     String contentLength = response.headers().get("Content-Length");
 
