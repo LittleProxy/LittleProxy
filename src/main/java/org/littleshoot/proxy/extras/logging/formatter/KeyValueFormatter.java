@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.extras.logging.formatter;
 
+import com.google.common.net.HostAndPort;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
@@ -31,7 +32,10 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
 
     StringBuilder sb = new StringBuilder();
     InetSocketAddress clientAddress = context.getClientAddress();
-    String clientIp = clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
+    String clientIp =
+        (clientAddress != null && clientAddress.getAddress() != null)
+            ? clientAddress.getAddress().getHostAddress()
+            : "-";
     int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
 
     // Get server information
@@ -40,9 +44,14 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     if (context instanceof FullFlowContext) {
       String hostAndPort = ((FullFlowContext) context).getServerHostAndPort();
       if (hostAndPort != null) {
-        String[] parts = hostAndPort.split(":");
-        serverAddress = parts[0];
-        serverPort = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+        try {
+          HostAndPort parsed = HostAndPort.fromString(hostAndPort);
+          serverAddress = parsed.getHost();
+          serverPort = parsed.hasPort() ? parsed.getPort() : 0;
+        } catch (IllegalArgumentException ignored) {
+          serverAddress = "-";
+          serverPort = 0;
+        }
       }
     }
 
@@ -56,7 +65,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     sb.append(" server_ip=").append(serverAddress);
     sb.append(" server_port=").append(serverPort);
     sb.append(" method=").append(request.method().name());
-    sb.append(" uri=\"").append(request.uri()).append("\"");
+    sb.append(" uri=\"").append(escapeKv(request.uri())).append("\"");
     sb.append(" protocol=").append(request.protocolVersion());
     sb.append(" status=").append(response.status().code());
     sb.append(" bytes=").append(getContentLength(response));
@@ -79,10 +88,28 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     sb.append(" client_ip=").append(getClientIp(context));
 
     // Add all event-specific attributes
-    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-      sb.append(" ").append(entry.getKey()).append("=").append(entry.getValue());
+    if (attributes != null) {
+      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+        sb.append(" ");
+        sb.append(entry.getKey());
+        sb.append("=\"");
+        sb.append(escapeKv(String.valueOf(entry.getValue())));
+        sb.append("\"");
+      }
     }
 
     return sb.toString();
+  }
+
+  private String escapeKv(String value) {
+    if (value == null) {
+      return "-";
+    }
+    return value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
   }
 }
