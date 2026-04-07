@@ -40,7 +40,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append(",");
           sb.append("\"")
-              .append(entry.getKey())
+              .append(escapeJson(entry.getKey()))
               .append("\":\"")
               .append(escapeJson(entry.getValue()))
               .append("\"");
@@ -51,7 +51,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append(",");
           sb.append("\"")
-              .append(entry.getKey())
+              .append(escapeJson(entry.getKey()))
               .append("\":\"")
               .append(escapeJson(entry.getValue()))
               .append("\"");
@@ -62,7 +62,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append(",");
           sb.append("\"")
-              .append(entry.getKey())
+              .append(escapeJson(entry.getKey()))
               .append("\":\"")
               .append(escapeJson(entry.getValue()))
               .append("\"");
@@ -73,7 +73,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append(",");
           sb.append("\"")
-              .append(entry.getKey())
+              .append(escapeJson(entry.getKey()))
               .append("\":\"")
               .append(escapeJson(entry.getValue()))
               .append("\"");
@@ -84,7 +84,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append(",");
           sb.append("\"")
-              .append(entry.getKey())
+              .append(escapeJson(entry.getKey()))
               .append("\":\"")
               .append(escapeJson(entry.getValue()))
               .append("\"");
@@ -95,7 +95,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append(",");
           sb.append("\"")
-              .append(entry.getKey())
+              .append(escapeJson(entry.getKey()))
               .append("\":\"")
               .append(escapeJson(entry.getValue()))
               .append("\"");
@@ -107,7 +107,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
           sb.append(",");
 
           sb.append("\"")
-              .append(field.getName())
+              .append(escapeJson(field.getName()))
               .append("\":\"")
               .append(escapeJson(value))
               .append("\"");
@@ -131,13 +131,17 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
     sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
-    sb.append(",\"event\":\"").append(event.getEventName()).append("\"");
+    sb.append(",\"event\":\"").append(escapeJson(event.getEventName())).append("\"");
     sb.append(",\"client_ip\":\"").append(escapeJson(getClientIp(context))).append("\"");
 
     // Add all event-specific attributes
-    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-      sb.append(",\"").append(entry.getKey()).append("\":\"");
-      sb.append(escapeJson(String.valueOf(entry.getValue()))).append("\"");
+    if (attributes != null) {
+      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+        sb.append(",\"");
+        sb.append(escapeJson(entry.getKey()));
+        sb.append("\":\"");
+        sb.append(escapeJson(String.valueOf(entry.getValue()))).append("\"");
+      }
     }
 
     sb.append("}");
