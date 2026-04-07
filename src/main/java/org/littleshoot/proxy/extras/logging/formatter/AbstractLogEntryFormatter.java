@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.extras.logging.formatter;
 
+import com.google.common.net.HostAndPort;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
@@ -137,8 +138,11 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
     if (context instanceof FullFlowContext) {
       String hostAndPort = ((FullFlowContext) context).getServerHostAndPort();
       if (hostAndPort != null) {
-        // Returns "host:port", we want just the host/ip usually
-        return hostAndPort.split(":")[0];
+        try {
+          return HostAndPort.fromString(hostAndPort).getHost();
+        } catch (IllegalArgumentException ignored) {
+          return "-";
+        }
       }
     }
     return "-";
@@ -190,7 +194,13 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
    */
   protected String escapeJson(String s) {
     if (s == null) return "";
-    return s.replace("\"", "\\\"").replace("\\", "\\\\");
+    return s.replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\b", "\\b")
+        .replace("\f", "\\f")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
   }
 
   /**
