@@ -28,7 +28,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
     StringBuilder sb = new StringBuilder();
 
     // Labeled Tab-Separated Values
-    sb.append("flow_id:").append(flowId);
+    sb.append("flow_id:").append(sanitizeLtsv(flowId));
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
