@@ -32,6 +32,9 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
 
     // Get timing data from flow context
     String durationMs = getTimingData(context, "http_request_processing_time_ms");
+    if ("-".equals(durationMs)) {
+      durationMs = "0";
+    }
 
     // HAProxy HTTP log format:
     // process[pid]: client_ip:port [accept_date] frontend backend/server Tq Tw Tc Tr Ta status
