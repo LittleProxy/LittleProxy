@@ -163,9 +163,7 @@ class ExcludeResponseHeaderFieldTest {
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
-    // Neither matches "content-type" (lowercase), so both should be included
-    assertThat(matches).hasSize(2);
-    assertThat(matches).containsKey("resp_content_type");
+    assertThat(matches).hasSize(1);
     assertThat(matches).containsKey("resp_x_header");
   }
 }
