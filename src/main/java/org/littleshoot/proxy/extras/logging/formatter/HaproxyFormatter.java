@@ -47,14 +47,25 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
     sb.append(getContentLength(response)).append(" ");
     sb.append("- - - - - - - "); // cc cs sc rc sr st rt (counters and termination state)
     sb.append("\"")
-        .append(request.method())
+        .append(escapeRequestLine(request.method().name()))
         .append(" ")
-        .append(getFullUrl(request))
+        .append(escapeRequestLine(getFullUrl(request)))
         .append(" ")
-        .append(request.protocolVersion())
+        .append(escapeRequestLine(request.protocolVersion().text()))
         .append("\"");
 
     return sb.toString();
+  }
+
+  /**
+   * + * Escapes a string for safe inclusion in the HAProxy request line. + * Removes/escapes
+   * characters that could break log format or enable injection. +
+   */
+  private String escapeRequestLine(String value) {
+    if (value == null) {
+      return "-";
+    }
+    return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "").replace("\n", "");
   }
 
   @Override

@@ -46,7 +46,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof PrefixResponseHeaderField) {
-        if(response==null){
+        if (response == null) {
           continue;
         }
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
@@ -71,7 +71,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof RegexResponseHeaderField) {
-        if(response==null){
+        if (response == null) {
           continue;
         }
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
@@ -96,7 +96,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
-        if(response==null){
+        if (response == null) {
           continue;
         }
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
