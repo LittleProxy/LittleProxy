@@ -637,6 +637,7 @@
                                 <extraArtifact>org.apache.logging.log4j:log4j-core:${log4j.version}</extraArtifact>
                                 <extraArtifact>org.apache.logging.log4j:log4j-slf4j2-impl:${log4j.version}</extraArtifact>
                                 <extraArtifact>com.lmax:disruptor:${disruptor.version}</extraArtifact>
+                                <extraArtifact>com.fasterxml.jackson.core:jackson-databind:${jackson.bom.version}</extraArtifact>
                             </extraArtifacts>
                             <filters>
                                 <filter>
