@@ -46,6 +46,9 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof PrefixResponseHeaderField) {
+        if(response==null){
+          continue;
+        }
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
@@ -68,6 +71,9 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof RegexResponseHeaderField) {
+        if(response==null){
+          continue;
+        }
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
@@ -90,6 +96,9 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
+        if(response==null){
+          continue;
+        }
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
