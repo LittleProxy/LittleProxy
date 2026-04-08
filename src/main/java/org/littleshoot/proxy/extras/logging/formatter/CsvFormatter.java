@@ -113,6 +113,11 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
     if (value == null) {
       return "";
     }
-    return value.replace("\"", "\"\"");
+    return value
+        .replace("\\", "\\\\")
+        .replace("\"", "\"\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
   }
 }

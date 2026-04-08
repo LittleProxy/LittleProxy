@@ -92,9 +92,8 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
       for (Map.Entry<String, Object> entry : attributes.entrySet()) {
         sb.append(" ");
         sb.append(entry.getKey());
-        sb.append("=\"");
+        sb.append("=");
         sb.append(escapeKv(String.valueOf(entry.getValue())));
-        sb.append("\"");
       }
     }
 

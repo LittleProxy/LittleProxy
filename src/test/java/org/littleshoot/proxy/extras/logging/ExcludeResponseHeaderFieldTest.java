@@ -34,7 +34,7 @@ class ExcludeResponseHeaderFieldTest {
   void testConstructorWithString() {
     ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Set-Cookie|Authorization");
 
-    assertThat(field.getName()).isEqualTo("res_all_except_set_cookie_authorization");
+    assertThat(field.getName()).isEqualTo("resp_all_except_set_cookie_authorization");
     assertThat(field.getDescription())
         .isEqualTo("Response headers excluding pattern: Set-Cookie|Authorization");
   }
@@ -45,14 +45,14 @@ class ExcludeResponseHeaderFieldTest {
         new ExcludeResponseHeaderField(
             "Set-Cookie", headerName -> "custom_" + headerName, value -> value.toUpperCase());
 
-    assertThat(field.getName()).isEqualTo("res_all_except_set_cookie");
+    assertThat(field.getName()).isEqualTo("resp_all_except_set_cookie");
   }
 
   @Test
   void testGetName() {
     ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("X-.*");
 
-    assertThat(field.getName()).isEqualTo("res_all_except_x___");
+    assertThat(field.getName()).isEqualTo("resp_all_except_x___");
   }
 
   @Test
@@ -84,10 +84,10 @@ class ExcludeResponseHeaderFieldTest {
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     assertThat(matches).hasSize(2);
-    assertThat(matches).containsEntry("res_content_type", "application/json");
-    assertThat(matches).containsEntry("res_x_request_id", "resp-123");
-    assertThat(matches).doesNotContainKey("res_set_cookie");
-    assertThat(matches).doesNotContainKey("res_authorization");
+    assertThat(matches).containsEntry("resp_content_type", "application/json");
+    assertThat(matches).containsEntry("resp_x_request_id", "resp-123");
+    assertThat(matches).doesNotContainKey("resp_set_cookie");
+    assertThat(matches).doesNotContainKey("resp_authorization");
   }
 
   @Test
@@ -101,8 +101,8 @@ class ExcludeResponseHeaderFieldTest {
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     assertThat(matches).hasSize(2);
-    assertThat(matches).containsEntry("res_content_type", "application/json");
-    assertThat(matches).containsEntry("res_accept", "*/*");
+    assertThat(matches).containsEntry("resp_content_type", "application/json");
+    assertThat(matches).containsEntry("resp_accept", "*/*");
   }
 
   @Test
@@ -139,7 +139,7 @@ class ExcludeResponseHeaderFieldTest {
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
-    assertThat(matches).containsEntry("res_x_header", "-");
+    assertThat(matches).containsEntry("resp_x_header", "-");
   }
 
   @Test
@@ -165,7 +165,7 @@ class ExcludeResponseHeaderFieldTest {
 
     // Neither matches "content-type" (lowercase), so both should be included
     assertThat(matches).hasSize(2);
-    assertThat(matches).containsKey("res_content_type");
-    assertThat(matches).containsKey("res_x_header");
+    assertThat(matches).containsKey("resp_content_type");
+    assertThat(matches).containsKey("resp_x_header");
   }
 }

@@ -57,7 +57,7 @@ public class ExcludeRequestHeaderField implements LogField {
    * @param excludeRegex the regex pattern string for headers to exclude
    */
   public ExcludeRequestHeaderField(String excludeRegex) {
-    this(Pattern.compile(excludeRegex, Pattern.CASE_INSENSITIVE));
+    this(Pattern.compile(excludeRegex));
   }
 
   /**
@@ -72,10 +72,7 @@ public class ExcludeRequestHeaderField implements LogField {
       String excludeRegex,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this(
-        Pattern.compile(excludeRegex, Pattern.CASE_INSENSITIVE),
-        fieldNameTransformer,
-        valueTransformer);
+    this(Pattern.compile(excludeRegex), fieldNameTransformer, valueTransformer);
   }
 
   @Override

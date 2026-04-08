@@ -14,7 +14,20 @@ import org.slf4j.LoggerFactory;
 public class LogFieldConfigurationFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(LogFieldConfigurationFactory.class);
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static volatile ObjectMapper objectMapper;
+
+  private static ObjectMapper getObjectMapper() {
+    ObjectMapper result = objectMapper;
+    if (result == null) {
+      synchronized (LogFieldConfigurationFactory.class) {
+        if (objectMapper == null) {
+          objectMapper = new ObjectMapper();
+        }
+        result = objectMapper;
+      }
+    }
+    return result;
+  }
 
   /**
    * Creates a LogFieldConfiguration from a JSON file.
@@ -29,7 +42,7 @@ public class LogFieldConfigurationFactory {
       throw new IOException("Configuration file not found: " + configFile);
     }
 
-    LoggingConfiguration config = OBJECT_MAPPER.readValue(file, LoggingConfiguration.class);
+    LoggingConfiguration config = getObjectMapper().readValue(file, LoggingConfiguration.class);
     return buildConfiguration(config);
   }
 

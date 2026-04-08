@@ -48,11 +48,11 @@ public final class GeoCountryResolverFactory {
       try {
         Path databasePath = Paths.get(path);
         return new MmdbGeoCountryResolver(databasePath);
-      } catch (Exception e) {
+      } catch (Throwable t) {
         LOG.warn(
             "Failed to initialize MMDB resolver from '{}'. Falling back to local resolver.",
             path,
-            e);
+            t);
         return new LocalGeoCountryResolver();
       }
     }
