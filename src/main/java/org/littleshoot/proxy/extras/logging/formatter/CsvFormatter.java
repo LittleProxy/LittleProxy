@@ -4,6 +4,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.*;
 
@@ -30,49 +31,42 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
     // Comma-Separated Values
     sb.append("\"").append(escapeCsv(flowId)).append("\"");
     for (LogField field : fieldConfig.getFields()) {
-      // Handle prefix-based fields that expand to multiple entries
+      // Handle pattern-based fields that expand to multiple entries - flatten into single cell
       if (field instanceof PrefixRequestHeaderField) {
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
-        for (Map.Entry<String, String> entry :
-            prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
-          sb.append(",");
-          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
-        }
+        sb.append(",\"")
+            .append(
+                escapeCsv(flattenHeaders(prefixField.extractMatchingHeaders(request.headers()))))
+            .append("\"");
       } else if (field instanceof PrefixResponseHeaderField) {
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
-        for (Map.Entry<String, String> entry :
-            prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
-          sb.append(",");
-          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
-        }
+        sb.append(",\"")
+            .append(
+                escapeCsv(flattenHeaders(prefixField.extractMatchingHeaders(response.headers()))))
+            .append("\"");
       } else if (field instanceof RegexRequestHeaderField) {
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
-        for (Map.Entry<String, String> entry :
-            regexField.extractMatchingHeaders(request.headers()).entrySet()) {
-          sb.append(",");
-          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
-        }
+        sb.append(",\"")
+            .append(escapeCsv(flattenHeaders(regexField.extractMatchingHeaders(request.headers()))))
+            .append("\"");
       } else if (field instanceof RegexResponseHeaderField) {
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
-        for (Map.Entry<String, String> entry :
-            regexField.extractMatchingHeaders(response.headers()).entrySet()) {
-          sb.append(",");
-          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
-        }
+        sb.append(",\"")
+            .append(
+                escapeCsv(flattenHeaders(regexField.extractMatchingHeaders(response.headers()))))
+            .append("\"");
       } else if (field instanceof ExcludeRequestHeaderField) {
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
-        for (Map.Entry<String, String> entry :
-            excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
-          sb.append(",");
-          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
-        }
+        sb.append(",\"")
+            .append(
+                escapeCsv(flattenHeaders(excludeField.extractMatchingHeaders(request.headers()))))
+            .append("\"");
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
-        for (Map.Entry<String, String> entry :
-            excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
-          sb.append(",");
-          sb.append("\"").append(escapeCsv(entry.getValue())).append("\"");
-        }
+        sb.append(",\"")
+            .append(
+                escapeCsv(flattenHeaders(excludeField.extractMatchingHeaders(response.headers()))))
+            .append("\"");
       } else {
         String value = field.extractValue(context, request, response);
         // For CSV, use empty string for null values (maintains column alignment)
@@ -107,6 +101,12 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
     }
 
     return sb.toString();
+  }
+
+  private String flattenHeaders(Map<String, String> headers) {
+    return headers.entrySet().stream()
+        .map(e -> e.getKey() + "=" + e.getValue())
+        .collect(Collectors.joining(";"));
   }
 
   private String escapeCsv(String value) {
