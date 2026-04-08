@@ -114,7 +114,9 @@ class SquidFormatterTest {
             "flow-id",
             LogFieldConfiguration.builder().build());
 
-    assertThat(result).contains(" - "); // null client shows as "-"
+    String[] fields = result.split(" ");
+    assertThat(fields).hasSize(10);
+    assertThat(fields[2]).isEqualTo("-"); // remotehost (client IP)
   }
 
   @Test
