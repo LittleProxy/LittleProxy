@@ -16,6 +16,22 @@ public final class GeoCountryResolverFactory {
 
   private GeoCountryResolverFactory() {}
 
+  /**
+   * Closes the resolver and releases any resources. This should be called during application
+   * shutdown to properly clean up resources (e.g., MMDB database connections).
+   */
+  public static void closeResolver() {
+    GeoCountryResolver current = resolver;
+    if (current instanceof AutoCloseable) {
+      try {
+        ((AutoCloseable) current).close();
+      } catch (Exception e) {
+        LOG.warn("Error closing geo resolver", e);
+      }
+    }
+    resolver = null;
+  }
+
   public static GeoCountryResolver getResolver() {
     GeoCountryResolver current = resolver;
     if (current != null) {
