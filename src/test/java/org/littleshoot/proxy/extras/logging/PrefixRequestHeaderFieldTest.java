@@ -221,17 +221,17 @@ class PrefixRequestHeaderFieldTest {
   }
 
   @Test
-  void testExtractMatchingHeadersCaseSensitive() {
-    Set<String> headerNames = Set.of("X-Custom-Header", "x-custom-header");
+  void testExtractMatchingHeadersCaseInsensitive() {
+    Set<String> headerNames = Set.of("X-Custom-Header", "x-custom-header2");
     when(headers.names()).thenReturn(headerNames);
     when(headers.get("X-Custom-Header")).thenReturn("value1");
-    when(headers.get("x-custom-header")).thenReturn("value2");
+    when(headers.get("x-custom-header2")).thenReturn("value2");
 
     PrefixRequestHeaderField field = new PrefixRequestHeaderField("X-Custom-");
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
-    assertThat(matches).hasSize(1);
+    assertThat(matches).hasSize(2);
     assertThat(matches).containsKey("req_x_custom_header");
-    assertThat(matches.get("req_x_custom_header")).isEqualTo("value1");
+    assertThat(matches.get("req_x_custom_header2")).isEqualTo("value2");
   }
 }

@@ -2,6 +2,7 @@ package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Objects;
 import org.littleshoot.proxy.FlowContext;
 
 /**
@@ -20,9 +21,12 @@ public class RequestHeaderField implements LogField {
    * @param headerName the name of the HTTP header to extract
    */
   public RequestHeaderField(String headerName) {
-    this.headerName = headerName;
-    this.fieldName = "req_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
-    this.description = "Request header: " + headerName;
+    this.headerName = Objects.requireNonNull(headerName, "headerName must not be null");
+    if (this.headerName.isBlank()) {
+      throw new IllegalArgumentException("headerName must not be blank");
+    }
+    this.fieldName = "req_" + this.headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
+    this.description = "Request header: " + this.headerName;
   }
 
   /**
@@ -32,9 +36,12 @@ public class RequestHeaderField implements LogField {
    * @param fieldName the name to use for this field in logs
    */
   public RequestHeaderField(String headerName, String fieldName) {
-    this.headerName = headerName;
-    this.fieldName = fieldName;
-    this.description = "Request header: " + headerName;
+    this.headerName = Objects.requireNonNull(headerName, "headerName must not be null");
+    this.fieldName = Objects.requireNonNull(fieldName, "fieldName must not be null");
+    if (this.headerName.isBlank() || this.fieldName.isBlank()) {
+      throw new IllegalArgumentException("headerName/fieldName must not be blank");
+    }
+    this.description = "Request header: " + this.headerName;
   }
 
   @Override
@@ -62,12 +69,12 @@ public class RequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     RequestHeaderField that = (RequestHeaderField) obj;
-    return headerName.equals(that.headerName);
+    return headerName.equals(that.headerName) && fieldName.equals(that.fieldName);
   }
 
   @Override
   public int hashCode() {
-    return headerName.hashCode();
+    return Objects.hash(headerName, fieldName);
   }
 
   @Override

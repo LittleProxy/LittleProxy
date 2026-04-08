@@ -182,7 +182,7 @@ class ExcludeRequestHeaderFieldTest {
   }
 
   @Test
-  void testExtractMatchingHeadersCaseSensitive() {
+  void testExtractMatchingHeadersCaseInsensitive() {
     ExcludeRequestHeaderField field = new ExcludeRequestHeaderField("authorization");
 
     when(headers.names()).thenReturn(Set.of("Authorization", "content-type"));
@@ -192,8 +192,7 @@ class ExcludeRequestHeaderFieldTest {
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     // Neither matches "authorization" (lowercase), so both should be included
-    assertThat(matches).hasSize(2);
-    assertThat(matches).containsKey("req_authorization");
+    assertThat(matches).hasSize(1);
     assertThat(matches).containsKey("req_content_type");
   }
 

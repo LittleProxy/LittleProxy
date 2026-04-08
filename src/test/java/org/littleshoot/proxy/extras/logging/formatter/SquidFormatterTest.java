@@ -61,7 +61,7 @@ class SquidFormatterTest {
     assertThat(result).startsWith("1234567890.123 "); // epoch time with millis
     assertThat(result).contains(" 500 "); // elapsed time
     assertThat(result).contains(" 127.0.0.1 ");
-    assertThat(result).contains(" TCP_HIT/200 ");
+    assertThat(result).contains(" TCP_MISS/200 ");
     assertThat(result).contains(" 2326 ");
     assertThat(result).contains(" GET ");
     assertThat(result).contains(" http://example.com/path ");
@@ -184,8 +184,8 @@ class SquidFormatterTest {
             LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" POST ");
-    // 201 is still in 2xx range so it's considered a HIT
-    assertThat(result).contains(" TCP_HIT/201 ");
+    // 201 is still in 2xx range but LittleProxy always uses TCP_MISS
+    assertThat(result).contains(" TCP_MISS/201 ");
   }
 
   @Test
@@ -208,7 +208,7 @@ class SquidFormatterTest {
             "flow-id",
             LogFieldConfiguration.builder().build());
 
-    assertThat(result).contains(" TCP_HIT/302 "); // 302 is still a hit
+    assertThat(result).contains(" TCP_MISS/302 "); // LittleProxy always uses TCP_MISS
   }
 
   @Test

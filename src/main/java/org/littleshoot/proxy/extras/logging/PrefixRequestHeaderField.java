@@ -84,8 +84,9 @@ public class PrefixRequestHeaderField implements LogField {
    */
   public Map<String, String> extractMatchingHeaders(HttpHeaders headers) {
     Map<String, String> matches = new TreeMap<>();
+    String lowerPrefix = prefix.toLowerCase();
     for (String headerName : headers.names()) {
-      if (headerName.startsWith(prefix)) {
+      if (headerName.toLowerCase().startsWith(lowerPrefix)) {
         String value = headers.get(headerName);
         String fieldName = fieldNameTransformer.apply(headerName);
         String transformedValue = value != null ? valueTransformer.apply(value) : "-";
@@ -102,8 +103,9 @@ public class PrefixRequestHeaderField implements LogField {
    * @return true if at least one header matches the prefix
    */
   public boolean hasMatches(HttpHeaders headers) {
+    String lowerPrefix = prefix.toLowerCase();
     for (String headerName : headers.names()) {
-      if (headerName.startsWith(prefix)) {
+      if (headerName.toLowerCase().startsWith(lowerPrefix)) {
         return true;
       }
     }

@@ -153,7 +153,7 @@ public class RegexResponseHeaderField implements LogField {
   }
 
   private static String defaultFieldName(String headerName) {
-    return "res_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
+    return "resp_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override

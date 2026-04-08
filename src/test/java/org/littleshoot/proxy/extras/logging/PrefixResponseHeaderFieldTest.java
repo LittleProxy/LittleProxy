@@ -95,8 +95,8 @@ class PrefixResponseHeaderFieldTest {
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     assertThat(matches).hasSize(2);
-    assertThat(matches).containsEntry("res_x_ratelimit_limit", "100");
-    assertThat(matches).containsEntry("res_x_ratelimit_remaining", "99");
+    assertThat(matches).containsEntry("resp_x_ratelimit_limit", "100");
+    assertThat(matches).containsEntry("resp_x_ratelimit_remaining", "99");
   }
 
   @Test
@@ -133,7 +133,7 @@ class PrefixResponseHeaderFieldTest {
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
-    assertThat(matches).containsEntry("res_x_custom_header", "-");
+    assertThat(matches).containsEntry("resp_x_custom_header", "-");
   }
 
   @Test
@@ -209,7 +209,7 @@ class PrefixResponseHeaderFieldTest {
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     // Should be sorted alphabetically by field name (TreeMap)
-    assertThat(matches.keySet()).containsExactly("res_x_apple", "res_x_mango", "res_x_zebra");
+    assertThat(matches.keySet()).containsExactly("resp_x_apple", "resp_x_mango", "resp_x_zebra");
   }
 
   @Test
@@ -236,7 +236,7 @@ class PrefixResponseHeaderFieldTest {
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     // Default transformation: lowercase and replace non-alphanumeric with underscore
-    // Note: PrefixResponseHeaderField uses "res_" prefix (not "resp_") in defaultFieldName
-    assertThat(matches).containsKey("res_x_custom_header_value");
+    // Note: PrefixResponseHeaderField uses "resp_" prefix (not "resp_") in defaultFieldName
+    assertThat(matches).containsKey("resp_x_custom_header_value");
   }
 }
