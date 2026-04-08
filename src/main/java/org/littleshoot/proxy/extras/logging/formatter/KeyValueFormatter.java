@@ -90,14 +90,25 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     // Add all event-specific attributes
     if (attributes != null) {
       for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+        String key = sanitizeKvKey(entry.getKey());
+        Object rawValue = entry.getValue();
+        String value = rawValue == null ? null : rawValue.toString();
+
         sb.append(" ");
-        sb.append(entry.getKey());
+        sb.append(key);
         sb.append("=");
-        sb.append(escapeKv(String.valueOf(entry.getValue())));
+        sb.append(escapeKv(value));
       }
     }
 
     return sb.toString();
+  }
+
+  private String sanitizeKvKey(String key) {
+    if (key == null || key.isEmpty()) {
+      return "-";
+    }
+    return key.replaceAll("[^A-Za-z0-9_.-]", "_");
   }
 
   private String escapeKv(String value) {
