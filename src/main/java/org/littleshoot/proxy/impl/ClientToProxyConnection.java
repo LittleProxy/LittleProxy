@@ -1595,7 +1595,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             try {
-            tracker.responseSentToClient(flowContext, httpResponse);
+              tracker.responseSentToClient(flowContext, httpResponse);
             } catch (Exception e) {
               LOG.error("Unable to write response", e);
             }
@@ -1677,15 +1677,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordConnectionSaturated() {
 
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        try {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionSaturated(flowContext);
       } catch (Exception e) {
         LOG.error("Unable to recordConnectionSaturated", e);
       }
-      }
-
+    }
   }
 
   private void recordConnectionExceptionCaught(Throwable cause) {
