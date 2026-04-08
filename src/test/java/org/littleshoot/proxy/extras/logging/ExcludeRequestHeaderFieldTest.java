@@ -191,7 +191,8 @@ class ExcludeRequestHeaderFieldTest {
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
-    // Neither matches "authorization" (lowercase), so both should be included
+    // "Authorization" matches the case-insensitive pattern and is excluded
+    // Only "content-type" remains
     assertThat(matches).hasSize(1);
     assertThat(matches).containsKey("req_content_type");
   }
