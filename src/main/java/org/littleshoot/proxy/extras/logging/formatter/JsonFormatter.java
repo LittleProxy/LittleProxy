@@ -35,6 +35,9 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -60,6 +63,9 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof RegexRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -85,6 +91,9 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
