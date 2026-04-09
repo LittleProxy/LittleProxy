@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -92,8 +94,8 @@ class RegexRequestHeaderFieldTest {
     RegexRequestHeaderField field = new RegexRequestHeaderField("X-.*-ID");
 
     when(headers.names()).thenReturn(Set.of("X-Request-ID", "X-Response-ID", "Content-Type"));
-    when(headers.get("X-Request-ID")).thenReturn("req-123");
-    when(headers.get("X-Response-ID")).thenReturn("resp-456");
+    when(headers.getAll("X-Request-ID")).thenReturn(List.of("req-123"));
+    when(headers.getAll("X-Response-ID")).thenReturn(List.of("resp-456"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -120,7 +122,7 @@ class RegexRequestHeaderFieldTest {
             "X-.*", headerName -> "custom_" + headerName, value -> value.toUpperCase());
 
     when(headers.names()).thenReturn(Set.of("X-Test"));
-    when(headers.get("X-Test")).thenReturn("value");
+    when(headers.getAll("X-Test")).thenReturn(List.of("value"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -132,7 +134,7 @@ class RegexRequestHeaderFieldTest {
     RegexRequestHeaderField field = new RegexRequestHeaderField("X-.*");
 
     when(headers.names()).thenReturn(Set.of("X-Header"));
-    when(headers.get("X-Header")).thenReturn(null);
+    when(headers.getAll("X-Header")).thenReturn(Collections.emptyList());
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -198,8 +200,8 @@ class RegexRequestHeaderFieldTest {
     RegexRequestHeaderField field = new RegexRequestHeaderField("X-Custom-.*");
 
     when(headers.names()).thenReturn(Set.of("X-Custom-Header", "x-custom-header"));
-    when(headers.get("X-Custom-Header")).thenReturn("value1");
-    when(headers.get("x-custom-header")).thenReturn("value2");
+    when(headers.getAll("X-Custom-Header")).thenReturn(List.of("value1"));
+    when(headers.getAll("x-custom-header")).thenReturn(List.of("value2"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -212,8 +214,8 @@ class RegexRequestHeaderFieldTest {
     RegexRequestHeaderField field = new RegexRequestHeaderField("X-(Request|Response)-ID");
 
     when(headers.names()).thenReturn(Set.of("X-Request-ID", "X-Response-ID", "X-Other-ID"));
-    when(headers.get("X-Request-ID")).thenReturn("req");
-    when(headers.get("X-Response-ID")).thenReturn("resp");
+    when(headers.getAll("X-Request-ID")).thenReturn(List.of("req"));
+    when(headers.getAll("X-Response-ID")).thenReturn(List.of("resp"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 

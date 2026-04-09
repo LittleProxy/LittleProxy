@@ -28,80 +28,84 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
     StringBuilder sb = new StringBuilder();
 
     // Labeled Tab-Separated Values
-    sb.append("flow_id:").append(flowId);
-    boolean first = false;
+    sb.append("flow_id:").append(sanitizeLtsv(flowId));
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-          sb.append(entry.getKey()).append(":").append(entry.getValue());
+          sb.append("\t");
+          sb.append(sanitizeLtsv(entry.getKey()))
+              .append(":")
+              .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof PrefixResponseHeaderField) {
+        if (response == null) {
+          continue;
+        }
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-          sb.append(entry.getKey()).append(":").append(entry.getValue());
+          sb.append("\t");
+          sb.append(sanitizeLtsv(entry.getKey()))
+              .append(":")
+              .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof RegexRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-          sb.append(entry.getKey()).append(":").append(entry.getValue());
+          sb.append("\t");
+          sb.append(sanitizeLtsv(entry.getKey()))
+              .append(":")
+              .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof RegexResponseHeaderField) {
+        if (response == null) {
+          continue;
+        }
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-          sb.append(entry.getKey()).append(":").append(entry.getValue());
+          sb.append("\t");
+          sb.append(sanitizeLtsv(entry.getKey()))
+              .append(":")
+              .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-          sb.append(entry.getKey()).append(":").append(entry.getValue());
+          sb.append("\t");
+          sb.append(sanitizeLtsv(entry.getKey()))
+              .append(":")
+              .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-          sb.append(entry.getKey()).append(":").append(entry.getValue());
+          sb.append("\t");
+          sb.append(sanitizeLtsv(entry.getKey()))
+              .append(":")
+              .append(sanitizeLtsv(entry.getValue()));
         }
       } else {
         String value = field.extractValue(context, request, response);
         // Skip fields with null values (e.g., TCP timing data not yet available)
         if (value != null) {
-          if (!first) {
-            sb.append("\t");
-          }
-          first = false;
-
-          sb.append(field.getName()).append(":").append(value);
+          sb.append("\t");
+          sb.append(sanitizeLtsv(field.getName())).append(":").append(sanitizeLtsv(value));
         }
       }
     }
@@ -118,15 +122,26 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("flow_id:").append(flowId);
-    sb.append("\tevent:").append(event.getEventName());
-    sb.append("\tclient_ip:").append(getClientIp(context));
+    sb.append("flow_id:").append(sanitizeLtsv(flowId));
+    sb.append("\tevent:").append(sanitizeLtsv(event.getEventName()));
+    sb.append("\tclient_ip:").append(sanitizeLtsv(getClientIp(context)));
 
     // Add all event-specific attributes
-    for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-      sb.append("\t").append(entry.getKey()).append(":").append(entry.getValue());
+    if (attributes != null) {
+      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+        sb.append("\t")
+            .append(sanitizeLtsv(entry.getKey()))
+            .append(":")
+            .append(sanitizeLtsv(entry.getValue() != null ? entry.getValue().toString() : null));
+      }
     }
-
     return sb.toString();
+  }
+
+  private String sanitizeLtsv(String value) {
+    if (value == null) {
+      return "-";
+    }
+    return value.replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n");
   }
 }

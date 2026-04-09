@@ -3,6 +3,7 @@ package org.littleshoot.proxy.impl;
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.SWITCHING_PROTOCOLS;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -149,7 +150,7 @@ public final class ProxyUtilsTest {
     isResponseSelfTerminating = ProxyUtils.isResponseSelfTerminating(httpResponse);
     assertThat(isResponseSelfTerminating).isTrue();
 
-    httpResponse = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.SWITCHING_PROTOCOLS);
+    httpResponse = new DefaultHttpResponse(HTTP_1_1, SWITCHING_PROTOCOLS);
     isResponseSelfTerminating = ProxyUtils.isResponseSelfTerminating(httpResponse);
     assertThat(isResponseSelfTerminating).isTrue();
 
@@ -263,6 +264,30 @@ public final class ProxyUtilsTest {
     assertThat(ProxyUtils.splitCommaSeparatedHeaderValues("\t")).isEmpty();
     assertThat(ProxyUtils.splitCommaSeparatedHeaderValues("  \t  \t  ")).isEmpty();
     assertThat(ProxyUtils.splitCommaSeparatedHeaderValues(" ,  ,\t, ")).isEmpty();
+  }
+
+  @Test
+  void request_isSwitchingToWebSocketProtocol() {
+    HttpRequest request = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/endpoint");
+    request.headers().add(HttpHeaderNames.HOST, "echo.websocket.org");
+    request.headers().add(HttpHeaderNames.ORIGIN, "https://tests.w");
+    request.headers().add(HttpHeaderNames.SEC_WEBSOCKET_EXTENSIONS, "permessage-deflate");
+    request.headers().add(HttpHeaderNames.SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ==");
+    request.headers().add("Sec-Fetch-Mode", "websocket");
+    request.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderNames.UPGRADE);
+    request.headers().add(HttpHeaderNames.UPGRADE, "websocket");
+
+    assertThat(ProxyUtils.isSwitchingToWebSocketProtocol(request)).isTrue();
+  }
+
+  @Test
+  void response_isSwitchingToWebSocketProtocol() {
+    HttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, SWITCHING_PROTOCOLS);
+    response.headers().add(HttpHeaderNames.UPGRADE, "websocket");
+    response.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderNames.UPGRADE);
+    response.headers().add(HttpHeaderNames.SEC_WEBSOCKET_ACCEPT, "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=");
+
+    assertThat(ProxyUtils.isSwitchingToWebSocketProtocol(response)).isTrue();
   }
 
   /** Verifies that 'sdch' is removed from the 'Accept-Encoding' header list. */

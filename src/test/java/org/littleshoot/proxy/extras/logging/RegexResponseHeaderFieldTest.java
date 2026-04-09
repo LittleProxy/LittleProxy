@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -90,14 +92,14 @@ class RegexResponseHeaderFieldTest {
 
     when(headers.names())
         .thenReturn(Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Content-Type"));
-    when(headers.get("X-RateLimit-Limit")).thenReturn("100");
-    when(headers.get("X-RateLimit-Remaining")).thenReturn("99");
+    when(headers.getAll("X-RateLimit-Limit")).thenReturn(List.of("100"));
+    when(headers.getAll("X-RateLimit-Remaining")).thenReturn(List.of("99"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     assertThat(matches).hasSize(2);
-    assertThat(matches).containsEntry("res_x_ratelimit_limit", "100");
-    assertThat(matches).containsEntry("res_x_ratelimit_remaining", "99");
+    assertThat(matches).containsEntry("resp_x_ratelimit_limit", "100");
+    assertThat(matches).containsEntry("resp_x_ratelimit_remaining", "99");
   }
 
   @Test
@@ -118,7 +120,7 @@ class RegexResponseHeaderFieldTest {
             "X-.*", headerName -> "custom_" + headerName, value -> value.toUpperCase());
 
     when(headers.names()).thenReturn(Set.of("X-Test"));
-    when(headers.get("X-Test")).thenReturn("value");
+    when(headers.getAll("X-Test")).thenReturn(List.of("value"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -130,11 +132,11 @@ class RegexResponseHeaderFieldTest {
     RegexResponseHeaderField field = new RegexResponseHeaderField("X-.*");
 
     when(headers.names()).thenReturn(Set.of("X-Header"));
-    when(headers.get("X-Header")).thenReturn(null);
+    when(headers.getAll("X-Header")).thenReturn(Collections.emptyList());
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
-    assertThat(matches).containsEntry("res_x_header", "-");
+    assertThat(matches).containsEntry("resp_x_header", "-");
   }
 
   @Test
@@ -203,14 +205,14 @@ class RegexResponseHeaderFieldTest {
     RegexResponseHeaderField field = new RegexResponseHeaderField("X-.*");
 
     when(headers.names()).thenReturn(Set.of("X-Zebra", "X-Apple", "X-Mango"));
-    when(headers.get("X-Zebra")).thenReturn("z");
-    when(headers.get("X-Apple")).thenReturn("a");
-    when(headers.get("X-Mango")).thenReturn("m");
+    when(headers.getAll("X-Zebra")).thenReturn(List.of("z"));
+    when(headers.getAll("X-Apple")).thenReturn(List.of("a"));
+    when(headers.getAll("X-Mango")).thenReturn(List.of("m"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     // Should be sorted alphabetically by field name (TreeMap)
-    assertThat(matches.keySet()).containsExactly("res_x_apple", "res_x_mango", "res_x_zebra");
+    assertThat(matches.keySet()).containsExactly("resp_x_apple", "resp_x_mango", "resp_x_zebra");
   }
 
   @Test
@@ -218,14 +220,14 @@ class RegexResponseHeaderFieldTest {
     RegexResponseHeaderField field = new RegexResponseHeaderField("X-Custom-.*");
 
     when(headers.names()).thenReturn(Set.of("X-Custom-Header", "x-custom-header"));
-    when(headers.get("X-Custom-Header")).thenReturn("value1");
-    when(headers.get("x-custom-header")).thenReturn("value2");
+    when(headers.getAll("X-Custom-Header")).thenReturn(List.of("value1"));
+    when(headers.getAll("x-custom-header")).thenReturn(List.of("value2"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     assertThat(matches).hasSize(1);
-    assertThat(matches).containsKey("res_x_custom_header");
-    assertThat(matches.get("res_x_custom_header")).isEqualTo("value1");
+    assertThat(matches).containsKey("resp_x_custom_header");
+    assertThat(matches.get("resp_x_custom_header")).isEqualTo("value1");
   }
 
   @Test
@@ -234,13 +236,13 @@ class RegexResponseHeaderFieldTest {
 
     when(headers.names())
         .thenReturn(Set.of("X-Cache-Status", "X-RateLimit-Limit", "X-Other-Header"));
-    when(headers.get("X-Cache-Status")).thenReturn("HIT");
-    when(headers.get("X-RateLimit-Limit")).thenReturn("100");
+    when(headers.getAll("X-Cache-Status")).thenReturn(List.of("HIT"));
+    when(headers.getAll("X-RateLimit-Limit")).thenReturn(List.of("100"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
     assertThat(matches).hasSize(2);
-    assertThat(matches).containsEntry("res_x_cache_status", "HIT");
-    assertThat(matches).containsEntry("res_x_ratelimit_limit", "100");
+    assertThat(matches).containsEntry("resp_x_cache_status", "HIT");
+    assertThat(matches).containsEntry("resp_x_ratelimit_limit", "100");
   }
 }
