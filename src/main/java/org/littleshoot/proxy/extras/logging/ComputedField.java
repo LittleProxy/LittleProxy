@@ -21,8 +21,6 @@ public enum ComputedField implements LogField {
   private final String name;
   private final String description;
 
-  private static final GeoCountryResolver GEO_COUNTRY_RESOLVER =
-      GeoCountryResolverFactory.getResolver();
 
   ComputedField(String name, String description) {
     this.name = name;
@@ -103,7 +101,7 @@ public enum ComputedField implements LogField {
   private String extractGeolocationCountry(FlowContext flowContext) {
     try {
       if (flowContext.getClientAddress() != null) {
-        return GEO_COUNTRY_RESOLVER.resolveCountryCode(flowContext.getClientAddress().getAddress());
+        return GeoCountryResolverFactory.getResolver().resolveCountryCode(flowContext.getClientAddress().getAddress());
       }
     } catch (Exception e) {
       return GeoCountryResolver.UNKNOWN;
