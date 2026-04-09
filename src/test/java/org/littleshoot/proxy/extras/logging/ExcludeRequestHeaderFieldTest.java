@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -89,8 +91,8 @@ class ExcludeRequestHeaderFieldTest {
 
     when(headers.names())
         .thenReturn(Set.of("Content-Type", "Authorization", "X-Request-ID", "Cookie"));
-    when(headers.get("Content-Type")).thenReturn("application/json");
-    when(headers.get("X-Request-ID")).thenReturn("req-123");
+    when(headers.getAll("Content-Type")).thenReturn(List.of("application/json"));
+    when(headers.getAll("X-Request-ID")).thenReturn(List.of("req-123"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -106,8 +108,8 @@ class ExcludeRequestHeaderFieldTest {
     ExcludeRequestHeaderField field = new ExcludeRequestHeaderField("NonExistent.*");
 
     when(headers.names()).thenReturn(Set.of("Content-Type", "Accept"));
-    when(headers.get("Content-Type")).thenReturn("application/json");
-    when(headers.get("Accept")).thenReturn("*/*");
+    when(headers.getAll("Content-Type")).thenReturn(List.of("application/json"));
+    when(headers.getAll("Accept")).thenReturn(List.of("*/*"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -134,7 +136,7 @@ class ExcludeRequestHeaderFieldTest {
             "Authorization", headerName -> "custom_" + headerName, value -> value.toUpperCase());
 
     when(headers.names()).thenReturn(Set.of("Content-Type"));
-    when(headers.get("Content-Type")).thenReturn("json");
+    when(headers.getAll("Content-Type")).thenReturn(List.of("json"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -146,7 +148,7 @@ class ExcludeRequestHeaderFieldTest {
     ExcludeRequestHeaderField field = new ExcludeRequestHeaderField("Authorization");
 
     when(headers.names()).thenReturn(Set.of("X-Header"));
-    when(headers.get("X-Header")).thenReturn(null);
+    when(headers.getAll("X-Header")).thenReturn(Collections.emptyList());
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 
@@ -186,8 +188,8 @@ class ExcludeRequestHeaderFieldTest {
     ExcludeRequestHeaderField field = new ExcludeRequestHeaderField("authorization");
 
     when(headers.names()).thenReturn(Set.of("Authorization", "content-type"));
-    when(headers.get("Authorization")).thenReturn("bearer");
-    when(headers.get("content-type")).thenReturn("json");
+    when(headers.getAll("Authorization")).thenReturn(List.of("bearer"));
+    when(headers.getAll("content-type")).thenReturn(List.of("json"));
 
     Map<String, String> matches = field.extractMatchingHeaders(headers);
 

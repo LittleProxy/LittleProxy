@@ -3,6 +3,7 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -123,7 +124,8 @@ public class RegexResponseHeaderField implements LogField {
     for (String headerName : headers.names()) {
       Matcher matcher = pattern.matcher(headerName);
       if (matcher.matches()) {
-        String value = headers.get(headerName);
+        List<String> values = headers.getAll(headerName);
+        String value = values.isEmpty() ? null : String.join(",", values);
         String fieldName = fieldNameTransformer.apply(headerName);
         String transformedValue = value != null ? valueTransformer.apply(value) : "-";
         matches.put(fieldName, transformedValue);

@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,8 +87,8 @@ class PrefixRequestHeaderFieldTest {
   void testExtractMatchingHeaders() {
     Set<String> headerNames = Set.of("X-Custom-Header1", "X-Custom-Header2", "Other-Header");
     when(headers.names()).thenReturn(headerNames);
-    when(headers.get("X-Custom-Header1")).thenReturn("value1");
-    when(headers.get("X-Custom-Header2")).thenReturn("value2");
+    when(headers.getAll("X-Custom-Header1")).thenReturn(List.of("value1"));
+    when(headers.getAll("X-Custom-Header2")).thenReturn(List.of("value2"));
 
     PrefixRequestHeaderField field = new PrefixRequestHeaderField("X-Custom-");
     Map<String, String> matches = field.extractMatchingHeaders(headers);
@@ -113,8 +115,8 @@ class PrefixRequestHeaderFieldTest {
   void testExtractMatchingHeadersWithTransformer() {
     Set<String> headerNames = Set.of("X-Custom-Header1", "X-Custom-Header2");
     when(headers.names()).thenReturn(headerNames);
-    when(headers.get("X-Custom-Header1")).thenReturn("value1");
-    when(headers.get("X-Custom-Header2")).thenReturn("value2");
+    when(headers.getAll("X-Custom-Header1")).thenReturn(List.of("value1"));
+    when(headers.getAll("X-Custom-Header2")).thenReturn(List.of("value2"));
 
     PrefixRequestHeaderField field =
         new PrefixRequestHeaderField(
@@ -194,8 +196,8 @@ class PrefixRequestHeaderFieldTest {
   void testExtractMatchingHeadersWithNullValue() {
     Set<String> headerNames = Set.of("X-Custom-Header1", "X-Custom-Header2");
     when(headers.names()).thenReturn(headerNames);
-    when(headers.get("X-Custom-Header1")).thenReturn("value1");
-    when(headers.get("X-Custom-Header2")).thenReturn(null);
+    when(headers.getAll("X-Custom-Header1")).thenReturn(List.of("value1"));
+    when(headers.getAll("X-Custom-Header2")).thenReturn(Collections.emptyList());
 
     PrefixRequestHeaderField field = new PrefixRequestHeaderField("X-Custom-");
     Map<String, String> matches = field.extractMatchingHeaders(headers);
@@ -209,9 +211,9 @@ class PrefixRequestHeaderFieldTest {
   void testExtractMatchingHeadersWithEmptyPrefix() {
     Set<String> headerNames = Set.of("Header1", "Header2", "X-Header");
     when(headers.names()).thenReturn(headerNames);
-    when(headers.get("Header1")).thenReturn("value1");
-    when(headers.get("Header2")).thenReturn("value2");
-    when(headers.get("X-Header")).thenReturn("value3");
+    when(headers.getAll("Header1")).thenReturn(List.of("value1"));
+    when(headers.getAll("Header2")).thenReturn(List.of("value2"));
+    when(headers.getAll("X-Header")).thenReturn(List.of("value3"));
 
     PrefixRequestHeaderField field = new PrefixRequestHeaderField("");
     Map<String, String> matches = field.extractMatchingHeaders(headers);
@@ -224,8 +226,8 @@ class PrefixRequestHeaderFieldTest {
   void testExtractMatchingHeadersCaseInsensitive() {
     Set<String> headerNames = Set.of("X-Custom-Header", "x-custom-header2");
     when(headers.names()).thenReturn(headerNames);
-    when(headers.get("X-Custom-Header")).thenReturn("value1");
-    when(headers.get("x-custom-header2")).thenReturn("value2");
+    when(headers.getAll("X-Custom-Header")).thenReturn(List.of("value1"));
+    when(headers.getAll("x-custom-header2")).thenReturn(List.of("value2"));
 
     PrefixRequestHeaderField field = new PrefixRequestHeaderField("X-Custom-");
     Map<String, String> matches = field.extractMatchingHeaders(headers);
