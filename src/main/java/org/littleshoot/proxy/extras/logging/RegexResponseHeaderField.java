@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.extras.logging;
 
+import com.google.common.base.Preconditions;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
@@ -53,6 +54,7 @@ public class RegexResponseHeaderField implements LogField {
       Pattern pattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
+    Preconditions.checkNotNull(pattern,"pattern must not be null");
     this.pattern = pattern;
     this.fieldNameTransformer =
         fieldNameTransformer != null
