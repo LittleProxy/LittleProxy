@@ -129,12 +129,13 @@ public class ExcludeRequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     ExcludeRequestHeaderField that = (ExcludeRequestHeaderField) obj;
-    return excludePattern.pattern().equals(that.excludePattern.pattern());
+    return excludePattern.pattern().equals(that.excludePattern.pattern())
+        && excludePattern.flags() == that.excludePattern.flags();
   }
 
   @Override
   public int hashCode() {
-    return excludePattern.pattern().hashCode();
+    return Objects.hash(excludePattern.pattern(), excludePattern.flags());
   }
 
   @Override
