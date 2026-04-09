@@ -21,7 +21,11 @@ public final class GeoCountryResolverFactory {
    * shutdown to properly clean up resources (e.g., MMDB database connections).
    */
   public static void closeResolver() {
-    GeoCountryResolver current = resolver;
+    GeoCountryResolver current;
+    synchronized (GeoCountryResolverFactory.class) {
+      current = resolver;
+      resolver = null;
+    }
     if (current instanceof AutoCloseable) {
       try {
         ((AutoCloseable) current).close();
@@ -29,7 +33,6 @@ public final class GeoCountryResolverFactory {
         LOG.warn("Error closing geo resolver", e);
       }
     }
-    resolver = null;
   }
 
   public static GeoCountryResolver getResolver() {
