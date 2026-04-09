@@ -32,6 +32,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -41,6 +44,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof PrefixResponseHeaderField) {
+        if (response == null) {
+          continue;
+        }
         PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
@@ -50,6 +56,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof RegexRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
@@ -59,6 +68,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof RegexResponseHeaderField) {
+        if (response == null) {
+          continue;
+        }
         RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
@@ -68,6 +80,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof ExcludeRequestHeaderField) {
+        if (request == null) {
+          continue;
+        }
         ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
