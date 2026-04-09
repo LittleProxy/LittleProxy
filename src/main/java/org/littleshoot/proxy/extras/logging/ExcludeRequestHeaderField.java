@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -43,7 +44,7 @@ public class ExcludeRequestHeaderField implements LogField {
       Pattern excludePattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.excludePattern = excludePattern;
+    this.excludePattern = Objects.requireNonNull(excludePattern, "excludePattern cannot be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
