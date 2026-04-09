@@ -1606,10 +1606,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   private void recordClientConnected() {
     InetSocketAddress clientAddress = getClientAddress();
     clientDetails.setClientAddress(clientAddress);
-    FlowContext flowContext = clientFlowContext;
-    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
-        tracker.clientConnected(flowContext);
+        tracker.clientConnected(clientFlowContext);
       } catch (Exception e) {
         LOG.error("Unable to recordClientConnected", e);
       }
@@ -1618,10 +1617,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordClientSSLHandshakeStarted() {
 
-    FlowContext flowContext = clientFlowContext;
-    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
-        tracker.clientSSLHandshakeStarted(flowContext);
+        tracker.clientSSLHandshakeStarted(clientFlowContext);
       } catch (Exception e) {
         LOG.error("Unable to recordClientSSLHandshakeStarted", e);
       }
@@ -1630,10 +1628,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordClientSSLHandshakeSucceeded() {
 
-    FlowContext flowContext = clientFlowContext;
-    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
-        tracker.clientSSLHandshakeSucceeded(flowContext, clientSslSession);
+        tracker.clientSSLHandshakeSucceeded(clientFlowContext, clientSslSession);
       } catch (Exception e) {
         LOG.error("Unable to recordClientSSLHandshakeSucceeded", e);
       }
@@ -1641,10 +1638,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private void recordClientDisconnected() {
-    FlowContext flowContext = clientFlowContext;
-    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
-        tracker.clientDisconnected(flowContext, clientSslSession);
+        tracker.clientDisconnected(clientFlowContext, clientSslSession);
       } catch (Exception e) {
         LOG.error("Unable to recordClientDisconnected", e);
       }
@@ -1653,10 +1649,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordConnectionWritable() {
 
-    FlowContext flowContext = clientFlowContext;
-    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
-        tracker.connectionWritable(flowContext);
+        tracker.connectionWritable(clientFlowContext);
       } catch (Exception e) {
         LOG.error("Unable to recordConnectionWritable", e);
       }
