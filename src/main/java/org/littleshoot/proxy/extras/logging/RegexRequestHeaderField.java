@@ -164,12 +164,14 @@ public class RegexRequestHeaderField implements LogField {
     if (obj == null || getClass() != obj.getClass()) return false;
     RegexRequestHeaderField that = (RegexRequestHeaderField) obj;
     return pattern.pattern().equals(that.pattern.pattern())
-        && pattern.flags() == that.pattern.flags();
+        && pattern.flags() == that.pattern.flags()
+        && Objects.equals(fieldNameTransformer, that.fieldNameTransformer)
+        && Objects.equals(valueTransformer, that.valueTransformer);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(pattern.pattern(), pattern.flags());
+    return Objects.hash(pattern.pattern(), pattern.flags(), fieldNameTransformer, valueTransformer);
   }
 
   @Override
