@@ -123,8 +123,8 @@ class CsvFormatterTest {
     assertThat(result).startsWith("\"test-flow-id\"");
     assertThat(result).contains(",\"response_sent\"");
     assertThat(result).contains(",\"127.0.0.1\"");
-    assertThat(result).contains(",\"200\"");
-    assertThat(result).contains(",\"15\"");
+    // Attributes are serialized as key=value;key=value (sorted by key for determinism)
+    assertThat(result).contains("\"processing_time_ms=15;status=200\"");
   }
 
   @Test

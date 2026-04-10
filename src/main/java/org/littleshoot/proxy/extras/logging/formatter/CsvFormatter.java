@@ -95,9 +95,14 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
 
     // Add all event-specific attributes
     if (attributes != null) {
-      for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-        sb.append(",\"").append(escapeCsv(String.valueOf(entry.getValue()))).append("\"");
-      }
+      sb.append(",\"")
+          .append(
+              escapeCsv(
+                  attributes.entrySet().stream()
+                      .sorted(Map.Entry.comparingByKey())
+                      .map(e -> e.getKey() + "=" + String.valueOf(e.getValue()))
+                      .collect(Collectors.joining(";"))))
+          .append("\"");
     }
 
     return sb.toString();
