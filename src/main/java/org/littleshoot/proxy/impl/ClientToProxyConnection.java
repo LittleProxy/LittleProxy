@@ -1606,7 +1606,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   private void recordClientConnected() {
     InetSocketAddress clientAddress = getClientAddress();
     clientDetails.setClientAddress(clientAddress);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientConnected(clientFlowContext);
       } catch (Exception e) {
@@ -1617,7 +1617,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordClientSSLHandshakeStarted() {
 
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientSSLHandshakeStarted(clientFlowContext);
       } catch (Exception e) {
@@ -1628,7 +1628,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordClientSSLHandshakeSucceeded() {
 
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientSSLHandshakeSucceeded(clientFlowContext, clientSslSession);
       } catch (Exception e) {
@@ -1638,7 +1638,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private void recordClientDisconnected() {
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.clientDisconnected(clientFlowContext, clientSslSession);
       } catch (Exception e) {
@@ -1649,7 +1649,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   private void recordConnectionWritable() {
 
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.connectionWritable(clientFlowContext);
       } catch (Exception e) {

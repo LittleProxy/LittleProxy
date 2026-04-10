@@ -71,11 +71,11 @@ public class APIManagementConfig {
         .addResponseHeader("X-Quota-Used", "resp_quota_used")
         .addResponseHeader("X-Quota-Remaining", "resp_quota_remaining")
 
-        // Authentication and authorization
-        .addRequestHeader("Authorization", "auth_type")
-        .addRequestHeader("X-API-Key", "api_key_present")
-        .addRequestHeader("X-Auth-Token", "auth_token")
-        .addRequestHeader("X-Service-Token", "service_token")
+        // Authentication and authorization (partially masked by default)
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
+        .addRequestHeader("X-API-Key", "api_key", HeaderFieldTransformers.partialMask())
+        .addRequestHeader("X-Auth-Token", "auth_token", HeaderFieldTransformers.partialMask())
+        .addRequestHeader("X-Service-Token", "service_token", HeaderFieldTransformers.partialMask())
 
         // Client identification
         .addRequestHeader("X-Client-Name", "client_name")
@@ -136,7 +136,7 @@ public class APIManagementConfig {
         // Essential API headers
         .addRequestHeader("X-Request-ID", "x_request_id")
         .addRequestHeader("X-API-Version", "x_api_version")
-        .addRequestHeader("Authorization", "authorization")
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
         .addResponseHeader("X-Request-ID", "resp_x_request_id")
         .addResponseHeader("X-RateLimit-Remaining", "x_ratelimit_remaining")
         .addResponseHeader("X-Error-Code", "x_error_code")
@@ -167,7 +167,7 @@ public class APIManagementConfig {
         // Rate limiting headers
         .addRequestHeader("X-Rate-Limit-Key", "x_rate_limit_key")
         .addRequestHeader("X-Client-ID", "x_client_id")
-        .addRequestHeader("X-API-Key", "x_api_key")
+        .addRequestHeader("X-API-Key", "x_api_key", HeaderFieldTransformers.partialMask())
         .addResponseHeader("X-RateLimit-Limit", "x_ratelimit_limit")
         .addResponseHeader("X-RateLimit-Remaining", "x_ratelimit_remaining")
         .addResponseHeader("X-RateLimit-Reset", "x_ratelimit_reset")
@@ -178,7 +178,7 @@ public class APIManagementConfig {
         .addResponseHeader("X-Quota-Remaining", "x_quota_remaining")
 
         // Authentication for rate limiting
-        .addRequestHeader("Authorization", "authorization")
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
 
         // Computed fields
         .addComputedField(ComputedField.AUTHENTICATION_TYPE)

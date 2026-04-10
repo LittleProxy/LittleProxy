@@ -37,7 +37,6 @@ public enum ComputedField implements LogField {
   @Override
   public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     switch (this) {
-
       case GEOLOCATION_COUNTRY:
         return extractGeolocationCountry(flowContext);
 
@@ -51,7 +50,6 @@ public enum ComputedField implements LogField {
         return "-";
     }
   }
-
 
   private String extractGeolocationCountry(FlowContext flowContext) {
     try {
