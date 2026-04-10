@@ -2,6 +2,7 @@ package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Locale;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.geo.GeoCountryResolver;
 import org.littleshoot.proxy.extras.logging.geo.GeoCountryResolverFactory;
@@ -103,12 +104,12 @@ public enum ComputedField implements LogField {
     if (authHeader == null) {
       return "none";
     }
-
-    if (authHeader.toLowerCase().startsWith("basic ")) {
+    String normalized = authHeader.trim().toLowerCase(Locale.ROOT);
+    if (normalized.startsWith("basic ")) {
       return "basic";
-    } else if (authHeader.toLowerCase().startsWith("bearer ")) {
+    } else if (normalized.startsWith("bearer ")) {
       return "bearer";
-    } else if (authHeader.toLowerCase().startsWith("digest ")) {
+    } else if (normalized.startsWith("digest ")) {
       return "digest";
     } else {
       return "other";
