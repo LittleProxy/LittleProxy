@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -218,7 +217,8 @@ class PrefixResponseHeaderFieldTest {
 
   @Test
   void testConstructorWithEmptyPrefix() {
-     Assertions.assertThrows(IllegalArgumentException.class,()-> new PrefixResponseHeaderField(""));
+    Assertions.assertThrows(
+        IllegalArgumentException.class, () -> new PrefixResponseHeaderField(""));
   }
 
   @Test

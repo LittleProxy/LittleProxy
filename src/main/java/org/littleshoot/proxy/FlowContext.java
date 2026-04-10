@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Objects;
@@ -17,12 +18,14 @@ public class FlowContext {
   private final SSLSession clientSslSession;
   private final long connectionId;
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
+  private String flowId;
 
   public FlowContext(ClientToProxyConnection clientConnection) {
     clientAddress = clientConnection.getClientAddress();
     SSLEngine sslEngine = clientConnection.getSslEngine();
     clientSslSession = sslEngine != null ? sslEngine.getSession() : null;
     this.connectionId = clientConnection.getId();
+    this.flowId = generateFlowId();
   }
 
   /** The address of the client. */
@@ -66,6 +69,24 @@ public class FlowContext {
     return Map.copyOf(timingData);
   }
 
+  /**
+   * Sets the flow ID for this context.
+   *
+   * @param flowId the unique flow identifier
+   */
+  public void setFlowId(String flowId) {
+    this.flowId = flowId;
+  }
+
+  /**
+   * Gets the flow ID for this context.
+   *
+   * @return the flow ID, or null if not set
+   */
+  public String getFlowId() {
+    return flowId;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
@@ -77,5 +98,14 @@ public class FlowContext {
   @Override
   public int hashCode() {
     return Long.hashCode(connectionId);
+  }
+
+  /**
+   * Generates a unique flow ID for tracing requests across the proxy.
+   *
+   * @return unique flow identifier
+   */
+  private String generateFlowId() {
+    return UlidCreator.getUlid().toString();
   }
 }

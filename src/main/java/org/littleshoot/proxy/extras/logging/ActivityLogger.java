@@ -1,6 +1,5 @@
 package org.littleshoot.proxy.extras.logging;
 
-import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
@@ -90,25 +89,15 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     validateStandardsCompliance();
   }
 
-  /**
-   * Generates a unique flow ID for tracing requests across the proxy.
-   *
-   * @return unique flow identifier
-   */
-  private String generateFlowId() {
-    return UlidCreator.getUlid().toString();
-  }
-
   // ==================== REQUEST/RESPONSE TRACKING ====================
 
   @Override
   public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
-    String flowId = generateFlowId();
-    long now = System.currentTimeMillis();
 
+    long now = System.currentTimeMillis();
     // Store request start time in FlowContext
     flowContext.setTimingData("request_start_time", now);
-    requestMap.put(flowContext, new TimedRequest(httpRequest, now, flowId));
+    requestMap.put(flowContext, new TimedRequest(httpRequest, now, flowContext.getFlowId()));
 
     // For non-SSL connections, set tcp_connection_establishment_time_ms if not already set
     // (For SSL connections, it's set in clientSSLHandshakeSucceeded)
@@ -147,7 +136,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         LifecycleEvent.REQUEST_RECEIVED,
         flowContext,
         java.util.Map.copyOf(requestAttributes),
-        flowId);
+        flowContext.getFlowId());
   }
 
   @Override
@@ -281,14 +270,13 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   public void clientConnected(FlowContext flowContext) {
     long now = System.currentTimeMillis();
     InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
-    String flowId = generateFlowId();
 
     // Store timing data in FlowContext
     flowContext.setTimingData("tcp_client_connection_start_time_ms", now);
 
     // Track state
     if (clientAddress != null) {
-      ClientState state = new ClientState(flowId);
+      ClientState state = new ClientState(flowContext.getFlowId());
       clientStates.put(clientAddress, state);
     }
 
@@ -303,7 +291,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
 
     logLifecycleEvent(
-        LifecycleEvent.CLIENT_CONNECTED, flowContext, java.util.Map.copyOf(attributes), flowId);
+        LifecycleEvent.CLIENT_CONNECTED,
+        flowContext,
+        java.util.Map.copyOf(attributes),
+        flowContext.getFlowId());
   }
 
   @Override
@@ -515,7 +506,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     if (timedRequest != null) {
       return timedRequest.flowId;
     }
-    return generateFlowId();
+    return flowContext.getFlowId();
   }
 
   /**

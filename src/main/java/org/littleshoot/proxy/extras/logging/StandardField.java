@@ -67,6 +67,10 @@ public enum StandardField implements LogField {
   @Override
   public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
     switch (this) {
+      case FLOW_ID:
+        String flowId = flowContext.getFlowId();
+        return flowId != null ? flowId : "-";
+
       case TIMESTAMP:
         return ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 
