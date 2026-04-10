@@ -92,6 +92,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else if (field instanceof ExcludeResponseHeaderField) {
+        if (response == null) {
+          continue;
+        }
         ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
