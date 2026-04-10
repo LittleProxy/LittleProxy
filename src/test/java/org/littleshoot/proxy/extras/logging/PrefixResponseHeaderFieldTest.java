@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.FlowContext;
@@ -215,17 +217,8 @@ class PrefixResponseHeaderFieldTest {
   }
 
   @Test
-  void testExtractMatchingHeadersWithEmptyPrefix() {
-    PrefixResponseHeaderField field = new PrefixResponseHeaderField("");
-
-    when(headers.names()).thenReturn(Set.of("Header1", "Header2"));
-    when(headers.getAll("Header1")).thenReturn(List.of("value1"));
-    when(headers.getAll("Header2")).thenReturn(List.of("value2"));
-
-    Map<String, String> matches = field.extractMatchingHeaders(headers);
-
-    // Empty prefix matches all headers
-    assertThat(matches).hasSize(2);
+  void testConstructorWithEmptyPrefix() {
+     Assertions.assertThrows(IllegalArgumentException.class,()-> new PrefixResponseHeaderField(""));
   }
 
   @Test
