@@ -67,12 +67,14 @@ public class RequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     RequestHeaderField that = (RequestHeaderField) obj;
-    return headerName.equals(that.headerName) && fieldName.equals(that.fieldName);
+    return headerName.equals(that.headerName)
+        && fieldName.equals(that.fieldName)
+        && Objects.equals(valueTransformer, that.valueTransformer);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(headerName, fieldName);
+    return Objects.hash(headerName, fieldName, valueTransformer);
   }
 
   @Override
