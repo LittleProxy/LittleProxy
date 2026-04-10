@@ -2,6 +2,8 @@ package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 import org.littleshoot.proxy.FlowContext;
@@ -31,7 +33,7 @@ public class ResponseHeaderField implements LogField {
     this.fieldName =
         fieldName != null
             ? fieldName
-            : "resp_" + this.headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
+            : "resp_" + this.headerName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "_");
     if (this.headerName.isBlank() || this.fieldName.isBlank()) {
       throw new IllegalArgumentException("headerName/fieldName must not be blank");
     }
