@@ -34,8 +34,4 @@ public final class HeaderFieldTransformers {
     };
   }
 
-  /** Masks with a custom marker. Useful for indicating sensitive data is present. */
-  public static Function<String, String> masked(String marker) {
-    return value -> (value != null && !value.isBlank()) ? marker : "-";
-  }
 }
