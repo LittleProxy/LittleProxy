@@ -14,7 +14,7 @@ public class LogFieldConfiguration {
   private final List<Long> responseTimeThresholds;
 
   private LogFieldConfiguration(Builder builder) {
-    this.fields = Collections.unmodifiableSet(new HashSet<>(builder.fields));
+    this.fields = Collections.unmodifiableSet(new LinkedHashSet<>(builder.fields));
     this.strictStandardsCompliance = builder.strictStandardsCompliance;
     this.customFieldMappings =
         Collections.unmodifiableMap(new HashMap<>(builder.customFieldMappings));
@@ -98,7 +98,7 @@ public class LogFieldConfiguration {
 
   /** Builder class for LogFieldConfiguration. */
   public static class Builder {
-    private final Set<LogField> fields = new HashSet<>();
+    private final Set<LogField> fields = new LinkedHashSet<>();
     private boolean strictStandardsCompliance = false;
     private final Map<String, String> customFieldMappings = new HashMap<>();
     private List<Long> responseTimeThresholds = Arrays.asList(100L, 500L, 2000L);
