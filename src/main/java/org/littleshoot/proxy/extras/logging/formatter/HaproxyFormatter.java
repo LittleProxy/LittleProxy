@@ -58,8 +58,9 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
   }
 
   /**
-   * + * Escapes a string for safe inclusion in the HAProxy request line. + * Removes/escapes
-   * characters that could break log format or enable injection. +
+   *  Escapes a string for safe inclusion in the HAProxy request line.
+   *  Removes/escapes
+   * characters that could break log format or enable injection.
    */
   private String escapeRequestLine(String value) {
     if (value == null) {
