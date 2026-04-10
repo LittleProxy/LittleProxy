@@ -91,7 +91,8 @@ public class LogFieldConfigurationFactory {
         } else if (fieldNameTransformer != null) {
           builder.addRequestHeadersWithPrefix(prefix, fieldNameTransformer);
         } else if (valueTransformer != null) {
-          builder.addRequestHeadersWithPrefix(prefix, valueTransformer);
+          builder.addCustomField(
+              new PrefixRequestHeaderField(prefix, value -> value, valueTransformer));
         } else {
           builder.addRequestHeadersWithPrefix(prefix);
         }
@@ -114,7 +115,8 @@ public class LogFieldConfigurationFactory {
         } else if (fieldNameTransformer != null) {
           builder.addResponseHeadersWithPrefix(prefix, fieldNameTransformer);
         } else if (valueTransformer != null) {
-          builder.addResponseHeadersWithPrefix(prefix, valueTransformer);
+          builder.addCustomField(
+              new PrefixResponseHeaderField(prefix, value -> value, valueTransformer));
         } else {
           builder.addResponseHeadersWithPrefix(prefix);
         }
@@ -136,7 +138,8 @@ public class LogFieldConfigurationFactory {
         } else if (fieldNameTransformer != null) {
           builder.addRequestHeadersMatching(pattern, fieldNameTransformer);
         } else if (valueTransformer != null) {
-          builder.addRequestHeadersMatching(pattern, valueTransformer);
+          builder.addCustomField(
+              new RegexRequestHeaderField(pattern, value -> value, valueTransformer));
         } else {
           builder.addRequestHeadersMatching(pattern);
         }
@@ -158,7 +161,8 @@ public class LogFieldConfigurationFactory {
         } else if (fieldNameTransformer != null) {
           builder.addResponseHeadersMatching(pattern, fieldNameTransformer);
         } else if (valueTransformer != null) {
-          builder.addResponseHeadersMatching(pattern, valueTransformer);
+          builder.addCustomField(
+              new RegexResponseHeaderField(pattern, value -> value, valueTransformer));
         } else {
           builder.addResponseHeadersMatching(pattern);
         }
@@ -178,6 +182,12 @@ public class LogFieldConfigurationFactory {
 
         if (fieldNameTransformer != null && valueTransformer != null) {
           builder.excludeRequestHeadersMatching(pattern, fieldNameTransformer, valueTransformer);
+        } else if (fieldNameTransformer != null) {
+          builder.addCustomField(
+              new ExcludeRequestHeaderField(pattern, fieldNameTransformer, value -> value));
+        } else if (valueTransformer != null) {
+          builder.addCustomField(
+              new ExcludeRequestHeaderField(pattern, value -> value, valueTransformer));
         } else {
           builder.excludeRequestHeadersMatching(pattern);
         }
@@ -197,6 +207,12 @@ public class LogFieldConfigurationFactory {
 
         if (fieldNameTransformer != null && valueTransformer != null) {
           builder.excludeResponseHeadersMatching(pattern, fieldNameTransformer, valueTransformer);
+        } else if (fieldNameTransformer != null) {
+          builder.addCustomField(
+              new ExcludeResponseHeaderField(pattern, fieldNameTransformer, value -> value));
+        } else if (valueTransformer != null) {
+          builder.addCustomField(
+              new ExcludeResponseHeaderField(pattern, value -> value, valueTransformer));
         } else {
           builder.excludeResponseHeadersMatching(pattern);
         }
@@ -280,7 +296,8 @@ public class LogFieldConfigurationFactory {
       case "lower_underscore":
         return name -> name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "_");
       case "remove_prefix":
-        return name -> name.toLowerCase(Locale.ROOT).replaceAll("^X-", "").replaceAll("[^a-z0-9]", "_");
+        return name ->
+            name.toLowerCase(Locale.ROOT).replaceAll("^X-", "").replaceAll("[^a-z0-9]", "_");
       case "lower_hyphen":
         return name -> name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "-");
       case "upper_underscore":
