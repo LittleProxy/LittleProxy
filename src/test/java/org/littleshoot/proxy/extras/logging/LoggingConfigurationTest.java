@@ -46,6 +46,7 @@ class LoggingConfigurationTest {
     config.setResponsePrefixHeaders(Collections.singletonList(prefixConfig));
 
     assertThat(config.getResponsePrefixHeaders()).hasSize(1);
+    assertThat(config.getResponsePrefixHeaders().get(0).getPrefix()).isEqualTo("X-RateLimit-");
   }
 
   @Test
@@ -69,6 +70,7 @@ class LoggingConfigurationTest {
     config.setResponseRegexHeaders(Collections.singletonList(regexConfig));
 
     assertThat(config.getResponseRegexHeaders()).hasSize(1);
+    assertThat(config.getResponseRegexHeaders().get(0).getPattern()).isEqualTo("X-Cache-.*");
   }
 
   @Test
@@ -91,6 +93,7 @@ class LoggingConfigurationTest {
     config.setResponseExcludeHeaders(Collections.singletonList(excludeConfig));
 
     assertThat(config.getResponseExcludeHeaders()).hasSize(1);
+    assertThat(config.getResponseExcludeHeaders().get(0).getPattern()).isEqualTo("Set-Cookie");
   }
 
   @Test
