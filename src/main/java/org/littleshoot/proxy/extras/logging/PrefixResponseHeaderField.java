@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import org.littleshoot.proxy.FlowContext;
@@ -51,13 +52,16 @@ public class PrefixResponseHeaderField implements LogField {
       String prefix,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.prefix = prefix;
+    this.prefix = Objects.requireNonNull(prefix, "prefix cannot be null");
+    if (this.prefix.isBlank()) {
+       throw new IllegalArgumentException("prefix cannot be blank");
+    }
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
             : PrefixResponseHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
-    this.description = "Response headers matching prefix: " + prefix;
+    this.description = "Response headers matching prefix: " + this.prefix;
   }
 
   @Override
