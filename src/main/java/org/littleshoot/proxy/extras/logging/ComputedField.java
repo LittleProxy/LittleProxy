@@ -52,20 +52,23 @@ public enum ComputedField implements LogField {
   }
 
   private String extractGeolocationCountry(FlowContext flowContext) {
+    if (flowContext == null
+        || flowContext.getClientAddress() == null
+        || flowContext.getClientAddress().getAddress() == null) {
+      return GeoCountryResolver.UNKNOWN;
+    }
     try {
-      if (flowContext.getClientAddress() != null
-          && flowContext.getClientAddress().getAddress() != null) {
-        return GeoCountryResolverFactory.getResolver()
-            .resolveCountryCode(flowContext.getClientAddress().getAddress());
-      }
+      return GeoCountryResolverFactory.getResolver()
+          .resolveCountryCode(flowContext.getClientAddress().getAddress());
     } catch (Exception e) {
       return GeoCountryResolver.UNKNOWN;
     }
-
-    return GeoCountryResolver.UNKNOWN;
   }
 
   private String extractRequestSize(HttpRequest request) {
+    if (request == null || request.headers() == null) {
+      return "-";
+    }
     String contentLength = request.headers().get("Content-Length");
     if (contentLength != null) {
       return contentLength;
