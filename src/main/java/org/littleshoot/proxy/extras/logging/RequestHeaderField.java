@@ -2,7 +2,6 @@ package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
-
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;

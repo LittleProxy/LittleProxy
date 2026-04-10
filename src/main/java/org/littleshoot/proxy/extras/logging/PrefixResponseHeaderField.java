@@ -54,7 +54,7 @@ public class PrefixResponseHeaderField implements LogField {
       Function<String, String> valueTransformer) {
     this.prefix = Objects.requireNonNull(prefix, "prefix cannot be null");
     if (this.prefix.isBlank()) {
-       throw new IllegalArgumentException("prefix cannot be blank");
+      throw new IllegalArgumentException("prefix cannot be blank");
     }
     this.fieldNameTransformer =
         fieldNameTransformer != null
