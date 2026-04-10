@@ -39,7 +39,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(entry.getKey()))
+          sb.append(sanitizeLtsvLabel(entry.getKey()))
               .append(":")
               .append(sanitizeLtsv(entry.getValue()));
         }
@@ -51,7 +51,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(entry.getKey()))
+          sb.append(sanitizeLtsvLabel(entry.getKey()))
               .append(":")
               .append(sanitizeLtsv(entry.getValue()));
         }
@@ -63,7 +63,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(entry.getKey()))
+          sb.append(sanitizeLtsvLabel(entry.getKey()))
               .append(":")
               .append(sanitizeLtsv(entry.getValue()));
         }
@@ -75,7 +75,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             regexField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(entry.getKey()))
+          sb.append(sanitizeLtsvLabel(entry.getKey()))
               .append(":")
               .append(sanitizeLtsv(entry.getValue()));
         }
@@ -87,7 +87,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(entry.getKey()))
+          sb.append(sanitizeLtsvLabel(entry.getKey()))
               .append(":")
               .append(sanitizeLtsv(entry.getValue()));
         }
@@ -99,7 +99,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         for (Map.Entry<String, String> entry :
             excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(entry.getKey()))
+          sb.append(sanitizeLtsvLabel(entry.getKey()))
               .append(":")
               .append(sanitizeLtsv(entry.getValue()));
         }
@@ -108,7 +108,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
         // Skip fields with null values (e.g., TCP timing data not yet available)
         if (value != null) {
           sb.append("\t");
-          sb.append(sanitizeLtsv(field.getName())).append(":").append(sanitizeLtsv(value));
+          sb.append(sanitizeLtsvLabel(field.getName())).append(":").append(sanitizeLtsv(value));
         }
       }
     }
@@ -133,7 +133,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
     if (attributes != null) {
       for (Map.Entry<String, Object> entry : attributes.entrySet()) {
         sb.append("\t")
-            .append(sanitizeLtsv(entry.getKey()))
+            .append(sanitizeLtsvLabel(entry.getKey()))
             .append(":")
             .append(sanitizeLtsv(entry.getValue() != null ? entry.getValue().toString() : null));
       }
@@ -146,5 +146,12 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
       return "-";
     }
     return value.replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n");
+  }
+
+  private String sanitizeLtsvLabel(String label) {
+    if (label == null) {
+      return "-";
+    }
+    return label.replace("\t", "_").replace("\r", "_").replace("\n", "_").replace(":", "_");
   }
 }
