@@ -156,7 +156,7 @@ class ExcludeResponseHeaderFieldTest {
   }
 
   @Test
-  void testExtractMatchingHeadersCaseSensitive() {
+  void testExtractMatchingHeadersCaseInsensitive() {
     ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("content-type");
 
     when(headers.names()).thenReturn(Set.of("Content-Type", "X-Header"));
