@@ -8,8 +8,15 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
+import org.littleshoot.proxy.extras.logging.ExcludeRequestHeaderField;
+import org.littleshoot.proxy.extras.logging.ExcludeResponseHeaderField;
+import org.littleshoot.proxy.extras.logging.LogField;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFormat;
+import org.littleshoot.proxy.extras.logging.PrefixRequestHeaderField;
+import org.littleshoot.proxy.extras.logging.PrefixResponseHeaderField;
+import org.littleshoot.proxy.extras.logging.RegexRequestHeaderField;
+import org.littleshoot.proxy.extras.logging.RegexResponseHeaderField;
 
 /**
  * Formatter for Key-Value structured text format.
@@ -31,45 +38,127 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
       LogFieldConfiguration fieldConfig) {
 
     StringBuilder sb = new StringBuilder();
-    InetSocketAddress clientAddress = context.getClientAddress();
-    String clientIp =
-        (clientAddress != null && clientAddress.getAddress() != null)
-            ? clientAddress.getAddress().getHostAddress()
-            : "-";
-    int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
+    sb.append("flow_id=").append(escapeKv(flowId));
 
-    // Get server information
-    String serverAddress = "-";
-    int serverPort = 0;
-    if (context instanceof FullFlowContext) {
-      String hostAndPort = ((FullFlowContext) context).getServerHostAndPort();
-      if (hostAndPort != null) {
-        try {
-          HostAndPort parsed = HostAndPort.fromString(hostAndPort);
-          serverAddress = parsed.getHost();
-          serverPort = parsed.hasPort() ? parsed.getPort() : 0;
-        } catch (IllegalArgumentException ignored) {
-          serverAddress = "-";
-          serverPort = 0;
+    // If no custom fields configured, use default core fields for backward compatibility
+    if (fieldConfig.getFields().isEmpty()) {
+      InetSocketAddress clientAddress = context.getClientAddress();
+      String clientIp =
+          (clientAddress != null && clientAddress.getAddress() != null)
+              ? clientAddress.getAddress().getHostAddress()
+              : "-";
+      int clientPort = clientAddress != null ? clientAddress.getPort() : 0;
+
+      String serverAddress = "-";
+      int serverPort = 0;
+      if (context instanceof FullFlowContext) {
+        String hostAndPort = ((FullFlowContext) context).getServerHostAndPort();
+        if (hostAndPort != null) {
+          try {
+            HostAndPort parsed = HostAndPort.fromString(hostAndPort);
+            serverAddress = parsed.getHost();
+            serverPort = parsed.hasPort() ? parsed.getPort() : 0;
+          } catch (IllegalArgumentException ignored) {
+            serverAddress = "-";
+            serverPort = 0;
+          }
+        }
+      }
+
+      String httpRequestMs = getTimingData(context, "http_request_processing_time_ms");
+
+      sb.append(" client_ip=").append(clientIp);
+      sb.append(" client_port=").append(clientPort);
+      sb.append(" server_ip=").append(serverAddress);
+      sb.append(" server_port=").append(serverPort);
+      sb.append(" method=").append(request.method().name());
+      sb.append(" uri=\"").append(escapeKv(request.uri())).append("\"");
+      sb.append(" protocol=").append(request.protocolVersion());
+      sb.append(" status=").append(response.status().code());
+      sb.append(" bytes=").append(getContentLength(response));
+      sb.append(" http_request_ms=").append(httpRequestMs);
+    } else {
+      // Use configured fields dynamically
+      for (LogField field : fieldConfig.getFields()) {
+        // Handle prefix-based fields that expand to multiple entries
+        if (field instanceof PrefixRequestHeaderField) {
+          if (request != null) {
+            PrefixRequestHeaderField prefixField = (PrefixRequestHeaderField) field;
+            for (Map.Entry<String, String> entry :
+                prefixField.extractMatchingHeaders(request.headers()).entrySet()) {
+              sb.append(" ");
+              sb.append(escapeKvKey(entry.getKey()));
+              sb.append("=");
+              sb.append(escapeKv(entry.getValue()));
+            }
+          }
+        } else if (field instanceof PrefixResponseHeaderField) {
+          if (response != null) {
+            PrefixResponseHeaderField prefixField = (PrefixResponseHeaderField) field;
+            for (Map.Entry<String, String> entry :
+                prefixField.extractMatchingHeaders(response.headers()).entrySet()) {
+              sb.append(" ");
+              sb.append(escapeKvKey(entry.getKey()));
+              sb.append("=");
+              sb.append(escapeKv(entry.getValue()));
+            }
+          }
+        } else if (field instanceof RegexRequestHeaderField) {
+          if (request != null) {
+            RegexRequestHeaderField regexField = (RegexRequestHeaderField) field;
+            for (Map.Entry<String, String> entry :
+                regexField.extractMatchingHeaders(request.headers()).entrySet()) {
+              sb.append(" ");
+              sb.append(escapeKvKey(entry.getKey()));
+              sb.append("=");
+              sb.append(escapeKv(entry.getValue()));
+            }
+          }
+        } else if (field instanceof RegexResponseHeaderField) {
+          if (response != null) {
+            RegexResponseHeaderField regexField = (RegexResponseHeaderField) field;
+            for (Map.Entry<String, String> entry :
+                regexField.extractMatchingHeaders(response.headers()).entrySet()) {
+              sb.append(" ");
+              sb.append(escapeKvKey(entry.getKey()));
+              sb.append("=");
+              sb.append(escapeKv(entry.getValue()));
+            }
+          }
+        } else if (field instanceof ExcludeRequestHeaderField) {
+          if (request != null) {
+            ExcludeRequestHeaderField excludeField = (ExcludeRequestHeaderField) field;
+            for (Map.Entry<String, String> entry :
+                excludeField.extractMatchingHeaders(request.headers()).entrySet()) {
+              sb.append(" ");
+              sb.append(escapeKvKey(entry.getKey()));
+              sb.append("=");
+              sb.append(escapeKv(entry.getValue()));
+            }
+          }
+        } else if (field instanceof ExcludeResponseHeaderField) {
+          if (response != null) {
+            ExcludeResponseHeaderField excludeField = (ExcludeResponseHeaderField) field;
+            for (Map.Entry<String, String> entry :
+                excludeField.extractMatchingHeaders(response.headers()).entrySet()) {
+              sb.append(" ");
+              sb.append(escapeKvKey(entry.getKey()));
+              sb.append("=");
+              sb.append(escapeKv(entry.getValue()));
+            }
+          }
+        } else {
+          String value = field.extractValue(context, request, response);
+          // Skip fields with null values (e.g., TCP timing data not yet available)
+          if (value != null) {
+            sb.append(" ");
+            sb.append(escapeKvKey(field.getName()));
+            sb.append("=");
+            sb.append(escapeKv(value));
+          }
         }
       }
     }
-
-    // Get timing data from flow context
-    String httpRequestMs = getTimingData(context, "http_request_processing_time_ms");
-
-    // Build structured log entry: flow_id=... client_ip=... key=value pairs
-    sb.append("flow_id=").append(flowId);
-    sb.append(" client_ip=").append(clientIp);
-    sb.append(" client_port=").append(clientPort);
-    sb.append(" server_ip=").append(serverAddress);
-    sb.append(" server_port=").append(serverPort);
-    sb.append(" method=").append(request.method().name());
-    sb.append(" uri=\"").append(escapeKv(request.uri())).append("\"");
-    sb.append(" protocol=").append(request.protocolVersion());
-    sb.append(" status=").append(response.status().code());
-    sb.append(" bytes=").append(getContentLength(response));
-    sb.append(" http_request_ms=").append(httpRequestMs);
 
     return sb.toString();
   }
@@ -90,7 +179,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     // Add all event-specific attributes
     if (attributes != null) {
       for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-        String key = sanitizeKvKey(entry.getKey());
+        String key = escapeKvKey(entry.getKey());
         Object rawValue = entry.getValue();
         String value = rawValue == null ? null : rawValue.toString();
 
@@ -104,7 +193,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
     return sb.toString();
   }
 
-  private String sanitizeKvKey(String key) {
+  private String escapeKvKey(String key) {
     if (key == null || key.isEmpty()) {
       return "-";
     }
