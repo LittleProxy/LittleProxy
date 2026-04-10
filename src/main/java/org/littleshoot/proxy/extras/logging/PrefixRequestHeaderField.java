@@ -52,7 +52,7 @@ public class PrefixRequestHeaderField implements LogField {
       String prefix,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.prefix =  Objects.requireNonNull(prefix, "prefix must not be null");
+    this.prefix = Objects.requireNonNull(prefix, "prefix must not be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer

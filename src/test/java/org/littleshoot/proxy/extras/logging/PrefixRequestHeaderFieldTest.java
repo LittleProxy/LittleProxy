@@ -236,4 +236,16 @@ class PrefixRequestHeaderFieldTest {
     assertThat(matches).containsKey("req_x_custom_header");
     assertThat(matches.get("req_x_custom_header2")).isEqualTo("value2");
   }
+
+  @Test
+  void testExtractMatchingHeadersWithMultipleValues() {
+    Set<String> headerNames = Set.of("X-Custom-Header1");
+    when(headers.names()).thenReturn(headerNames);
+    when(headers.getAll("X-Custom-Header1")).thenReturn(List.of("value1", "value2"));
+
+    PrefixRequestHeaderField field = new PrefixRequestHeaderField("X-Custom-");
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).containsEntry("req_x_custom_header1", "value1,value2");
+  }
 }
