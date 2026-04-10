@@ -53,13 +53,13 @@ public class RegexRequestHeaderField implements LogField {
       Pattern pattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.pattern = pattern;
+    this.pattern = Objects.requireNonNull(pattern, "pattern cannot be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
             : RegexRequestHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
-    this.description = "Request headers matching pattern: " + pattern.pattern();
+    this.description = "Request headers matching pattern: " + this.pattern.pattern();
   }
 
   /**
