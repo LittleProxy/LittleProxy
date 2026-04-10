@@ -79,7 +79,8 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
 
     // If it's already a path (starts with /), return as-is
     if (uri.startsWith("/")) {
-      return uri;
+      int queryStart = uri.indexOf('?');
+      return queryStart == -1 ? uri : uri.substring(0, queryStart);
     }
 
     // If it's a full URL, extract just the path
