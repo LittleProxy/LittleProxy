@@ -176,9 +176,17 @@ class LoggingConfigurationTest {
   void testNullValues() {
     LoggingConfiguration config = new LoggingConfiguration();
 
-    assertThat(config.getStandardFields()).isNull();
-    assertThat(config.getResponseTimeThresholds()).isNull();
-    assertThat(config.getRequestPrefixHeaders()).isNull();
+    assertThat(config.getSingleHeaders()).isNull();
     assertThat(config.getComputedFields()).isNull();
+    assertThat(config.getStandardFields()).isNull();
+
+    assertThat(config.getRequestExcludeHeaders()).isNull();
+    assertThat(config.getRequestPrefixHeaders()).isNull();
+    assertThat(config.getRequestRegexHeaders()).isNull();
+
+    assertThat(config.getResponsePrefixHeaders()).isNull();
+    assertThat(config.getResponseExcludeHeaders()).isNull();
+    assertThat(config.getResponseRegexHeaders()).isNull();
+    assertThat(config.getResponseTimeThresholds()).isNull();
   }
 }
