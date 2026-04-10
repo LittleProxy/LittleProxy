@@ -54,7 +54,7 @@ public class RegexResponseHeaderField implements LogField {
       Pattern pattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    Preconditions.checkNotNull(pattern,"pattern must not be null");
+    Preconditions.checkNotNull(pattern, "pattern must not be null");
     this.pattern = pattern;
     this.fieldNameTransformer =
         fieldNameTransformer != null

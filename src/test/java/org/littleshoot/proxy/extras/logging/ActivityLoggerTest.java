@@ -9,6 +9,7 @@ import io.netty.handler.codec.http.*;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.List;
 import javax.net.ssl.SSLSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -249,9 +250,9 @@ class ActivityLoggerTest {
     // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
     // type
     // time is epoch seconds with milliseconds (e.g., 1234567890.123)
-    // For 2xx responses, we expect TCP_HIT (cache hit)
+    // LittleProxy always uses TCP_MISS since it is not a caching proxy
     assertThat(tracker.lastLogMessage)
-        .matches(".*\\d+\\.\\d{3} \\d+ 127\\.0\\.0\\.1 TCP_HIT/200 100 GET /test - DIRECT/- -.*");
+        .matches(".*\\d+\\.\\d{3} \\d+ 127\\.0\\.0\\.1 TCP_MISS/200 100 GET /test - DIRECT/- -.*");
   }
 
   private static class TestableActivityLogger extends ActivityLogger {
@@ -592,9 +593,9 @@ class ActivityLoggerTest {
     // Setup custom headers with prefix
     when(requestHeaders.names())
         .thenReturn(java.util.Set.of("X-Custom-Auth", "X-Custom-Id", "User-Agent"));
-    when(requestHeaders.get("X-Custom-Auth")).thenReturn("token123");
-    when(requestHeaders.get("X-Custom-Id")).thenReturn("abc-456");
-    when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
+    when(requestHeaders.getAll("X-Custom-Auth")).thenReturn(List.of("token123"));
+    when(requestHeaders.getAll("X-Custom-Id")).thenReturn(List.of("abc-456"));
+    when(requestHeaders.getAll("User-Agent")).thenReturn(List.of("Mozilla/5.0"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -618,9 +619,9 @@ class ActivityLoggerTest {
     // Setup rate limit headers
     when(responseHeaders.names())
         .thenReturn(java.util.Set.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Content-Type"));
-    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
-    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
-    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+    when(responseHeaders.getAll("X-RateLimit-Limit")).thenReturn(List.of("1000"));
+    when(responseHeaders.getAll("X-RateLimit-Remaining")).thenReturn(List.of("999"));
+    when(responseHeaders.getAll("Content-Type")).thenReturn(List.of("application/json"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -644,8 +645,8 @@ class ActivityLoggerTest {
   void testPrefixHeadersInLtsvFormat() {
     // Setup custom headers
     when(requestHeaders.names()).thenReturn(java.util.Set.of("X-Trace-Id", "X-Span-Id"));
-    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-123");
-    when(requestHeaders.get("X-Span-Id")).thenReturn("span-456");
+    when(requestHeaders.getAll("X-Trace-Id")).thenReturn(List.of("trace-123"));
+    when(requestHeaders.getAll("X-Span-Id")).thenReturn(List.of("span-456"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -669,8 +670,8 @@ class ActivityLoggerTest {
   void testPrefixHeadersInCsvFormat() {
     // Setup custom headers
     when(responseHeaders.names()).thenReturn(java.util.Set.of("X-Cache-Status", "X-Cache-Hits"));
-    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
-    when(responseHeaders.get("X-Cache-Hits")).thenReturn("42");
+    when(responseHeaders.getAll("X-Cache-Status")).thenReturn(List.of("HIT"));
+    when(responseHeaders.getAll("X-Cache-Hits")).thenReturn(List.of("42"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -685,8 +686,7 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("CSV Prefix Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"HIT\"");
-    assertThat(tracker.lastLogMessage).contains("\"42\"");
+    assertThat(tracker.lastLogMessage).contains("resp_x_cache_hits=42;resp_x_cache_status=HIT");
   }
 
   @Test
@@ -694,10 +694,10 @@ class ActivityLoggerTest {
     // Setup headers that match X-.*-Id pattern
     when(requestHeaders.names())
         .thenReturn(java.util.Set.of("X-Request-Id", "X-Trace-Id", "X-Session-Id", "Content-Type"));
-    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
-    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
-    when(requestHeaders.get("X-Session-Id")).thenReturn("sess-789");
-    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+    when(requestHeaders.getAll("X-Request-Id")).thenReturn(List.of("req-123"));
+    when(requestHeaders.getAll("X-Trace-Id")).thenReturn(List.of("trace-456"));
+    when(requestHeaders.getAll("X-Session-Id")).thenReturn(List.of("sess-789"));
+    when(requestHeaders.getAll("Content-Type")).thenReturn(List.of("application/json"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -724,10 +724,10 @@ class ActivityLoggerTest {
         .thenReturn(
             java.util.Set.of(
                 "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Cache-Status", "Content-Type"));
-    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
-    when(responseHeaders.get("X-RateLimit-Remaining")).thenReturn("999");
-    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
-    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+    when(responseHeaders.getAll("X-RateLimit-Limit")).thenReturn(List.of("1000"));
+    when(responseHeaders.getAll("X-RateLimit-Remaining")).thenReturn(List.of("999"));
+    when(responseHeaders.getAll("X-Cache-Status")).thenReturn(List.of("HIT"));
+    when(responseHeaders.getAll("Content-Type")).thenReturn(List.of("application/json"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -753,9 +753,9 @@ class ActivityLoggerTest {
     // Setup headers with mixed case
     when(requestHeaders.names())
         .thenReturn(java.util.Set.of("X-Request-ID", "x-trace-id", "X-SPAN-ID"));
-    when(requestHeaders.get("X-Request-ID")).thenReturn("req-abc");
-    when(requestHeaders.get("x-trace-id")).thenReturn("trace-def");
-    when(requestHeaders.get("X-SPAN-ID")).thenReturn("span-ghi");
+    when(requestHeaders.getAll("X-Request-ID")).thenReturn(List.of("req-abc"));
+    when(requestHeaders.getAll("x-trace-id")).thenReturn(List.of("trace-def"));
+    when(requestHeaders.getAll("X-SPAN-ID")).thenReturn(List.of("span-ghi"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -781,9 +781,9 @@ class ActivityLoggerTest {
     // Setup headers matching correlation pattern
     when(responseHeaders.names())
         .thenReturn(java.util.Set.of("X-Correlation-Id", "X-Transaction-Id", "X-Server-Name"));
-    when(responseHeaders.get("X-Correlation-Id")).thenReturn("corr-123");
-    when(responseHeaders.get("X-Transaction-Id")).thenReturn("txn-456");
-    when(responseHeaders.get("X-Server-Name")).thenReturn("server01");
+    when(responseHeaders.getAll("X-Correlation-Id")).thenReturn(List.of("corr-123"));
+    when(responseHeaders.getAll("X-Transaction-Id")).thenReturn(List.of("txn-456"));
+    when(responseHeaders.getAll("X-Server-Name")).thenReturn(List.of("server01"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -798,8 +798,8 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("CSV Regex Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"corr-123\"");
-    assertThat(tracker.lastLogMessage).contains("\"txn-456\"");
+    assertThat(tracker.lastLogMessage).contains("resp_x_correlation_id=corr-123");
+    assertThat(tracker.lastLogMessage).contains("resp_x_transaction_id=txn-456");
     assertThat(tracker.lastLogMessage).doesNotContain("server01");
   }
 
@@ -808,10 +808,10 @@ class ActivityLoggerTest {
     // Setup headers including sensitive ones to exclude
     when(requestHeaders.names())
         .thenReturn(java.util.Set.of("X-Request-Id", "Authorization", "Cookie", "Content-Type"));
-    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
-    when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token");
-    when(requestHeaders.get("Cookie")).thenReturn("session=abc123");
-    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+    when(requestHeaders.getAll("X-Request-Id")).thenReturn(List.of("req-123"));
+    when(requestHeaders.getAll("Authorization")).thenReturn(List.of("Bearer secret-token"));
+    when(requestHeaders.getAll("Cookie")).thenReturn(List.of("session=abc123"));
+    when(requestHeaders.getAll("Content-Type")).thenReturn(List.of("application/json"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -839,9 +839,9 @@ class ActivityLoggerTest {
     // Setup headers with sensitive values to mask
     when(requestHeaders.names())
         .thenReturn(java.util.Set.of("Authorization", "X-API-Key", "X-Request-Id"));
-    when(requestHeaders.get("Authorization")).thenReturn("Bearer secret-token-123");
-    when(requestHeaders.get("X-API-Key")).thenReturn("api-key-456");
-    when(requestHeaders.get("X-Request-Id")).thenReturn("req-789");
+    when(requestHeaders.getAll("Authorization")).thenReturn(List.of("Bearer secret-token-123"));
+    when(requestHeaders.getAll("X-API-Key")).thenReturn(List.of("api-key-456"));
+    when(requestHeaders.getAll("X-Request-Id")).thenReturn(List.of("req-789"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -876,10 +876,10 @@ class ActivityLoggerTest {
     when(responseHeaders.names())
         .thenReturn(
             java.util.Set.of("X-RateLimit-Limit", "Set-Cookie", "X-Cache-Status", "Content-Type"));
-    when(responseHeaders.get("X-RateLimit-Limit")).thenReturn("1000");
-    when(responseHeaders.get("Set-Cookie")).thenReturn("session=secret123; HttpOnly");
-    when(responseHeaders.get("X-Cache-Status")).thenReturn("HIT");
-    when(responseHeaders.get("Content-Type")).thenReturn("application/json");
+    when(responseHeaders.getAll("X-RateLimit-Limit")).thenReturn(List.of("1000"));
+    when(responseHeaders.getAll("Set-Cookie")).thenReturn(List.of("session=secret123; HttpOnly"));
+    when(responseHeaders.getAll("X-Cache-Status")).thenReturn(List.of("HIT"));
+    when(responseHeaders.getAll("Content-Type")).thenReturn(List.of("application/json"));
 
     LogFieldConfiguration config =
         LogFieldConfiguration.builder()
@@ -894,9 +894,9 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(flowContext, response);
 
     System.out.println("Exclude Response Headers Log: " + tracker.lastLogMessage);
-    assertThat(tracker.lastLogMessage).contains("\"res_x_ratelimit_limit\":\"1000\"");
-    assertThat(tracker.lastLogMessage).contains("\"res_x_cache_status\":\"HIT\"");
-    assertThat(tracker.lastLogMessage).contains("\"res_content_type\":\"application/json\"");
+    assertThat(tracker.lastLogMessage).contains("\"resp_x_ratelimit_limit\":\"1000\"");
+    assertThat(tracker.lastLogMessage).contains("\"resp_x_cache_status\":\"HIT\"");
+    assertThat(tracker.lastLogMessage).contains("\"resp_content_type\":\"application/json\"");
     assertThat(tracker.lastLogMessage).doesNotContain("set_cookie");
     assertThat(tracker.lastLogMessage).doesNotContain("secret123");
   }
@@ -908,11 +908,11 @@ class ActivityLoggerTest {
         .thenReturn(
             java.util.Set.of(
                 "X-Request-Id", "X-Trace-Id", "X-API-Key", "X-Client-Id", "Content-Type"));
-    when(requestHeaders.get("X-Request-Id")).thenReturn("req-123");
-    when(requestHeaders.get("X-Trace-Id")).thenReturn("trace-456");
-    when(requestHeaders.get("X-API-Key")).thenReturn("secret-api-key");
-    when(requestHeaders.get("X-Client-Id")).thenReturn("client-789");
-    when(requestHeaders.get("Content-Type")).thenReturn("application/json");
+    when(requestHeaders.getAll("X-Request-Id")).thenReturn(List.of("req-123"));
+    when(requestHeaders.getAll("X-Trace-Id")).thenReturn(List.of("trace-456"));
+    when(requestHeaders.getAll("X-API-Key")).thenReturn(List.of("secret-api-key"));
+    when(requestHeaders.getAll("X-Client-Id")).thenReturn(List.of("client-789"));
+    when(requestHeaders.getAll("Content-Type")).thenReturn(List.of("application/json"));
 
     // Use exclude to log all headers EXCEPT the sensitive X-API-Key
     LogFieldConfiguration config =
