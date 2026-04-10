@@ -71,7 +71,14 @@ public enum ComputedField implements LogField {
     }
     String contentLength = request.headers().get("Content-Length");
     if (contentLength != null) {
-      return contentLength;
+      try {
+        long parsedLength = Long.parseLong(contentLength);
+        if (parsedLength >= 0) {
+          return Long.toString(parsedLength);
+        }
+      } catch (NumberFormatException ignored) {
+        // Fall back to estimation below
+      }
     }
 
     // Estimate request size from headers and URI
