@@ -3,6 +3,7 @@ package org.littleshoot.proxy.extras.logging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,7 +67,7 @@ public class LogFieldConfigurationFactory {
     if (config.getStandardFields() != null) {
       for (String fieldName : config.getStandardFields()) {
         try {
-          StandardField field = StandardField.valueOf(fieldName.toUpperCase());
+          StandardField field = StandardField.valueOf(fieldName.toUpperCase(Locale.ROOT));
           builder.addStandardField(field);
           LOG.debug("Added standard field: {}", field);
         } catch (IllegalArgumentException e) {
@@ -211,7 +212,7 @@ public class LogFieldConfigurationFactory {
           LOG.debug("Added response time category field with configured thresholds");
         } else {
           try {
-            ComputedField field = ComputedField.valueOf(fieldName.toUpperCase());
+            ComputedField field = ComputedField.valueOf(fieldName.toUpperCase(Locale.ROOT));
             builder.addComputedField(field);
             LOG.debug("Added computed field: {}", field);
           } catch (IllegalArgumentException e) {
@@ -275,15 +276,15 @@ public class LogFieldConfigurationFactory {
       return null;
     }
 
-    switch (transformerName.toLowerCase()) {
+    switch (transformerName.toLowerCase(Locale.ROOT)) {
       case "lower_underscore":
-        return name -> name.toLowerCase().replaceAll("[^a-z0-9]", "_");
+        return name -> name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "_");
       case "remove_prefix":
-        return name -> name.replaceAll("^X-", "").toLowerCase().replaceAll("[^a-z0-9]", "_");
+        return name -> name.toLowerCase(Locale.ROOT).replaceAll("^X-", "").replaceAll("[^a-z0-9]", "_");
       case "lower_hyphen":
-        return name -> name.toLowerCase().replaceAll("[^a-z0-9]", "-");
+        return name -> name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "-");
       case "upper_underscore":
-        return name -> name.toUpperCase().replaceAll("[^A-Z0-9]", "_");
+        return name -> name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "_");
       default:
         LOG.warn("Unknown field name transformer: {}", transformerName);
         return null;
@@ -301,7 +302,7 @@ public class LogFieldConfigurationFactory {
       return null;
     }
 
-    switch (transformerName.toLowerCase()) {
+    switch (transformerName.toLowerCase(Locale.ROOT)) {
       case "mask_sensitive":
         return value -> {
           if (value == null || value.length() <= 8) {
