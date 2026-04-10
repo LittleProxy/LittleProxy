@@ -298,14 +298,6 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- ULID for unique flow IDs -->
-        <dependency>
-            <groupId>com.github.f4b6a3</groupId>
-            <artifactId>ulid-creator</artifactId>
-            <version>${ulid.version}</version>
-            <optional>true</optional>
-        </dependency>
-
         <!-- Optional DNS dependencies -->
         <dependency>
             <groupId>org.littleshoot</groupId>
