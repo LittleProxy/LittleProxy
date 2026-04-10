@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import org.littleshoot.proxy.FlowContext;
@@ -51,7 +52,7 @@ public class PrefixRequestHeaderField implements LogField {
       String prefix,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.prefix = prefix;
+    this.prefix =  Objects.requireNonNull(prefix, "prefix must not be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
