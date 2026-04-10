@@ -128,12 +128,14 @@ public class PrefixRequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     PrefixRequestHeaderField that = (PrefixRequestHeaderField) obj;
-    return prefix.equals(that.prefix);
+    return prefix.equals(that.prefix)
+        && fieldNameTransformer.equals(that.fieldNameTransformer)
+        && valueTransformer.equals(that.valueTransformer);
   }
 
   @Override
   public int hashCode() {
-    return prefix.hashCode();
+    return Objects.hash(prefix, fieldNameTransformer, valueTransformer);
   }
 
   @Override
