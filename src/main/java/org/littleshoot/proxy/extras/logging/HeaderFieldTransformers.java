@@ -33,5 +33,4 @@ public final class HeaderFieldTransformers {
       return value.substring(0, 4) + "****" + value.substring(length - 4);
     };
   }
-
 }

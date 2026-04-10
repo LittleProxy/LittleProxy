@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -162,12 +163,13 @@ public class RegexRequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     RegexRequestHeaderField that = (RegexRequestHeaderField) obj;
-    return pattern.pattern().equals(that.pattern.pattern());
+    return pattern.pattern().equals(that.pattern.pattern())
+        && pattern.flags() == that.pattern.flags();
   }
 
   @Override
   public int hashCode() {
-    return pattern.pattern().hashCode();
+    return Objects.hash(pattern.pattern(), pattern.flags());
   }
 
   @Override
