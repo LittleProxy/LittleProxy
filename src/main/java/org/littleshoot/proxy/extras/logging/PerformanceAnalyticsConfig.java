@@ -64,8 +64,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("X-Timer", "timer")
 
         // Computed performance fields
-        .addComputedField(ComputedField.CACHE_HIT_RATIO)
-        .addComputedField(ComputedField.COMPRESSION_RATIO)
         .addResponseTimeCategoryField()
         .addComputedField(ComputedField.REQUEST_SIZE)
 
@@ -104,7 +102,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("Server-Timing", "server_timing")
 
         // Computed fields
-        .addComputedField(ComputedField.CACHE_HIT_RATIO)
         .addResponseTimeCategoryField()
         .strictStandardsCompliance(false)
         .build();
@@ -138,7 +135,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("X-Varnish", "varnish")
 
         // Computed cache fields
-        .addComputedField(ComputedField.CACHE_HIT_RATIO)
         .strictStandardsCompliance(false)
         .build();
   }
@@ -168,7 +164,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("Content-Length", "content_length")
 
         // Computed compression fields
-        .addComputedField(ComputedField.COMPRESSION_RATIO)
         .addComputedField(ComputedField.REQUEST_SIZE)
         .strictStandardsCompliance(false)
         .build();
