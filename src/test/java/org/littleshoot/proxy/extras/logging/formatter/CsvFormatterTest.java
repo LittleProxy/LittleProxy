@@ -86,7 +86,7 @@ class CsvFormatterTest {
 
     // The URI "/path?query="value"" gets escaped to "/path?query=\\"value\\"" due to double
     // escaping
-    assertThat(result).contains("\\\\\"value\\\\\"");
+    assertThat(result).contains("\"\"value\"\"");
   }
 
   @Test

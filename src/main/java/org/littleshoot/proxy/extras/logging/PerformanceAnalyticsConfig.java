@@ -30,13 +30,13 @@ public class PerformanceAnalyticsConfig {
         .addRequestHeader("Accept-Encoding", "accept_encoding")
         .addRequestHeader("If-None-Match", "if_none_match")
         .addRequestHeader("If-Modified-Since", "if_modified_since")
-        .addRequestHeader("Cache-Control", "cache_control")
+        .addRequestHeader("Cache-Control", "request_cache_control")
         .addRequestHeader("Pragma", "pragma")
         .addRequestHeader("Purpose", "purpose")
         .addRequestHeader("Sec-Purpose", "sec_purpose")
 
         // Performance response headers (CDN/Caching)
-        .addResponseHeader("Cache-Control", "cache_control")
+        .addResponseHeader("Cache-Control", "response_cache_control")
         .addResponseHeader("X-Cache", "cache_status")
         .addResponseHeader("X-Cache-Hits", "cache_hits")
         .addResponseHeader("Age", "cache_age")
@@ -64,8 +64,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("X-Timer", "timer")
 
         // Computed performance fields
-        .addComputedField(ComputedField.CACHE_HIT_RATIO)
-        .addComputedField(ComputedField.COMPRESSION_RATIO)
         .addResponseTimeCategoryField()
         .addComputedField(ComputedField.REQUEST_SIZE)
 
@@ -104,7 +102,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("Server-Timing", "server_timing")
 
         // Computed fields
-        .addComputedField(ComputedField.CACHE_HIT_RATIO)
         .addResponseTimeCategoryField()
         .strictStandardsCompliance(false)
         .build();
@@ -128,8 +125,8 @@ public class PerformanceAnalyticsConfig {
         // Cache headers
         .addRequestHeader("If-None-Match", "if_none_match")
         .addRequestHeader("If-Modified-Since", "if_modified_since")
-        .addRequestHeader("Cache-Control", "cache_control")
-        .addResponseHeader("Cache-Control", "cache_control")
+        .addRequestHeader("Cache-Control", "request_cache_control")
+        .addResponseHeader("Cache-Control", "response_cache_control")
         .addResponseHeader("ETag", "etag")
         .addResponseHeader("Last-Modified", "last_modified")
         .addResponseHeader("Age", "cache_age")
@@ -138,7 +135,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("X-Varnish", "varnish")
 
         // Computed cache fields
-        .addComputedField(ComputedField.CACHE_HIT_RATIO)
         .strictStandardsCompliance(false)
         .build();
   }
@@ -168,7 +164,6 @@ public class PerformanceAnalyticsConfig {
         .addResponseHeader("Content-Length", "content_length")
 
         // Computed compression fields
-        .addComputedField(ComputedField.COMPRESSION_RATIO)
         .addComputedField(ComputedField.REQUEST_SIZE)
         .strictStandardsCompliance(false)
         .build();

@@ -3,7 +3,9 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -51,13 +53,13 @@ public class RegexRequestHeaderField implements LogField {
       Pattern pattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.pattern = pattern;
+    this.pattern = Objects.requireNonNull(pattern, "pattern cannot be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
             : RegexRequestHeaderField::defaultFieldName;
     this.valueTransformer = valueTransformer != null ? valueTransformer : value -> value;
-    this.description = "Request headers matching pattern: " + pattern.pattern();
+    this.description = "Request headers matching pattern: " + this.pattern.pattern();
   }
 
   /**
@@ -122,7 +124,8 @@ public class RegexRequestHeaderField implements LogField {
     for (String headerName : headers.names()) {
       Matcher matcher = pattern.matcher(headerName);
       if (matcher.matches()) {
-        String value = headers.get(headerName);
+        List<String> values = headers.getAll(headerName);
+        String value = values.isEmpty() ? null : String.join(",", values);
         String fieldName = fieldNameTransformer.apply(headerName);
         String transformedValue = value != null ? valueTransformer.apply(value) : "-";
         matches.put(fieldName, transformedValue);
@@ -160,12 +163,15 @@ public class RegexRequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     RegexRequestHeaderField that = (RegexRequestHeaderField) obj;
-    return pattern.pattern().equals(that.pattern.pattern());
+    return pattern.pattern().equals(that.pattern.pattern())
+        && pattern.flags() == that.pattern.flags()
+        && Objects.equals(fieldNameTransformer, that.fieldNameTransformer)
+        && Objects.equals(valueTransformer, that.valueTransformer);
   }
 
   @Override
   public int hashCode() {
-    return pattern.pattern().hashCode();
+    return Objects.hash(pattern.pattern(), pattern.flags(), fieldNameTransformer, valueTransformer);
   }
 
   @Override

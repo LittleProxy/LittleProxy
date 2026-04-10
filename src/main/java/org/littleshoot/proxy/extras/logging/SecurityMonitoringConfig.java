@@ -32,7 +32,7 @@ public class SecurityMonitoringConfig {
         .addRequestHeader("X-Original-URL", "original_url")
         .addRequestHeader("X-Request-ID", "request_id")
         .addRequestHeader("X-Client-ID", "client_id")
-        .addRequestHeader("Authorization", "auth_type") // Consider masking sensitive data
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
         .addRequestHeader("X-Forwarded-Proto", "forwarded_proto")
         .addRequestHeader("Origin", "origin")
         .addRequestHeader("User-Agent", "user_agent")
@@ -94,14 +94,14 @@ public class SecurityMonitoringConfig {
         .addRequestHeader("X-Original-URL", "original_url")
         .addRequestHeader("X-Request-ID", "request_id")
         .addRequestHeader("X-Client-ID", "client_id")
-        .addRequestHeader("Authorization", "auth_type")
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
         .addRequestHeader("X-Forwarded-Proto", "forwarded_proto")
         .addRequestHeader("X-Forwarded-Host", "forwarded_host")
         .addRequestHeader("X-Forwarded-Server", "forwarded_server")
         .addRequestHeader("X-Session-ID", "session_id")
         .addRequestHeader("X-Device-ID", "device_id")
         .addRequestHeader("X-RateLimit-Limit", "rate_limit")
-        .addRequestHeader("X-API-Key", "api_key_present")
+        .addRequestHeader("X-API-Key", "api_key", HeaderFieldTransformers.partialMask())
         .addRequestHeader("Origin", "origin")
 
         // Enhanced security response headers
@@ -146,7 +146,7 @@ public class SecurityMonitoringConfig {
         .addStandardField(StandardField.USER_AGENT)
         .addStandardField(StandardField.REFERER)
         .addRequestHeader("X-Forwarded-For", "forwarded_for")
-        .addRequestHeader("Authorization", "auth_type")
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
         .addResponseHeader("Content-Security-Policy", "csp")
         .addResponseHeader("Strict-Transport-Security", "hsts")
         .addResponseHeader("X-Content-Type-Options", "x_content_type_options")
@@ -183,14 +183,14 @@ public class SecurityMonitoringConfig {
         .addStandardField(StandardField.STATUS)
 
         // Authentication headers
-        .addRequestHeader("Authorization", "authorization")
-        .addRequestHeader("X-API-Key", "x_api_key")
-        .addRequestHeader("X-Auth-Token", "x_auth_token")
-        .addRequestHeader("Cookie", "cookie")
+        .addRequestHeader("Authorization", "authorization", HeaderFieldTransformers.partialMask())
+        .addRequestHeader("X-API-Key", "api_key", HeaderFieldTransformers.partialMask())
+        .addRequestHeader("X-Auth-Token", "auth_token", HeaderFieldTransformers.partialMask())
+        .addRequestHeader("Cookie", "cookie", HeaderFieldTransformers.fullMask())
         .addRequestHeader("X-Forwarded-For", "x_forwarded_for")
 
         // Session tracking
-        .addResponseHeader("Set-Cookie", "set_cookie")
+        .addResponseHeader("Set-Cookie", "set_cookie", HeaderFieldTransformers.fullMask())
         .addResponseHeader("WWW-Authenticate", "www_authenticate")
 
         // Authentication computed fields

@@ -14,7 +14,7 @@ public class LogFieldConfiguration {
   private final List<Long> responseTimeThresholds;
 
   private LogFieldConfiguration(Builder builder) {
-    this.fields = Collections.unmodifiableSet(new HashSet<>(builder.fields));
+    this.fields = Collections.unmodifiableSet(new LinkedHashSet<>(builder.fields));
     this.strictStandardsCompliance = builder.strictStandardsCompliance;
     this.customFieldMappings =
         Collections.unmodifiableMap(new HashMap<>(builder.customFieldMappings));
@@ -98,7 +98,7 @@ public class LogFieldConfiguration {
 
   /** Builder class for LogFieldConfiguration. */
   public static class Builder {
-    private final Set<LogField> fields = new HashSet<>();
+    private final Set<LogField> fields = new LinkedHashSet<>();
     private boolean strictStandardsCompliance = false;
     private final Map<String, String> customFieldMappings = new HashMap<>();
     private List<Long> responseTimeThresholds = Arrays.asList(100L, 500L, 2000L);
@@ -159,6 +159,23 @@ public class LogFieldConfiguration {
     }
 
     /**
+     * Adds a request header field with custom field name and value transformer. Use this for
+     * sensitive headers that should be masked.
+     *
+     * @param headerName the header name to log
+     * @param fieldName the field name to use in logs
+     * @param valueTransformer function to transform header values before logging
+     * @return this builder for chaining
+     */
+    public Builder addRequestHeader(
+        String headerName,
+        String fieldName,
+        java.util.function.Function<String, String> valueTransformer) {
+      fields.add(new RequestHeaderField(headerName, fieldName, valueTransformer));
+      return this;
+    }
+
+    /**
      * Adds a response header field.
      *
      * @param headerName the header name to log
@@ -178,6 +195,23 @@ public class LogFieldConfiguration {
      */
     public Builder addResponseHeader(String headerName, String fieldName) {
       fields.add(new ResponseHeaderField(headerName, fieldName));
+      return this;
+    }
+
+    /**
+     * Adds a response header field with custom field name and value transformer. Use this for
+     * sensitive headers that should be masked.
+     *
+     * @param headerName the header name to log
+     * @param fieldName the field name to use in logs
+     * @param valueTransformer function to transform header values before logging
+     * @return this builder for chaining
+     */
+    public Builder addResponseHeader(
+        String headerName,
+        String fieldName,
+        java.util.function.Function<String, String> valueTransformer) {
+      fields.add(new ResponseHeaderField(headerName, fieldName, valueTransformer));
       return this;
     }
 

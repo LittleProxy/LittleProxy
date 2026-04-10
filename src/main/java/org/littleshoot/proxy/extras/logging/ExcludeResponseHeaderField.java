@@ -3,6 +3,7 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -27,7 +28,7 @@ public class ExcludeResponseHeaderField implements LogField {
       String excludeRegex,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.excludePattern = Pattern.compile(excludeRegex);
+    this.excludePattern = Pattern.compile(excludeRegex, Pattern.CASE_INSENSITIVE);
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
@@ -37,7 +38,7 @@ public class ExcludeResponseHeaderField implements LogField {
 
   @Override
   public String getName() {
-    return "res_all_except_" + excludePattern.pattern().toLowerCase().replaceAll("[^a-z0-9]", "_");
+    return "resp_all_except_" + excludePattern.pattern().toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override
@@ -54,7 +55,8 @@ public class ExcludeResponseHeaderField implements LogField {
     Map<String, String> matches = new TreeMap<>();
     for (String headerName : headers.names()) {
       if (!excludePattern.matcher(headerName).matches()) {
-        String value = headers.get(headerName);
+        List<String> values = headers.getAll(headerName);
+        String value = values.isEmpty() ? null : String.join(",", values);
         String fieldName = fieldNameTransformer.apply(headerName);
         matches.put(fieldName, value != null ? valueTransformer.apply(value) : "-");
       }
@@ -63,6 +65,6 @@ public class ExcludeResponseHeaderField implements LogField {
   }
 
   private static String defaultFieldName(String headerName) {
-    return "res_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
+    return "resp_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 }

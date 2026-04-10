@@ -1,8 +1,10 @@
 package org.littleshoot.proxy.extras.logging;
 
+import com.google.common.base.Preconditions;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -52,6 +54,7 @@ public class RegexResponseHeaderField implements LogField {
       Pattern pattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
+    Preconditions.checkNotNull(pattern, "pattern must not be null");
     this.pattern = pattern;
     this.fieldNameTransformer =
         fieldNameTransformer != null
@@ -123,7 +126,8 @@ public class RegexResponseHeaderField implements LogField {
     for (String headerName : headers.names()) {
       Matcher matcher = pattern.matcher(headerName);
       if (matcher.matches()) {
-        String value = headers.get(headerName);
+        List<String> values = headers.getAll(headerName);
+        String value = values.isEmpty() ? null : String.join(",", values);
         String fieldName = fieldNameTransformer.apply(headerName);
         String transformedValue = value != null ? valueTransformer.apply(value) : "-";
         matches.put(fieldName, transformedValue);
@@ -153,7 +157,7 @@ public class RegexResponseHeaderField implements LogField {
   }
 
   private static String defaultFieldName(String headerName) {
-    return "res_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
+    return "resp_" + headerName.toLowerCase().replaceAll("[^a-z0-9]", "_");
   }
 
   @Override

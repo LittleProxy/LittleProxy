@@ -14,7 +14,20 @@ import org.slf4j.LoggerFactory;
 public class LogFieldConfigurationFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(LogFieldConfigurationFactory.class);
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static volatile ObjectMapper objectMapper;
+
+  private static ObjectMapper getObjectMapper() {
+    ObjectMapper result = objectMapper;
+    if (result == null) {
+      synchronized (LogFieldConfigurationFactory.class) {
+        if (objectMapper == null) {
+          objectMapper = new ObjectMapper();
+        }
+        result = objectMapper;
+      }
+    }
+    return result;
+  }
 
   /**
    * Creates a LogFieldConfiguration from a JSON file.
@@ -29,7 +42,7 @@ public class LogFieldConfigurationFactory {
       throw new IOException("Configuration file not found: " + configFile);
     }
 
-    LoggingConfiguration config = OBJECT_MAPPER.readValue(file, LoggingConfiguration.class);
+    LoggingConfiguration config = getObjectMapper().readValue(file, LoggingConfiguration.class);
     return buildConfiguration(config);
   }
 
@@ -72,10 +85,12 @@ public class LogFieldConfigurationFactory {
         Function<String, String> valueTransformer =
             getValueTransformer(prefixConfig.getValueTransformer());
 
-        if (valueTransformer != null) {
+        if (fieldNameTransformer != null && valueTransformer != null) {
           builder.addRequestHeadersWithPrefix(prefix, fieldNameTransformer, valueTransformer);
         } else if (fieldNameTransformer != null) {
           builder.addRequestHeadersWithPrefix(prefix, fieldNameTransformer);
+        } else if (valueTransformer != null) {
+          builder.addRequestHeadersWithPrefix(prefix, valueTransformer);
         } else {
           builder.addRequestHeadersWithPrefix(prefix);
         }
@@ -93,10 +108,12 @@ public class LogFieldConfigurationFactory {
         Function<String, String> valueTransformer =
             getValueTransformer(prefixConfig.getValueTransformer());
 
-        if (valueTransformer != null) {
+        if (fieldNameTransformer != null && valueTransformer != null) {
           builder.addResponseHeadersWithPrefix(prefix, fieldNameTransformer, valueTransformer);
         } else if (fieldNameTransformer != null) {
           builder.addResponseHeadersWithPrefix(prefix, fieldNameTransformer);
+        } else if (valueTransformer != null) {
+          builder.addResponseHeadersWithPrefix(prefix, valueTransformer);
         } else {
           builder.addResponseHeadersWithPrefix(prefix);
         }
@@ -113,10 +130,12 @@ public class LogFieldConfigurationFactory {
         Function<String, String> valueTransformer =
             getValueTransformer(regexConfig.getValueTransformer());
 
-        if (valueTransformer != null) {
+        if (fieldNameTransformer != null && valueTransformer != null) {
           builder.addRequestHeadersMatching(pattern, fieldNameTransformer, valueTransformer);
         } else if (fieldNameTransformer != null) {
           builder.addRequestHeadersMatching(pattern, fieldNameTransformer);
+        } else if (valueTransformer != null) {
+          builder.addRequestHeadersMatching(pattern, valueTransformer);
         } else {
           builder.addRequestHeadersMatching(pattern);
         }
@@ -133,10 +152,12 @@ public class LogFieldConfigurationFactory {
         Function<String, String> valueTransformer =
             getValueTransformer(regexConfig.getValueTransformer());
 
-        if (valueTransformer != null) {
+        if (fieldNameTransformer != null && valueTransformer != null) {
           builder.addResponseHeadersMatching(pattern, fieldNameTransformer, valueTransformer);
         } else if (fieldNameTransformer != null) {
           builder.addResponseHeadersMatching(pattern, fieldNameTransformer);
+        } else if (valueTransformer != null) {
+          builder.addResponseHeadersMatching(pattern, valueTransformer);
         } else {
           builder.addResponseHeadersMatching(pattern);
         }

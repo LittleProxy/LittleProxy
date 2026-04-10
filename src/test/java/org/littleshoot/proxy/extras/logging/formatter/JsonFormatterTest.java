@@ -77,7 +77,7 @@ class JsonFormatterTest {
         formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
 
     // Quotes should be escaped - the JSON contains \\" which represents \" in the output
-    assertThat(result).contains("\\\\\"with quotes\\\\\"");
+    assertThat(result).contains("\\\"with quotes\\\"");
   }
 
   @Test

@@ -104,7 +104,7 @@ class ResponseHeaderFieldTest {
     ResponseHeaderField field4 = new ResponseHeaderField("Content-Length");
 
     assertThat(field1).isEqualTo(field2);
-    assertThat(field1).isEqualTo(field3); // Same header name
+    assertThat(field1).isNotEqualTo(field3); // Different field name
     assertThat(field1).isNotEqualTo(field4);
     assertThat(field1).isNotEqualTo(null);
     assertThat(field1).isNotEqualTo("not a field");
@@ -114,8 +114,10 @@ class ResponseHeaderFieldTest {
   void testHashCode() {
     ResponseHeaderField field1 = new ResponseHeaderField("Content-Type");
     ResponseHeaderField field2 = new ResponseHeaderField("Content-Type");
+    ResponseHeaderField field3 = new ResponseHeaderField("Content-Type", "different_name");
 
     assertThat(field1.hashCode()).isEqualTo(field2.hashCode());
+    assertThat(field1.hashCode()).isNotEqualTo(field3.hashCode());
   }
 
   @Test

@@ -475,7 +475,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void exceptionCaught(Throwable cause) {
     try {
-      recordConnectionExceptionCaught(cause);
+      if (!is(DISCONNECTED)) {
+        recordConnectionExceptionCaught(cause);
+      }
       if (cause instanceof ProxyConnectException) {
         LOG.info(
             "A ProxyConnectException occurred on ProxyToServerConnection: " + cause.getMessage());
@@ -1038,6 +1040,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    *     hostname
    */
   private void resetConnectionForRetry() throws UnknownHostException {
+    // Clear cached flow context so that setupConnectionParameters() creates a fresh one
+    clientConnection.clearFlowContextForServerConnection(this);
+
     // Remove ourselves as handler on the old context
     ctx.pipeline().remove(this);
     ctx.close();
@@ -1064,9 +1069,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       // Report DNS resolution to HttpFilters
       long dnsStartTime = System.currentTimeMillis();
       clientConnection.flowContext().setTimingData("dns_resolution_start_time_ms", dnsStartTime);
-      clientConnection
-          .flowContextForServerConnection(this)
-          .setTimingData("dns_resolution_start_time_ms", dnsStartTime);
       remoteAddress = currentFilters.proxyToServerResolutionStarted(serverHostAndPort);
 
       // save the hostname and port of the unresolved address in hostAndPort, in case name
@@ -1098,16 +1100,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       currentFilters.proxyToServerResolutionSucceeded(serverHostAndPort, remoteAddress);
       long dnsEndTime = System.currentTimeMillis();
       FlowContext clientFlowContext = clientConnection.flowContext();
-      FlowContext serverFlowContext = clientConnection.flowContextForServerConnection(this);
+      // Only cache server flow context AFTER DNS resolution succeeds
+      FullFlowContext serverFlowContext = clientConnection.flowContextForServerConnection(this);
       clientFlowContext.setTimingData("dns_resolution_end_time_ms", dnsEndTime);
+      serverFlowContext.setTimingData("dns_resolution_start_time_ms", dnsStartTime);
       serverFlowContext.setTimingData("dns_resolution_end_time_ms", dnsEndTime);
-
-      Long startTime = clientFlowContext.getTimingData("dns_resolution_start_time_ms");
-      if (startTime != null) {
-        long duration = dnsEndTime - startTime;
-        clientFlowContext.setTimingData("dns_resolution_time_ms", duration);
-        serverFlowContext.setTimingData("dns_resolution_time_ms", duration);
-      }
+      serverFlowContext.setTimingData("dns_resolution_time_ms", dnsEndTime - dnsStartTime);
 
       localAddress = proxyServer.getLocalAddress();
     }
@@ -1253,7 +1251,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           .replace(
               MAIN_HANDLER_NAME,
               "pipe-to-client",
-              new ProxyConnectionPipeHandler(clientConnection));
+              new WebSocketFramePipeHandler(clientConnection, currentFilters, false));
     }
     orderedHandlersToRemove.forEach(this::removeHandlerIfPresent);
     tunneling = true;
@@ -1331,69 +1329,72 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       };
 
   private void recordServerConnected() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.serverConnected(flowContext, remoteAddress);
+      } catch (Exception e) {
+        LOG.error("Unable to recordServerConnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordServerConnected", e);
     }
   }
 
   private void recordServerDisconnected() {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        tracker.serverDisconnected(flowContext, remoteAddress);
+        try {
+          tracker.serverDisconnected(flowContext, remoteAddress);
+        } catch (Exception e) {
+          LOG.error("Unable to recordServerDisconnected", e);
+        }
       }
+    } finally {
       clientConnection.clearFlowContextForServerConnection(this);
-    } catch (Exception e) {
-      LOG.error("Unable to recordServerDisconnected", e);
     }
   }
 
   private void recordConnectionSaturated() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionSaturated(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionSaturated", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionSaturated", e);
     }
   }
 
   private void recordConnectionWritable() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionWritable(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionWritable", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionWritable", e);
     }
   }
 
   private void recordConnectionTimedOut() {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionTimedOut(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionTimedOut", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionTimedOut", e);
     }
   }
 
   private void recordConnectionExceptionCaught(Throwable cause) {
-    try {
-      FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionExceptionCaught(flowContext, cause);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionExceptionCaught", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionExceptionCaught", e);
     }
   }
 }

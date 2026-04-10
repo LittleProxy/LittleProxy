@@ -3,7 +3,9 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -42,7 +44,7 @@ public class ExcludeRequestHeaderField implements LogField {
       Pattern excludePattern,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.excludePattern = excludePattern;
+    this.excludePattern = Objects.requireNonNull(excludePattern, "excludePattern cannot be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
@@ -57,7 +59,7 @@ public class ExcludeRequestHeaderField implements LogField {
    * @param excludeRegex the regex pattern string for headers to exclude
    */
   public ExcludeRequestHeaderField(String excludeRegex) {
-    this(Pattern.compile(excludeRegex));
+    this(Pattern.compile(excludeRegex, Pattern.CASE_INSENSITIVE));
   }
 
   /**
@@ -72,7 +74,10 @@ public class ExcludeRequestHeaderField implements LogField {
       String excludeRegex,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this(Pattern.compile(excludeRegex), fieldNameTransformer, valueTransformer);
+    this(
+        Pattern.compile(excludeRegex, Pattern.CASE_INSENSITIVE),
+        fieldNameTransformer,
+        valueTransformer);
   }
 
   @Override
@@ -101,7 +106,8 @@ public class ExcludeRequestHeaderField implements LogField {
     for (String headerName : headers.names()) {
       Matcher matcher = excludePattern.matcher(headerName);
       if (!matcher.matches()) {
-        String value = headers.get(headerName);
+        List<String> values = headers.getAll(headerName);
+        String value = values.isEmpty() ? null : String.join(",", values);
         String fieldName = fieldNameTransformer.apply(headerName);
         String transformedValue = value != null ? valueTransformer.apply(value) : "-";
         matches.put(fieldName, transformedValue);
@@ -123,12 +129,13 @@ public class ExcludeRequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     ExcludeRequestHeaderField that = (ExcludeRequestHeaderField) obj;
-    return excludePattern.pattern().equals(that.excludePattern.pattern());
+    return excludePattern.pattern().equals(that.excludePattern.pattern())
+        && excludePattern.flags() == that.excludePattern.flags();
   }
 
   @Override
   public int hashCode() {
-    return excludePattern.pattern().hashCode();
+    return Objects.hash(excludePattern.pattern(), excludePattern.flags());
   }
 
   @Override

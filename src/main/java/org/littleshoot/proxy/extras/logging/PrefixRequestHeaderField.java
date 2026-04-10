@@ -3,7 +3,9 @@ package org.littleshoot.proxy.extras.logging;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import org.littleshoot.proxy.FlowContext;
@@ -50,7 +52,7 @@ public class PrefixRequestHeaderField implements LogField {
       String prefix,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this.prefix = prefix;
+    this.prefix = Objects.requireNonNull(prefix, "prefix must not be null");
     this.fieldNameTransformer =
         fieldNameTransformer != null
             ? fieldNameTransformer
@@ -84,9 +86,11 @@ public class PrefixRequestHeaderField implements LogField {
    */
   public Map<String, String> extractMatchingHeaders(HttpHeaders headers) {
     Map<String, String> matches = new TreeMap<>();
+    String lowerPrefix = prefix.toLowerCase();
     for (String headerName : headers.names()) {
-      if (headerName.startsWith(prefix)) {
-        String value = headers.get(headerName);
+      if (headerName.toLowerCase().startsWith(lowerPrefix)) {
+        List<String> values = headers.getAll(headerName);
+        String value = values.isEmpty() ? null : String.join(",", values);
         String fieldName = fieldNameTransformer.apply(headerName);
         String transformedValue = value != null ? valueTransformer.apply(value) : "-";
         matches.put(fieldName, transformedValue);
@@ -102,8 +106,9 @@ public class PrefixRequestHeaderField implements LogField {
    * @return true if at least one header matches the prefix
    */
   public boolean hasMatches(HttpHeaders headers) {
+    String lowerPrefix = prefix.toLowerCase();
     for (String headerName : headers.names()) {
-      if (headerName.startsWith(prefix)) {
+      if (headerName.toLowerCase().startsWith(lowerPrefix)) {
         return true;
       }
     }
@@ -123,12 +128,14 @@ public class PrefixRequestHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     PrefixRequestHeaderField that = (PrefixRequestHeaderField) obj;
-    return prefix.equals(that.prefix);
+    return prefix.equals(that.prefix)
+        && fieldNameTransformer.equals(that.fieldNameTransformer)
+        && valueTransformer.equals(that.valueTransformer);
   }
 
   @Override
   public int hashCode() {
-    return prefix.hashCode();
+    return Objects.hash(prefix, fieldNameTransformer, valueTransformer);
   }
 
   @Override
