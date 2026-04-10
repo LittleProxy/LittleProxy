@@ -51,6 +51,9 @@ public class RequestHeaderField implements LogField {
 
   @Override
   public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+    if (request == null || request.headers() == null) {
+      return "-";
+    }
     String value = request.headers().get(headerName);
     return value != null ? valueTransformer.apply(value) : "-";
   }
