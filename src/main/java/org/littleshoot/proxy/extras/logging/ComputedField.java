@@ -53,7 +53,8 @@ public enum ComputedField implements LogField {
 
   private String extractGeolocationCountry(FlowContext flowContext) {
     try {
-      if (flowContext.getClientAddress() != null && flowContext.getClientAddress().getAddress() != null) {
+      if (flowContext.getClientAddress() != null
+          && flowContext.getClientAddress().getAddress() != null) {
         return GeoCountryResolverFactory.getResolver()
             .resolveCountryCode(flowContext.getClientAddress().getAddress());
       }
