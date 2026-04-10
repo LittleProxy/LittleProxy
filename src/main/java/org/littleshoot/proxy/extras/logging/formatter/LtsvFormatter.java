@@ -149,9 +149,9 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
   }
 
   private String sanitizeLtsvLabel(String label) {
-    if (label == null) {
+    if (label == null || label.isEmpty()) {
       return "-";
     }
-    return label.replace("\t", "_").replace("\r", "_").replace("\n", "_").replace(":", "_");
+    return label.replaceAll("[^0-9A-Za-z_.-]", "_");
   }
 }
