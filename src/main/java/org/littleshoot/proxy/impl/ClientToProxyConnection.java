@@ -1701,6 +1701,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     return ofNullable(channel).map(c -> (InetSocketAddress) c.remoteAddress()).orElse(null);
   }
 
+  /**
+   * Returns either a {@link FlowContext} if there is not yet a server connection, or a
+   * {@link FullFlowContext} if there is one.
+   *
+   * @return the most specific flow context available
+   */
   FlowContext flowContext() {
     FlowContext cached = clientFlowContext;
     if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
