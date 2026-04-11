@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import io.netty.handler.codec.http.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.FlowContext;
@@ -23,9 +24,11 @@ class ActivityLoggerTest {
   @Mock private HttpHeaders requestHeaders;
   @Mock private HttpHeaders responseHeaders;
 
+  private AutoCloseable mocks;
+
   @BeforeEach
   void setUp() {
-    MockitoAnnotations.openMocks(this);
+    mocks = MockitoAnnotations.openMocks(this);
     when(request.headers()).thenReturn(requestHeaders);
     when(response.headers()).thenReturn(responseHeaders);
   }
@@ -201,5 +204,10 @@ class ActivityLoggerTest {
 
     when(response.status()).thenReturn(HttpResponseStatus.OK);
     when(responseHeaders.get("Content-Length")).thenReturn("100");
+  }
+
+  @AfterEach
+  void tearDown() throws Exception {
+    mocks.close();
   }
 }
