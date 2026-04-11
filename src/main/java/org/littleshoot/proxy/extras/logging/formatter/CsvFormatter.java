@@ -11,7 +11,7 @@ import org.littleshoot.proxy.extras.logging.*;
 /**
  * Formatter for Comma-Separated Values (CSV) format.
  *
- * <p>CSV format uses quoted values separated by commas. All values are JSON-escaped for safety.
+ * <p>CSV format uses quoted values separated by commas. All values are CSV-escaped for safety.
  *
  * <p>Example: "abc123","127.0.0.1","GET","/path","200","1234"
  */
