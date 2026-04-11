@@ -16,16 +16,14 @@ import org.littleshoot.proxy.impl.ClientToProxyConnection;
 public class FlowContext {
   private final InetSocketAddress clientAddress;
   private final SSLSession clientSslSession;
-  private final long connectionId;
+  private final String connectionId;
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
-  private String flowId;
 
   public FlowContext(ClientToProxyConnection clientConnection) {
     clientAddress = clientConnection.getClientAddress();
     SSLEngine sslEngine = clientConnection.getSslEngine();
     clientSslSession = sslEngine != null ? sslEngine.getSession() : null;
     this.connectionId = clientConnection.getId();
-    this.flowId = generateFlowId();
   }
 
   /** The address of the client. */
@@ -70,21 +68,12 @@ public class FlowContext {
   }
 
   /**
-   * Sets the flow ID for this context.
-   *
-   * @param flowId the unique flow identifier
-   */
-  public void setFlowId(String flowId) {
-    this.flowId = flowId;
-  }
-
-  /**
    * Gets the flow ID for this context.
    *
    * @return the flow ID, or null if not set
    */
   public String getFlowId() {
-    return flowId;
+    return connectionId;
   }
 
   @Override
@@ -92,12 +81,12 @@ public class FlowContext {
     if (this == o) return true;
     if (!(o instanceof FlowContext)) return false;
     FlowContext that = (FlowContext) o;
-    return connectionId == that.connectionId;
+    return connectionId.equals(that.connectionId);
   }
 
   @Override
   public int hashCode() {
-    return Long.hashCode(connectionId);
+    return Objects.hashCode(connectionId);
   }
 
   /**

@@ -1702,8 +1702,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   /**
-   * Returns either a {@link FlowContext} if there is not yet a server connection, or a
-   * {@link FullFlowContext} if there is one.
+   * Returns either a {@link FlowContext} if there is not yet a server connection, or a {@link
+   * FullFlowContext} if there is one.
    *
    * @return the most specific flow context available
    */

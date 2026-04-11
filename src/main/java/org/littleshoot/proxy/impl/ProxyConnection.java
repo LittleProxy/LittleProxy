@@ -2,6 +2,8 @@ package org.littleshoot.proxy.impl;
 
 import static org.littleshoot.proxy.impl.ConnectionState.*;
 
+import com.github.f4b6a3.ulid.Ulid;
+import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -12,7 +14,6 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLEngine;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -69,8 +70,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   /** If using encryption, this holds our {@link SSLEngine}. */
   @Nullable protected volatile SSLEngine sslEngine;
 
-  private static final AtomicLong CONNECTION_ID_GENERATOR = new AtomicLong();
-  private final long connectionId;
+  private final Ulid connectionId;
 
   /**
    * Construct a new ProxyConnection.
@@ -82,14 +82,14 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    */
   protected ProxyConnection(
       ConnectionState initialState, DefaultHttpProxyServer proxyServer, boolean runsAsSslClient) {
-    this.connectionId = CONNECTION_ID_GENERATOR.incrementAndGet();
+    this.connectionId = UlidCreator.getMonotonicUlid();
     become(initialState);
     this.proxyServer = proxyServer;
     this.runsAsSslClient = runsAsSslClient;
   }
 
-  public long getId() {
-    return connectionId;
+  public String getId() {
+    return connectionId.toString();
   }
 
   /*
