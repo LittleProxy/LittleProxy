@@ -1,6 +1,5 @@
 package org.littleshoot.proxy;
 
-import com.github.f4b6a3.ulid.UlidCreator;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Objects;
@@ -88,5 +87,4 @@ public class FlowContext {
   public int hashCode() {
     return Objects.hashCode(connectionId);
   }
-
 }

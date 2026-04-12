@@ -502,7 +502,7 @@ class ActivityLoggerTest {
     InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);
     InetSocketAddress serverAddress = new InetSocketAddress("10.0.0.1", 443);
 
-    // Setup full interaction using FullFlowContext for server tracking
+    // Setup full interaction using fullFlowContext for server tracking
     when(flowContext.getClientAddress()).thenReturn(clientAddress);
     tracker.clientConnected(flowContext);
 
@@ -1447,7 +1447,7 @@ class ActivityLoggerTest {
   }
 
   @Test
-  void testFullFlowContextReusedAcrossServerLifecycle() {
+  void testfullFlowContextReusedAcrossServerLifecycle() {
     TestableActivityLogger tracker =
         new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
     InetSocketAddress clientAddress = new InetSocketAddress("192.168.1.1", 12345);

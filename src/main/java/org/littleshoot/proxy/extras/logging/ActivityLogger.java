@@ -1,10 +1,13 @@
 package org.littleshoot.proxy.extras.logging;
 
+import com.google.common.base.Preconditions;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLSession;
 import org.littleshoot.proxy.ActivityTrackerAdapter;
@@ -43,11 +46,43 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     final HttpRequest request;
     final long startTime;
     final String flowId;
+    private final Map<String, Long> data = new ConcurrentHashMap<>();
 
     TimedRequest(HttpRequest request, long startTime, String flowId) {
       this.request = request;
       this.startTime = startTime;
       this.flowId = flowId;
+    }
+
+    /**
+     * Stores timing data for this flow.
+     *
+     * @param key the timing metric key
+     * @param value the timing value in milliseconds
+     */
+    public void setTimingData(String key, Long value) {
+      Objects.requireNonNull(key, "timing key must not be null");
+      Objects.requireNonNull(value, "timing value must not be null");
+      data.put(key, value);
+    }
+
+    /**
+     * Retrieves timing data for this flow.
+     *
+     * @param key the timing metric key
+     * @return the timing value in milliseconds, or null if not available
+     */
+    public Long getTimingData(String key) {
+      return data.get(key);
+    }
+
+    /**
+     * Gets all timing data for this flow.
+     *
+     * @return map of all timing data
+     */
+    public Map<String, Long> getTimings() {
+      return Map.copyOf(data);
     }
   }
 
@@ -98,7 +133,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     long now = System.currentTimeMillis();
     // Store request start time in FlowContext
     flowContext.setTimingData("request_start_time", now);
-    requestMap.put(requestId, new TimedRequest(httpRequest, now, flowContext.getFlowId()));
+    TimedRequest timedRequest = new TimedRequest(httpRequest, now, flowContext.getFlowId());
+    requestMap.put(requestId, timedRequest);
 
     // For non-SSL connections, set tcp_connection_establishment_time_ms if not already set
     // (For SSL connections, it's set in clientSSLHandshakeSucceeded)
@@ -142,33 +178,33 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void responseReceivedFromServer(
-      FullFlowContext flowContext, HttpResponse httpResponse, String requestId) {
+      FullFlowContext fullFlowContext, HttpResponse httpResponse, String requestId) {
     long now = System.currentTimeMillis();
     String flowId = getFlowId(requestId);
 
     // Store the time when first response byte was received from server
-    flowContext.setTimingData("response_first_byte_time_ms", now);
+    fullFlowContext.setTimingData("response_first_byte_time_ms", now);
 
     // Calculate response latency (TTFB - Time To First Byte)
-    Long requestStartTime = flowContext.getTimingData("request_start_time");
+    Long requestStartTime = fullFlowContext.getTimingData("request_start_time");
     if (requestStartTime != null) {
       long responseLatencyMs = now - requestStartTime;
-      flowContext.setTimingData("response_latency_ms", responseLatencyMs);
+      fullFlowContext.setTimingData("response_latency_ms", responseLatencyMs);
     }
 
     // DEBUG: Structured formatting for response received from server
     var responseAttributes = new java.util.HashMap<String, Object>();
     responseAttributes.put("status", httpResponse.status().code());
-    responseAttributes.put("server_host", flowContext.getServerHostAndPort());
+    responseAttributes.put("server_host", fullFlowContext.getServerHostAndPort());
     if (timingMode != TimingMode.OFF) {
-      Long latency = flowContext.getTimingData("response_latency_ms");
+      Long latency = fullFlowContext.getTimingData("response_latency_ms");
       if (latency != null) {
         responseAttributes.put("response_latency_ms", latency);
       }
     }
     logLifecycleEvent(
         LifecycleEvent.RESPONSE_RECEIVED_FROM_SERVER,
-        flowContext,
+        fullFlowContext,
         java.util.Map.copyOf(responseAttributes),
         flowId);
   }
@@ -186,34 +222,22 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     long httpRequestProcessingTimeMs = now - timedRequest.startTime;
 
     // Store timing data in FlowContext
-    flowContext.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
+    timedRequest.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
 
     // Calculate response transfer time (from first byte to last byte)
-    Long firstByteTime = flowContext.getTimingData("response_first_byte_time_ms");
+    Long firstByteTime = timedRequest.getTimingData("response_first_byte_time_ms");
     if (firstByteTime != null) {
       long responseTransferTimeMs = now - firstByteTime;
-      flowContext.setTimingData("response_transfer_time_ms", responseTransferTimeMs);
+      timedRequest.setTimingData("response_transfer_time_ms", responseTransferTimeMs);
     }
 
     // DEBUG: Structured formatting for response sent
-    var responseAttributesBuilder = new java.util.HashMap<String, Object>();
-    responseAttributesBuilder.put("status", httpResponse.status().code());
     if (timingMode != TimingMode.OFF) {
-      responseAttributesBuilder.put("http_request_processing_time_ms", httpRequestProcessingTimeMs);
-      Long latency = flowContext.getTimingData("response_latency_ms");
-      if (latency != null) {
-        responseAttributesBuilder.put("response_latency_ms", latency);
-      }
-      Long transferTime = flowContext.getTimingData("response_transfer_time_ms");
-      if (transferTime != null) {
-        responseAttributesBuilder.put("response_transfer_time_ms", transferTime);
-      }
+      timedRequest.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
     }
-    logLifecycleEvent(
-        LifecycleEvent.RESPONSE_SENT,
-        flowContext,
-        java.util.Map.copyOf(responseAttributesBuilder),
-        flowId);
+    Map<String, Object> newMap = new HashMap<>(timedRequest.getTimings());
+    newMap.put("status", "" + httpResponse.status().code());
+    logLifecycleEvent(LifecycleEvent.RESPONSE_SENT, flowContext, newMap, flowId);
 
     // INFO: Use configured format (KEYVALUE, JSON, etc.)
     if (shouldLogInfoEntry()) {
@@ -256,7 +280,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       FlowContext flowContext, TimedRequest timedRequest, HttpResponse httpResponse) {
     // Calculate and store duration in FlowContext
     long httpRequestProcessingTimeMs = System.currentTimeMillis() - timedRequest.startTime;
-    flowContext.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
+    timedRequest.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
 
     return formatter.format(
         flowContext,
@@ -271,8 +295,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void clientConnected(FlowContext flowContext) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
     long now = System.currentTimeMillis();
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
 
     // Store timing data in FlowContext
     flowContext.setTimingData("tcp_client_connection_start_time_ms", now);
@@ -310,8 +335,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
     long now = System.currentTimeMillis();
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
@@ -347,6 +373,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         attributesBuilder.put("ssl_handshake_time_ms", handshakeTime);
       }
     }
+    attributesBuilder.putAll(flowContext.getTimings());
 
     // DEBUG: Essential operation with structured formatting
     logLifecycleEvent(
@@ -358,8 +385,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void clientDisconnected(FlowContext flowContext, SSLSession sslSession) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
     long now = System.currentTimeMillis();
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
     ClientState state = clientAddress != null ? clientStates.remove(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
@@ -386,6 +414,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       if (duration != null) {
         attributesBuilder.put("tcp_client_connection_duration_ms", duration);
       }
+      attributesBuilder.putAll(flowContext.getTimings());
     }
 
     // DEBUG: Essential operation with structured formatting
@@ -400,6 +429,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void serverConnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
     long now = System.currentTimeMillis();
     String flowId = getFlowId(flowContext);
 
@@ -419,6 +449,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void serverDisconnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
     long now = System.currentTimeMillis();
     String flowId = getFlowId(flowContext);
 
@@ -455,29 +486,30 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       if (includeTimings) {
         Long duration = flowContext.getTimingData("tcp_server_connection_duration_ms");
         if (duration != null) {
-          attributes.put("tcp_server_connection_duration_ms", duration);
+          flowContext.setTimingData("tcp_server_connection_duration_ms", duration);
         }
         Long serverStart = flowContext.getTimingData("tcp_server_connection_start_time_ms");
         if (serverStart != null) {
-          attributes.put("time_since_server_connect_ms", now - serverStart);
+          flowContext.setTimingData("time_since_server_connect_ms", now - serverStart);
         }
       }
       Long dnsDuration = flowContext.getTimingData("dns_resolution_time_ms");
       if (dnsDuration != null) {
-        attributes.put("dns_resolution_time_ms", dnsDuration);
+        flowContext.setTimingData("dns_resolution_time_ms", dnsDuration);
       }
       Long requestStart = flowContext.getTimingData("request_start_time");
       if (requestStart == null) {
         requestStart = flowContext.getTimingData("last_request_start_time_ms");
       }
       if (requestStart != null) {
-        attributes.put("time_since_client_request_ms", now - requestStart);
+        flowContext.setTimingData("time_since_client_request_ms", now - requestStart);
       }
       Long clientStart = flowContext.getTimingData("tcp_client_connection_start_time_ms");
       if (clientStart != null) {
-        attributes.put("server_connect_latency_ms", now - clientStart);
+        flowContext.setTimingData("server_connect_latency_ms", now - clientStart);
       }
     }
+    attributes.putAll(flowContext.getTimings());
     return java.util.Map.copyOf(attributes);
   }
 
@@ -488,18 +520,19 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       boolean includeStartOnly) {
     Long clientStart = flowContext.getTimingData("tcp_client_connection_start_time_ms");
     if (clientStart != null) {
-      attributes.put("connection_age_ms", now - clientStart);
+      flowContext.setTimingData("connection_age_ms", now - clientStart);
     }
     if (!includeStartOnly) {
       Long lastRequestTime = flowContext.getTimingData("last_request_start_time_ms");
       if (lastRequestTime != null) {
-        attributes.put("time_since_last_request_ms", now - lastRequestTime);
+        flowContext.setTimingData("time_since_last_request_ms", now - lastRequestTime);
       }
       Long establishment = flowContext.getTimingData("tcp_connection_establishment_time_ms");
       if (establishment != null) {
-        attributes.put("tcp_connection_establishment_time_ms", establishment);
+        flowContext.setTimingData("tcp_connection_establishment_time_ms", establishment);
       }
     }
+    attributes.putAll(flowContext.getTimings());
   }
 
   // ==================== HELPER METHODS ====================
@@ -549,7 +582,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void connectionSaturated(FlowContext flowContext) {
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
@@ -567,7 +601,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void connectionWritable(FlowContext flowContext) {
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
@@ -580,7 +615,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void connectionTimedOut(FlowContext flowContext) {
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
@@ -593,7 +629,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void connectionExceptionCaught(FlowContext flowContext, Throwable cause) {
-    InetSocketAddress clientAddress = flowContext != null ? flowContext.getClientAddress() : null;
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    InetSocketAddress clientAddress = flowContext.getClientAddress();
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
