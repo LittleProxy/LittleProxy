@@ -42,16 +42,36 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private final TimingMode timingMode;
 
   /** Tracks request timing information. */
-  private static class TimedRequest {
-    final HttpRequest request;
-    final long startTime;
-    final String flowId;
+  public static class TimedRequest {
+    private final HttpRequest request;
+    private final long startTime;
+    private final String flowId;
     private final Map<String, Long> data = new ConcurrentHashMap<>();
 
-    TimedRequest(HttpRequest request, long startTime, String flowId) {
+    public TimedRequest(HttpRequest request, long startTime, String flowId) {
       this.request = request;
       this.startTime = startTime;
       this.flowId = flowId;
+    }
+
+    public TimedRequest(
+        HttpRequest request, long startTime, String flowId, Map<String, Long> timingData) {
+      this(request, startTime, flowId);
+      if (timingData != null) {
+        data.putAll(timingData);
+      }
+    }
+
+    public HttpRequest getRequest() {
+      return request;
+    }
+
+    public long getStartTime() {
+      return startTime;
+    }
+
+    public String getFlowId() {
+      return flowId;
     }
 
     /**
@@ -225,9 +245,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       return;
     }
 
-    String flowId = timedRequest.flowId;
+    String flowId = timedRequest.getFlowId();
     long now = System.currentTimeMillis();
-    long httpRequestProcessingTimeMs = now - timedRequest.startTime;
+    long httpRequestProcessingTimeMs = now - timedRequest.getStartTime();
 
     timedRequest.setTimingData("http_request_processing_time_ms", httpRequestProcessingTimeMs);
 
@@ -285,12 +305,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       FlowContext flowContext, TimedRequest timedRequest, HttpResponse httpResponse) {
     return formatter.format(
         flowContext,
-        timedRequest.request,
+        timedRequest,
         httpResponse,
         java.time.ZonedDateTime.now(UTC_ZONE_ID),
-        timedRequest.flowId,
-        fieldConfiguration,
-        timedRequest.getTimings());
+        fieldConfiguration);
   }
 
   // ==================== CLIENT LIFECYCLE ====================

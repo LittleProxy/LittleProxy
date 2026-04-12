@@ -6,6 +6,7 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.*;
+import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 
 /**
  * Formatter for Labeled Tab-Separated Values (LTSV) format.
@@ -19,12 +20,13 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
   @Override
   public String format(
       FlowContext context,
-      HttpRequest request,
+      TimedRequest timedRequest,
       HttpResponse response,
       ZonedDateTime now,
-      String flowId,
-      LogFieldConfiguration fieldConfig,
-      Map<String, Long> requestTimingData) {
+      LogFieldConfiguration fieldConfig) {
+    HttpRequest request = timedRequest.getRequest();
+    String flowId = timedRequest.getFlowId();
+    Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
 

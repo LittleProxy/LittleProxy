@@ -49,12 +49,11 @@ class ClfFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     // CLF format: host ident authuser [date] "request" status bytes
     assertThat(result).startsWith("127.0.0.1");
@@ -78,12 +77,11 @@ class ClfFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).startsWith("-");
   }
@@ -99,12 +97,11 @@ class ClfFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).endsWith("-");
   }
@@ -120,12 +117,11 @@ class ClfFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains("\"POST /api/users HTTP/1.1\"");
     assertThat(result).contains(" 201 ");
@@ -142,12 +138,11 @@ class ClfFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains("http://example.com/path?query=1");
   }
@@ -163,12 +158,11 @@ class ClfFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" 404 ");
   }

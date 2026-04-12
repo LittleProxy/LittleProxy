@@ -1,10 +1,10 @@
 package org.littleshoot.proxy.extras.logging.formatter;
 
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
+import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFormat;
 
@@ -19,21 +19,19 @@ public interface LogEntryFormatter {
    * Formats a log entry from the given HTTP request/response context.
    *
    * @param context the flow context containing client and server connection information
-   * @param request the HTTP request
+   * @param timedRequest the request-scoped data including the HTTP request, flow identifier, and
+   *     request timings
    * @param response the HTTP response
    * @param now the current timestamp with timezone
-   * @param flowId the unique flow identifier for tracing
    * @param fieldConfig the field configuration determining which fields to include
    * @return the formatted log entry string
    */
   String format(
       FlowContext context,
-      HttpRequest request,
+      TimedRequest timedRequest,
       HttpResponse response,
       ZonedDateTime now,
-      String flowId,
-      LogFieldConfiguration fieldConfig,
-      Map<String, Long> requestTimingData);
+      LogFieldConfiguration fieldConfig);
 
   /**
    * Formats a lifecycle event for structured logging at DEBUG/TRACE levels.

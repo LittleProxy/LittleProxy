@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.*;
+import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 
 /**
  * Formatter for Comma-Separated Values (CSV) format.
@@ -20,12 +21,13 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
   @Override
   public String format(
       FlowContext context,
-      HttpRequest request,
+      TimedRequest timedRequest,
       HttpResponse response,
       ZonedDateTime now,
-      String flowId,
-      LogFieldConfiguration fieldConfig,
-      Map<String, Long> requestTimingData) {
+      LogFieldConfiguration fieldConfig) {
+    HttpRequest request = timedRequest.getRequest();
+    String flowId = timedRequest.getFlowId();
+    Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
 

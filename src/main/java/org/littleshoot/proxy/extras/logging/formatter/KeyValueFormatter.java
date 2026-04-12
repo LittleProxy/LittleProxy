@@ -8,6 +8,7 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
+import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 import org.littleshoot.proxy.extras.logging.ExcludeRequestHeaderField;
 import org.littleshoot.proxy.extras.logging.ExcludeResponseHeaderField;
 import org.littleshoot.proxy.extras.logging.LogField;
@@ -31,12 +32,13 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
   @Override
   public String format(
       FlowContext context,
-      HttpRequest request,
+      TimedRequest timedRequest,
       HttpResponse response,
       ZonedDateTime now,
-      String flowId,
-      LogFieldConfiguration fieldConfig,
-      Map<String, Long> requestTimingData) {
+      LogFieldConfiguration fieldConfig) {
+    HttpRequest request = timedRequest.getRequest();
+    String flowId = timedRequest.getFlowId();
+    Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
     sb.append("flow_id=").append(escapeKv(flowId));

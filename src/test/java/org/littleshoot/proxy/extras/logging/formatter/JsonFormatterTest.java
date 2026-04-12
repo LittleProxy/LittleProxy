@@ -56,12 +56,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "test-flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "test-flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).startsWith("{");
     assertThat(result).endsWith("}");
@@ -82,12 +81,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     // Quotes should be escaped - the JSON contains \\" which represents \" in the output
     assertThat(result).contains("\\\"with quotes\\\"");
@@ -104,12 +102,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\\\\with\\\\backslashes");
   }
@@ -126,12 +123,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     // Null timing data should show as "-"
     assertThat(result).contains("\"http_request_processing_time_ms\":\"-\"");
@@ -149,12 +145,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"http_request_processing_time_ms\":\"42\"");
   }
@@ -193,12 +188,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"bytes\":\"1024\"");
   }
@@ -214,12 +208,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"uri\":\"/api/users?id=123\"");
   }
@@ -234,12 +227,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"referer\":\"http://example.com/page\"");
   }
@@ -254,12 +246,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"user_agent\":\"Mozilla/5.0\"");
   }
@@ -271,12 +262,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).isEqualTo("{\"flow_id\":\"flow-id\"}");
   }
@@ -291,12 +281,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"client_ip\":\"-\"");
   }
@@ -311,12 +300,11 @@ class JsonFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\"protocol\":\"HTTP/1.1\"");
   }

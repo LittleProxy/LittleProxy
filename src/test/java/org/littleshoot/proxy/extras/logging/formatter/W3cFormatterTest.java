@@ -53,7 +53,12 @@ class W3cFormatterTest {
 
     String result =
         formatter.format(
-            flowContext, request, response, now, "flow-id", config, java.util.Map.of());
+            flowContext,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
+            response,
+            now,
+            config);
 
     // W3C format: date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
     assertThat(result).startsWith("2024-01-15 10:30:45");
@@ -79,12 +84,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" - ");
   }
@@ -102,12 +106,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" - ");
   }
@@ -125,12 +128,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" POST ");
     assertThat(result).contains(" 201 ");
@@ -149,12 +151,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     // W3C format should extract just the path (uri-stem)
     assertThat(result).contains(" /path ");
@@ -173,12 +174,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).endsWith("\"-\"");
   }
@@ -201,12 +201,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" /just/path/no/query ");
   }
@@ -224,12 +223,11 @@ class W3cFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     // URL without path should return "/"
     assertThat(result).contains(" / ");

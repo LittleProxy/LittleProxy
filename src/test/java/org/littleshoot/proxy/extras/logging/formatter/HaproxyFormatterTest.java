@@ -50,7 +50,12 @@ class HaproxyFormatterTest {
 
     String result =
         formatter.format(
-            flowContext, request, response, now, "flow-id", config, java.util.Map.of());
+            flowContext,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
+            response,
+            now,
+            config);
 
     // HAProxy format: process[pid]: client_ip:port [accept_date] frontend backend/server
     // Tq/Tw/Tc/Tr/Ta status bytes ...
@@ -77,12 +82,11 @@ class HaproxyFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     // client_port should be 0 when no client address
     assertThat(result).contains(":0 ");
@@ -100,12 +104,11 @@ class HaproxyFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" - "); // missing content length shows as "-"
   }
@@ -122,12 +125,11 @@ class HaproxyFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains("0/0/0/0/-"); // null timing shows as "-"
   }
@@ -144,12 +146,11 @@ class HaproxyFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains("\"POST /api/users HTTP/1.1\"");
     assertThat(result).contains(" 201 ");

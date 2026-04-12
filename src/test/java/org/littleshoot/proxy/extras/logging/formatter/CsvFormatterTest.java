@@ -56,12 +56,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "test-flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "test-flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).startsWith("\"test-flow-id\"");
     assertThat(result).contains(",\"127.0.0.1\"");
@@ -76,12 +75,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).isEqualTo("\"flow-id\"");
   }
@@ -97,12 +95,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     // The URI "/path?query="value"" gets escaped to "/path?query=\\"value\\"" due to double
     // escaping
@@ -121,12 +118,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     // Null timing data shows as "-" in CSV (via StandardField)
     assertThat(result).contains(",\"-\"");
@@ -164,12 +160,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains(",\"1024\"");
   }
@@ -184,12 +179,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains(",\"-\"");
   }
@@ -205,12 +199,11 @@ class CsvFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
-            "flow-id",
-            config,
-            java.util.Map.of());
+            config);
 
     assertThat(result).contains("\\\\with\\\\backslashes");
   }

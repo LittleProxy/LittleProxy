@@ -56,7 +56,12 @@ class SquidFormatterTest {
 
     String result =
         formatter.format(
-            flowContext, request, response, now, "flow-id", config, java.util.Map.of());
+            flowContext,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
+            response,
+            now,
+            config);
 
     // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
     // type
@@ -86,12 +91,11 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" TCP_MISS/404 ");
   }
@@ -111,12 +115,11 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     String[] fields = result.split(" ");
     assertThat(fields).hasSize(10);
@@ -137,12 +140,11 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" - "); // missing content length shows as "-"
   }
@@ -161,12 +163,11 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).endsWith(" -"); // missing content type shows as "-"
   }
@@ -185,12 +186,11 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" POST ");
     // 201 is still in 2xx range but LittleProxy always uses TCP_MISS
@@ -211,12 +211,11 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            request,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
             response,
             now,
-            "flow-id",
-            LogFieldConfiguration.builder().build(),
-            java.util.Map.of());
+            LogFieldConfiguration.builder().build());
 
     assertThat(result).contains(" TCP_MISS/302 "); // LittleProxy always uses TCP_MISS
   }
