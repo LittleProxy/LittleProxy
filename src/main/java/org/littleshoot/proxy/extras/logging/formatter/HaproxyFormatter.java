@@ -53,7 +53,7 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
     sb.append("\"")
         .append(escapeRequestLine(request.method().name()))
         .append(" ")
-        .append(escapeRequestLine(getFullUrl(request)))
+        .append(escapeRequestLine(getFullUrl(context, request)))
         .append(" ")
         .append(escapeRequestLine(request.protocolVersion().text()))
         .append("\"");

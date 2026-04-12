@@ -54,7 +54,7 @@ public class SquidFormatter extends AbstractLogEntryFormatter {
     sb.append(cacheResult).append("/").append(response.status().code()).append(" ");
     sb.append(getContentLength(response)).append(" ");
     sb.append(request.method()).append(" ");
-    sb.append(getFullUrl(request)).append(" ");
+    sb.append(getFullUrl(context, request)).append(" ");
     sb.append("- "); // rfc931 (ident)
     sb.append("DIRECT/").append(getServerIp(context)).append(" ");
     sb.append(getContentType(response));

@@ -9,6 +9,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
 import java.time.ZonedDateTime;
+import javax.net.ssl.SSLSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.FlowContext;
@@ -145,6 +146,28 @@ class ClfFormatterTest {
             LogFieldConfiguration.builder().build());
 
     assertThat(result).contains("http://example.com/path?query=1");
+  }
+
+  @Test
+  void testFormatWithRelativePathOverTlsUsesHttpsScheme() {
+    when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
+    when(request.uri()).thenReturn("/secure/path");
+    when(request.headers().get("Host")).thenReturn("example.com");
+    when(request.protocolVersion()).thenReturn(io.netty.handler.codec.http.HttpVersion.HTTP_1_1);
+    when(response.status()).thenReturn(io.netty.handler.codec.http.HttpResponseStatus.OK);
+    when(responseHeaders.get("Content-Length")).thenReturn("100");
+    when(flowContext.getClientSslSession()).thenReturn(mock(SSLSession.class));
+
+    String result =
+        formatter.format(
+            flowContext,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
+            response,
+            ZonedDateTime.now(),
+            LogFieldConfiguration.builder().build());
+
+    assertThat(result).contains("https://example.com/secure/path");
   }
 
   @Test

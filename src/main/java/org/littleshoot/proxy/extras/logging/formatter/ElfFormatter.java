@@ -38,7 +38,7 @@ public class ElfFormatter extends AbstractLogEntryFormatter {
     sb.append("\"")
         .append(request.method())
         .append(" ")
-        .append(getFullUrl(request))
+        .append(getFullUrl(context, request))
         .append(" ")
         .append(request.protocolVersion())
         .append("\" ");

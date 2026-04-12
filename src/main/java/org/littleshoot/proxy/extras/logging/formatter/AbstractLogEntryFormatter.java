@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
+import org.littleshoot.proxy.extras.logging.RequestUrlUtils;
 
 /**
  * Abstract base class for log entry formatters providing common utility methods. This class
@@ -33,38 +34,12 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
    * Reconstructs the full URL from the request. If the URI is already absolute (starts with http://
    * or https://), returns it as-is. Otherwise, prepends the Host header to create a complete URL.
    *
+   * @param context the flow context
    * @param request the HTTP request
    * @return the full URL
    */
-  protected String getFullUrl(HttpRequest request) {
-    String uri = request.uri();
-
-    // Check if URI is already absolute (contains scheme)
-    if (uri.startsWith("http://") || uri.startsWith("https://")) {
-      return uri;
-    }
-
-    // For CONNECT requests, the URI is just host:port
-    if (request.method().name().equals("CONNECT")) {
-      return uri;
-    }
-
-    // Get host from Host header
-    String host = request.headers().get("Host");
-    if (host == null || host.isEmpty()) {
-      // Fallback: return URI as-is if no Host header
-      return uri;
-    }
-
-    // Determine scheme (default to http)
-    String scheme = "http";
-
-    // Reconstruct full URL
-    if (uri.startsWith("/")) {
-      return scheme + "://" + host + uri;
-    } else {
-      return scheme + "://" + host + "/" + uri;
-    }
+  protected String getFullUrl(FlowContext context, HttpRequest request) {
+    return RequestUrlUtils.getFullUrl(context, request);
   }
 
   /**

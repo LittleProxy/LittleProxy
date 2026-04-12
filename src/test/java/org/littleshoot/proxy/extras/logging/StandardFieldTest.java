@@ -8,6 +8,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.net.InetSocketAddress;
+import javax.net.ssl.SSLSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.FlowContext;
@@ -137,6 +138,29 @@ class StandardFieldTest {
     String value = StandardField.URI.extractValue(flowContext, request, response);
 
     assertThat(value).isEqualTo("http://example.com/path?query=1");
+  }
+
+  @Test
+  void testUriFieldWithRelativePathOverTls() {
+    when(request.uri()).thenReturn("/path?query=1");
+    when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
+    when(requestHeaders.get("Host")).thenReturn("example.com");
+    when(flowContext.getClientSslSession()).thenReturn(mock(SSLSession.class));
+
+    String value = StandardField.URI.extractValue(flowContext, request, response);
+
+    assertThat(value).isEqualTo("https://example.com/path?query=1");
+  }
+
+  @Test
+  void testUriFieldWithAbsoluteHttpsUrl() {
+    when(request.uri()).thenReturn("https://example.com/path?query=1");
+    when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
+    when(flowContext.getClientSslSession()).thenReturn(mock(SSLSession.class));
+
+    String value = StandardField.URI.extractValue(flowContext, request, response);
+
+    assertThat(value).isEqualTo("https://example.com/path?query=1");
   }
 
   @Test

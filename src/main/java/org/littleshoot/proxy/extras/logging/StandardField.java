@@ -95,7 +95,7 @@ public enum StandardField implements LogField {
         return request.method().name();
 
       case URI:
-        return extractFullUrl(request);
+        return extractFullUrl(flowContext, request);
 
       case STATUS:
         return String.valueOf(response.status().code());
@@ -194,33 +194,7 @@ public enum StandardField implements LogField {
     return clientAddress != null ? clientAddress.getAddress().getHostAddress() : "-";
   }
 
-  private String extractFullUrl(HttpRequest request) {
-    String uri = request.uri();
-
-    // Check if URI is already absolute (contains scheme)
-    if (uri.startsWith("http://") || uri.startsWith("https://")) {
-      return uri;
-    }
-
-    // For CONNECT requests, the URI is just host:port
-    if (request.method().name().equals("CONNECT")) {
-      return uri;
-    }
-
-    // Get host from Host header
-    String host = request.headers().get("Host");
-    if (host == null || host.isEmpty()) {
-      return uri;
-    }
-
-    // Determine scheme (default to http)
-    String scheme = "http";
-
-    // Reconstruct full URL
-    if (uri.startsWith("/")) {
-      return scheme + "://" + host + uri;
-    } else {
-      return scheme + "://" + host + "/" + uri;
-    }
+  private String extractFullUrl(FlowContext flowContext, HttpRequest request) {
+    return RequestUrlUtils.getFullUrl(flowContext, request);
   }
 }
