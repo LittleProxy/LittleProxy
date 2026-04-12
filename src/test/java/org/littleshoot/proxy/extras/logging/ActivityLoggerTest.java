@@ -331,6 +331,25 @@ class ActivityLoggerTest {
     when(responseHeaders.get("Content-Length")).thenReturn("100");
   }
 
+  private Map<String, Long> installTimingStorage(FlowContext context) {
+    Map<String, Long> timingData = new ConcurrentHashMap<>();
+
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              timingData.put(inv.getArgument(0), inv.getArgument(1));
+              return null;
+            })
+        .when(context)
+        .setTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+
+    when(context.getTimingData(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(inv -> timingData.get(inv.getArgument(0)));
+    when(context.getTimings()).thenAnswer(inv -> Map.copyOf(timingData));
+
+    return timingData;
+  }
+
   private void setupSecurityMocks() {
     setupMocksCommon();
     when(requestHeaders.get("X-Forwarded-For")).thenReturn("203.0.113.1");
@@ -1686,6 +1705,37 @@ class ActivityLoggerTest {
 
     tracker.serverDisconnected(fullFlowContext, serverAddress);
     tracker.clientDisconnected(flowContext, null);
+  }
+
+  @Test
+  void testMissingAdapterCallbacksUpdateProperConnectionScopes() {
+    TestableActivityLogger tracker =
+        new TestableActivityLogger(LogFormat.JSON, null, TimingMode.ALL);
+
+    setupMocks();
+    installTimingStorage(flowContext);
+    installTimingStorage(fullFlowContext);
+    when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
+
+    tracker.bytesReceivedFromClient(flowContext, 10);
+    tracker.bytesReceivedFromClient(flowContext, 5);
+    tracker.bytesSentToClient(flowContext, 7);
+
+    tracker.bytesSentToServer(fullFlowContext, 11);
+    tracker.bytesReceivedFromServer(fullFlowContext, 13);
+    tracker.requestSentToServer(fullFlowContext, request);
+    tracker.requestSentToServer(fullFlowContext, request);
+
+    assertThat(flowContext.getTimingData("client_to_proxy_bytes_received")).isEqualTo(15L);
+    assertThat(flowContext.getTimingData("proxy_to_client_bytes_sent")).isEqualTo(7L);
+    assertThat(flowContext.getTimingData("proxy_to_server_bytes_sent")).isNull();
+    assertThat(flowContext.getTimingData("server_to_proxy_bytes_received")).isNull();
+
+    assertThat(fullFlowContext.getTimingData("proxy_to_server_bytes_sent")).isEqualTo(11L);
+    assertThat(fullFlowContext.getTimingData("server_to_proxy_bytes_received")).isEqualTo(13L);
+    assertThat(fullFlowContext.getTimingData("requests_sent_to_server_count")).isEqualTo(2L);
+    assertThat(fullFlowContext.getTimingData("client_to_proxy_bytes_received")).isNull();
+    assertThat(fullFlowContext.getTimingData("proxy_to_client_bytes_sent")).isNull();
   }
 
   @Test

@@ -154,6 +154,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   // ==================== REQUEST/RESPONSE TRACKING ====================
 
   @Override
+  public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    incrementTimingCounter(flowContext, "client_to_proxy_bytes_received", numberOfBytes);
+  }
+
+  @Override
   public void requestReceivedFromClient(
       FlowContext flowContext, HttpRequest httpRequest, String requestId) {
 
@@ -200,6 +206,41 @@ public class ActivityLogger extends ActivityTrackerAdapter {
         flowContext,
         java.util.Map.copyOf(requestAttributes),
         flowContext.getFlowId());
+  }
+
+  @Override
+  public void bytesSentToServer(FullFlowContext flowContext, int numberOfBytes) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    incrementTimingCounter(flowContext, "proxy_to_server_bytes_sent", numberOfBytes);
+  }
+
+  @Override
+  public void requestSentToServer(FullFlowContext flowContext, HttpRequest httpRequest) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    Preconditions.checkNotNull(httpRequest, "httpRequest cannot be null");
+
+    long requestCount = incrementTimingCounter(flowContext, "requests_sent_to_server_count", 1);
+    String flowId = getFlowId(flowContext);
+
+    var attributes = new java.util.HashMap<String, Object>();
+    attributes.put("method", httpRequest.method());
+    attributes.put("uri", httpRequest.uri());
+    attributes.put("requests_sent_to_server_count", requestCount);
+    if (flowContext.getServerHostAndPort() != null) {
+      attributes.put("server_host", flowContext.getServerHostAndPort());
+    }
+
+    logLifecycleEvent(
+        LifecycleEvent.REQUEST_SENT_TO_SERVER,
+        flowContext,
+        java.util.Map.copyOf(attributes),
+        flowId);
+  }
+
+  @Override
+  public void bytesReceivedFromServer(FullFlowContext flowContext, int numberOfBytes) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    incrementTimingCounter(flowContext, "server_to_proxy_bytes_received", numberOfBytes);
   }
 
   @Override
@@ -271,6 +312,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     onRequestCompleted(requestId, timedRequest.getTimings());
     requestMap.remove(requestId);
+  }
+
+  @Override
+  public void bytesSentToClient(FlowContext flowContext, int numberOfBytes) {
+    Preconditions.checkNotNull(flowContext, "flowContext cannot be null");
+    incrementTimingCounter(flowContext, "proxy_to_client_bytes_sent", numberOfBytes);
   }
 
   /**
@@ -553,6 +600,13 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       }
     }
     attributes.putAll(flowContext.getTimings());
+  }
+
+  private long incrementTimingCounter(FlowContext flowContext, String key, long delta) {
+    Long currentValue = flowContext.getTimingData(key);
+    long newValue = (currentValue != null ? currentValue : 0L) + delta;
+    flowContext.setTimingData(key, newValue);
+    return newValue;
   }
 
   // ==================== HELPER METHODS ====================
