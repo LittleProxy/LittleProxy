@@ -89,12 +89,4 @@ public class FlowContext {
     return Objects.hashCode(connectionId);
   }
 
-  /**
-   * Generates a unique flow ID for tracing requests across the proxy.
-   *
-   * @return unique flow identifier
-   */
-  private String generateFlowId() {
-    return UlidCreator.getUlid().toString();
-  }
 }
