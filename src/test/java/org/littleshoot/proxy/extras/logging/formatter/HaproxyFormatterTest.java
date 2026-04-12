@@ -48,7 +48,9 @@ class HaproxyFormatterTest {
     when(responseHeaders.get("Content-Length")).thenReturn("1234");
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(500L);
 
-    String result = formatter.format(flowContext, request, response, now, "flow-id", config);
+    String result =
+        formatter.format(
+            flowContext, request, response, now, "flow-id", config, java.util.Map.of());
 
     // HAProxy format: process[pid]: client_ip:port [accept_date] frontend backend/server
     // Tq/Tw/Tc/Tr/Ta status bytes ...
@@ -79,7 +81,8 @@ class HaproxyFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     // client_port should be 0 when no client address
     assertThat(result).contains(":0 ");
@@ -101,7 +104,8 @@ class HaproxyFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" - "); // missing content length shows as "-"
   }
@@ -122,7 +126,8 @@ class HaproxyFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("0/0/0/0/-"); // null timing shows as "-"
   }
@@ -143,7 +148,8 @@ class HaproxyFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("\"POST /api/users HTTP/1.1\"");
     assertThat(result).contains(" 201 ");

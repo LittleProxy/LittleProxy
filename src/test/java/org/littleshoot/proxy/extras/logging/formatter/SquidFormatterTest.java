@@ -54,7 +54,9 @@ class SquidFormatterTest {
     when(responseHeaders.get("Content-Type")).thenReturn("text/html");
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(500L);
 
-    String result = formatter.format(flowContext, request, response, now, "flow-id", config);
+    String result =
+        formatter.format(
+            flowContext, request, response, now, "flow-id", config, java.util.Map.of());
 
     // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
     // type
@@ -88,7 +90,8 @@ class SquidFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" TCP_MISS/404 ");
   }
@@ -112,7 +115,8 @@ class SquidFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     String[] fields = result.split(" ");
     assertThat(fields).hasSize(10);
@@ -137,7 +141,8 @@ class SquidFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" - "); // missing content length shows as "-"
   }
@@ -160,7 +165,8 @@ class SquidFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).endsWith(" -"); // missing content type shows as "-"
   }
@@ -183,7 +189,8 @@ class SquidFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" POST ");
     // 201 is still in 2xx range but LittleProxy always uses TCP_MISS
@@ -208,7 +215,8 @@ class SquidFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" TCP_MISS/302 "); // LittleProxy always uses TCP_MISS
   }

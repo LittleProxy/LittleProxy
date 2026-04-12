@@ -55,7 +55,13 @@ class JsonFormatterTest {
 
     String result =
         formatter.format(
-            flowContext, request, response, ZonedDateTime.now(), "test-flow-id", config);
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "test-flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).startsWith("{");
     assertThat(result).endsWith("}");
@@ -74,7 +80,14 @@ class JsonFormatterTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // Quotes should be escaped - the JSON contains \\" which represents \" in the output
     assertThat(result).contains("\\\"with quotes\\\"");
@@ -89,7 +102,14 @@ class JsonFormatterTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\\\\with\\\\backslashes");
   }
@@ -104,7 +124,14 @@ class JsonFormatterTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(null);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // Null timing data should show as "-"
     assertThat(result).contains("\"http_request_processing_time_ms\":\"-\"");
@@ -120,7 +147,14 @@ class JsonFormatterTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(42L);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"http_request_processing_time_ms\":\"42\"");
   }
@@ -157,7 +191,14 @@ class JsonFormatterTest {
     when(responseHeaders.get("Content-Length")).thenReturn("1024");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"bytes\":\"1024\"");
   }
@@ -171,7 +212,14 @@ class JsonFormatterTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"uri\":\"/api/users?id=123\"");
   }
@@ -184,7 +232,14 @@ class JsonFormatterTest {
     when(requestHeaders.get("Referer")).thenReturn("http://example.com/page");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"referer\":\"http://example.com/page\"");
   }
@@ -197,7 +252,14 @@ class JsonFormatterTest {
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"user_agent\":\"Mozilla/5.0\"");
   }
@@ -207,7 +269,14 @@ class JsonFormatterTest {
     LogFieldConfiguration config = LogFieldConfiguration.builder().build();
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).isEqualTo("{\"flow_id\":\"flow-id\"}");
   }
@@ -220,7 +289,14 @@ class JsonFormatterTest {
         LogFieldConfiguration.builder().addStandardField(StandardField.CLIENT_IP).build();
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"client_ip\":\"-\"");
   }
@@ -233,7 +309,14 @@ class JsonFormatterTest {
     when(request.protocolVersion()).thenReturn(io.netty.handler.codec.http.HttpVersion.HTTP_1_1);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\"protocol\":\"HTTP/1.1\"");
   }

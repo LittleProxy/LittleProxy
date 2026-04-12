@@ -51,7 +51,9 @@ class W3cFormatterTest {
     when(responseHeaders.get("Content-Length")).thenReturn("2326");
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/4.0");
 
-    String result = formatter.format(flowContext, request, response, now, "flow-id", config);
+    String result =
+        formatter.format(
+            flowContext, request, response, now, "flow-id", config, java.util.Map.of());
 
     // W3C format: date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
     assertThat(result).startsWith("2024-01-15 10:30:45");
@@ -81,7 +83,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" - ");
   }
@@ -103,7 +106,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" - ");
   }
@@ -125,7 +129,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" POST ");
     assertThat(result).contains(" 201 ");
@@ -148,7 +153,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     // W3C format should extract just the path (uri-stem)
     assertThat(result).contains(" /path ");
@@ -171,7 +177,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).endsWith("\"-\"");
   }
@@ -198,7 +205,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" /just/path/no/query ");
   }
@@ -220,7 +228,8 @@ class W3cFormatterTest {
             response,
             now,
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     // URL without path should return "/"
     assertThat(result).contains(" / ");

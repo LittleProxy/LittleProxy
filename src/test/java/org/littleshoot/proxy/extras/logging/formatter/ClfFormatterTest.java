@@ -47,7 +47,14 @@ class ClfFormatterTest {
     when(responseHeaders.get("Content-Length")).thenReturn("2326");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // CLF format: host ident authuser [date] "request" status bytes
     assertThat(result).startsWith("127.0.0.1");
@@ -75,7 +82,8 @@ class ClfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).startsWith("-");
   }
@@ -95,7 +103,8 @@ class ClfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).endsWith("-");
   }
@@ -115,7 +124,8 @@ class ClfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("\"POST /api/users HTTP/1.1\"");
     assertThat(result).contains(" 201 ");
@@ -136,7 +146,8 @@ class ClfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("http://example.com/path?query=1");
   }
@@ -156,7 +167,8 @@ class ClfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains(" 404 ");
   }

@@ -51,7 +51,14 @@ class ElfFormatterTest {
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/4.08 [en] (Win98; I ;Nav)");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // ELF format: host ident authuser [date] "request" status bytes "referer" "user-agent"
     assertThat(result).startsWith("127.0.0.1");
@@ -84,7 +91,8 @@ class ElfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).startsWith("-");
   }
@@ -106,7 +114,8 @@ class ElfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("\"-\"");
   }
@@ -128,7 +137,8 @@ class ElfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).endsWith("\"-\"");
   }
@@ -150,7 +160,8 @@ class ElfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("\"POST /api/users HTTP/1.1\"");
     assertThat(result).contains(" 201 ");
@@ -173,7 +184,8 @@ class ElfFormatterTest {
             response,
             ZonedDateTime.now(),
             "flow-id",
-            LogFieldConfiguration.builder().build());
+            LogFieldConfiguration.builder().build(),
+            java.util.Map.of());
 
     assertThat(result).contains("http://example.com/path?query=1");
   }

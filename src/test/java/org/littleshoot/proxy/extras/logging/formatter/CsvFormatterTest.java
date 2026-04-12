@@ -55,7 +55,13 @@ class CsvFormatterTest {
 
     String result =
         formatter.format(
-            flowContext, request, response, ZonedDateTime.now(), "test-flow-id", config);
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "test-flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).startsWith("\"test-flow-id\"");
     assertThat(result).contains(",\"127.0.0.1\"");
@@ -68,7 +74,14 @@ class CsvFormatterTest {
     LogFieldConfiguration config = LogFieldConfiguration.builder().build();
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).isEqualTo("\"flow-id\"");
   }
@@ -82,7 +95,14 @@ class CsvFormatterTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // The URI "/path?query="value"" gets escaped to "/path?query=\\"value\\"" due to double
     // escaping
@@ -99,7 +119,14 @@ class CsvFormatterTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(null);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // Null timing data shows as "-" in CSV (via StandardField)
     assertThat(result).contains(",\"-\"");
@@ -135,7 +162,14 @@ class CsvFormatterTest {
     when(responseHeaders.get("Content-Length")).thenReturn("1024");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains(",\"1024\"");
   }
@@ -148,7 +182,14 @@ class CsvFormatterTest {
         LogFieldConfiguration.builder().addStandardField(StandardField.CLIENT_IP).build();
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains(",\"-\"");
   }
@@ -162,7 +203,14 @@ class CsvFormatterTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("\\\\with\\\\backslashes");
   }

@@ -55,7 +55,13 @@ class LtsvFormatterTest {
 
     String result =
         formatter.format(
-            flowContext, request, response, ZonedDateTime.now(), "test-flow-id", config);
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "test-flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("flow_id:test-flow-id");
     assertThat(result).contains("client_ip:127.0.0.1");
@@ -68,7 +74,14 @@ class LtsvFormatterTest {
     LogFieldConfiguration config = LogFieldConfiguration.builder().build();
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).isEqualTo("flow_id:flow-id");
   }
@@ -83,7 +96,14 @@ class LtsvFormatterTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(42L);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("flow_id:flow-id");
     assertThat(result).contains("http_request_processing_time_ms:42");
@@ -99,7 +119,14 @@ class LtsvFormatterTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(null);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     // Null timing data shows as "-"
     assertThat(result).isEqualTo("flow_id:flow-id\thttp_request_processing_time_ms:-");
@@ -135,7 +162,14 @@ class LtsvFormatterTest {
     when(responseHeaders.get("Content-Length")).thenReturn("1024");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("flow_id:flow-id");
     assertThat(result).contains("bytes:1024");
@@ -150,7 +184,14 @@ class LtsvFormatterTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("flow_id:flow-id");
     assertThat(result).contains("uri:/api/users?id=123");
@@ -164,7 +205,14 @@ class LtsvFormatterTest {
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("flow_id:flow-id");
     assertThat(result).contains("user_agent:Mozilla/5.0");
@@ -178,7 +226,14 @@ class LtsvFormatterTest {
         LogFieldConfiguration.builder().addStandardField(StandardField.CLIENT_IP).build();
 
     String result =
-        formatter.format(flowContext, request, response, ZonedDateTime.now(), "flow-id", config);
+        formatter.format(
+            flowContext,
+            request,
+            response,
+            ZonedDateTime.now(),
+            "flow-id",
+            config,
+            java.util.Map.of());
 
     assertThat(result).contains("flow_id:flow-id");
     assertThat(result).contains("client_ip:-");
