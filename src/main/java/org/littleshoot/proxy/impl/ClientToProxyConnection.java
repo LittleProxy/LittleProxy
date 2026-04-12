@@ -12,6 +12,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_PROXY_AUTHENTI
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.NEGOTIATING_CONNECT;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -1562,10 +1563,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new RequestReadMonitor() {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
+          String requestId = UlidCreator.getMonotonicUlid().toString();
+          if (ctx != null && ctx.channel() != null) {
+            ctx.channel().attr(REQUEST_ID_KEY).set(requestId);
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             try {
-              tracker.requestReceivedFromClient(flowContext, httpRequest);
+              tracker.requestReceivedFromClient(flowContext, httpRequest, requestId);
             } catch (Exception e) {
               LOG.error("Unable to requestReceivedFromClient", e);
             }
@@ -1592,10 +1597,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new ResponseWrittenMonitor() {
         @Override
         protected void responseWritten(HttpResponse httpResponse) {
+          String requestId = null;
+          if (ctx != null && ctx.channel() != null) {
+            requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             try {
-              tracker.responseSentToClient(flowContext, httpResponse);
+              tracker.responseSentToClient(flowContext, httpResponse, requestId);
             } catch (Exception e) {
               LOG.error("Unable to write response", e);
             }

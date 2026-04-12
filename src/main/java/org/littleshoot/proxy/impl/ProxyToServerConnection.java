@@ -1280,11 +1280,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private final ResponseReadMonitor responseReadMonitor =
       new ResponseReadMonitor() {
         @Override
-        protected void responseRead(HttpResponse httpResponse) {
+        protected void responseRead(HttpResponse httpResponse, String requestId) {
           FullFlowContext flowContext =
               clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseReceivedFromServer(flowContext, httpResponse);
+            tracker.responseReceivedFromServer(flowContext, httpResponse, requestId);
           }
         }
       };

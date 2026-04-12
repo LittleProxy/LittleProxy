@@ -11,6 +11,8 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.util.Attribute;
+import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
@@ -71,6 +73,8 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   @Nullable protected volatile SSLEngine sslEngine;
 
   private final Ulid connectionId;
+
+  protected static final AttributeKey<String> REQUEST_ID_KEY = AttributeKey.valueOf("requestId");
 
   /**
    * Construct a new ProxyConnection.
@@ -639,7 +643,12 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
       try {
         if (msg instanceof HttpResponse) {
-          responseRead((HttpResponse) msg);
+          Attribute<String> attr = ctx.channel().attr(REQUEST_ID_KEY);
+          String requestId = null;
+          if (attr.get() != null) {
+            requestId = attr.get();
+          }
+          responseRead((HttpResponse) msg, requestId);
         }
       } catch (Throwable t) {
         LOG.warn("Unable to record bytesRead", t);
@@ -648,7 +657,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
       }
     }
 
-    protected abstract void responseRead(HttpResponse httpResponse);
+    protected abstract void responseRead(HttpResponse httpResponse, String requestId);
   }
 
   /** Utility handler for monitoring bytes written on this connection. */

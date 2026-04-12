@@ -71,7 +71,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     }
   }
 
-  private final Map<FlowContext, TimedRequest> requestMap = new ConcurrentHashMap<>();
+  private final Map<String, TimedRequest> requestMap = new ConcurrentHashMap<>();
   private final Map<InetSocketAddress, ClientState> clientStates = new ConcurrentHashMap<>();
   private final Map<FullFlowContext, ServerState> serverStates = new ConcurrentHashMap<>();
 
@@ -92,12 +92,13 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   // ==================== REQUEST/RESPONSE TRACKING ====================
 
   @Override
-  public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
+  public void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId) {
 
     long now = System.currentTimeMillis();
     // Store request start time in FlowContext
     flowContext.setTimingData("request_start_time", now);
-    requestMap.put(flowContext, new TimedRequest(httpRequest, now, flowContext.getFlowId()));
+    requestMap.put(requestId, new TimedRequest(httpRequest, now, flowContext.getFlowId()));
 
     // For non-SSL connections, set tcp_connection_establishment_time_ms if not already set
     // (For SSL connections, it's set in clientSSLHandshakeSucceeded)
@@ -140,9 +141,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
-  public void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse) {
+  public void responseReceivedFromServer(
+      FullFlowContext flowContext, HttpResponse httpResponse, String requestId) {
     long now = System.currentTimeMillis();
-    String flowId = getFlowId(flowContext);
+    String flowId = getFlowId(requestId);
 
     // Store the time when first response byte was received from server
     flowContext.setTimingData("response_first_byte_time_ms", now);
@@ -172,8 +174,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
-  public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
-    TimedRequest timedRequest = requestMap.remove(flowContext);
+  public void responseSentToClient(
+      FlowContext flowContext, HttpResponse httpResponse, String requestId) {
+    TimedRequest timedRequest = requestMap.remove(requestId);
     if (timedRequest == null) {
       return;
     }
@@ -501,11 +504,15 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   // ==================== HELPER METHODS ====================
 
-  private String getFlowId(FlowContext flowContext) {
-    TimedRequest timedRequest = requestMap.get(flowContext);
+  private String getFlowId(String requestId) {
+    TimedRequest timedRequest = requestMap.get(requestId);
     if (timedRequest != null) {
       return timedRequest.flowId;
     }
+    return null;
+  }
+
+  private String getFlowId(FlowContext flowContext) {
     return flowContext.getFlowId();
   }
 

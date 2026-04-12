@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.handler.codec.http.*;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -39,8 +40,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CLF);
     setupMocks();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("CLF Log: " + tracker.lastLogMessage);
     // Expecting: 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100
@@ -52,9 +54,9 @@ class ActivityLoggerTest {
   void testJsonFormat() {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("JSON Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).startsWith("{");
@@ -84,9 +86,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Custom JSON Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"request_id\"");
@@ -101,9 +103,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
 
     setupSecurityMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Security Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"csp\"");
@@ -119,9 +121,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
 
     setupPerformanceMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Performance Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"cache_status\":\"HIT\"");
@@ -135,9 +137,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
 
     setupAPIMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("API Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("request_id");
@@ -151,9 +153,9 @@ class ActivityLoggerTest {
     setupMocks();
     when(requestHeaders.get("Referer")).thenReturn("http://referrer.com");
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("ELF Log: " + tracker.lastLogMessage);
     // host ident authuser [date] "request" status bytes "referer" "user-agent"
@@ -169,9 +171,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.W3C);
     setupMocks();
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("W3C Log: " + tracker.lastLogMessage);
     // date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
@@ -183,14 +185,14 @@ class ActivityLoggerTest {
   void testLtsvFormat() {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV);
     setupMocksWithDelay();
-
-    tracker.requestReceivedFromClient(flowContext, request);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
     // Simulate delay
     try {
       Thread.sleep(10);
     } catch (InterruptedException ignored) {
     }
-    tracker.responseSentToClient(flowContext, response);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("LTSV Log: " + tracker.lastLogMessage);
     // LTSV uses field names from StandardField (client_ip, bytes) not host/size
@@ -207,9 +209,9 @@ class ActivityLoggerTest {
   void testCsvFormat() {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV);
     setupMocksWithDelay();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("CSV Log: " + tracker.lastLogMessage);
     // CSV format uses dynamic field configuration
@@ -226,9 +228,9 @@ class ActivityLoggerTest {
   void testHaproxyFormat() {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.HAPROXY);
     setupMocksWithDelay();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("HAProxy Log: " + tracker.lastLogMessage);
     // HAProxy format: process[pid]: client_ip:port [date] frontend backend/server Tq/Tw/Tc/Tr/Ta
@@ -242,9 +244,9 @@ class ActivityLoggerTest {
   void testSquidFormat() {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.SQUID);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Squid Log: " + tracker.lastLogMessage);
     // Squid format: time elapsed remotehost code/status bytes method URL rfc931 peerstatus/peerhost
@@ -355,9 +357,9 @@ class ActivityLoggerTest {
 
     // Should not throw and should track client state
     tracker.clientConnected(flowContext);
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     // Verify formatted log was generated
     assertThat(tracker.lastLogMessage).isNotNull();
@@ -408,10 +410,10 @@ class ActivityLoggerTest {
 
     // Connect to server
     tracker.serverConnected(fullFlowContext, serverAddress);
-
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // Verify tracking by completing request
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     // Verify server address appears in summary
     assertThat(tracker.lastLogMessage).isNotNull();
@@ -522,14 +524,14 @@ class ActivityLoggerTest {
     when(response.headers()).thenReturn(responseHeaders);
 
     tracker.serverConnected(fullFlowContext, serverAddress);
-
-    tracker.requestReceivedFromClient(fullFlowContext, request);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
 
     // Simulate some saturation
     tracker.connectionSaturated(fullFlowContext);
     tracker.connectionWritable(fullFlowContext);
 
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     // Verify formatted log was generated (DEBUG level)
     // Note: Server IP comes from StandardField extraction which returns "-" in test context
@@ -557,10 +559,10 @@ class ActivityLoggerTest {
     tracker.connectionSaturated(flowContext);
     tracker.connectionSaturated(flowContext);
     tracker.connectionSaturated(flowContext);
-
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // Complete request
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     // Verify log was generated
     assertThat(tracker.lastLogMessage).isNotNull();
@@ -580,9 +582,10 @@ class ActivityLoggerTest {
     tracker.connectionExceptionCaught(flowContext, new IOException("Error 1"));
     tracker.connectionExceptionCaught(flowContext, new RuntimeException("Error 2"));
 
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // Complete request
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     // Verify log was generated
     assertThat(tracker.lastLogMessage).isNotNull();
@@ -606,8 +609,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Prefix Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"req_x_custom_auth\":\"token123\"");
@@ -633,8 +637,9 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("RateLimit Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"limit\":\"1000\"");
@@ -657,9 +662,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("LTSV Prefix Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("x_trace_id:trace-123");
@@ -681,9 +686,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("CSV Prefix Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("resp_x_cache_hits=42;resp_x_cache_status=HIT");
@@ -707,9 +712,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Regex Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"req_x_request_id\":\"req-123\"");
@@ -738,9 +743,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Regex RateLimit Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"limit\":\"1000\"");
@@ -765,9 +770,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Case-Insensitive Regex Log: " + tracker.lastLogMessage);
     // All three headers should be matched regardless of case
@@ -793,9 +798,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("CSV Regex Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("resp_x_correlation_id=corr-123");
@@ -821,9 +826,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Exclude Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"req_x_request_id\":\"req-123\"");
@@ -860,9 +865,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Masked Headers Log: " + tracker.lastLogMessage);
     // api-key-456 -> api-****-456 (first 4 chars + **** + last 4 chars)
@@ -889,9 +894,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Exclude Response Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("\"resp_x_ratelimit_limit\":\"1000\"");
@@ -926,9 +931,9 @@ class ActivityLoggerTest {
 
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV, config);
     setupMocks();
-
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     System.out.println("Exclude with All Headers Log: " + tracker.lastLogMessage);
     assertThat(tracker.lastLogMessage).contains("request-id:req-123");
@@ -1106,8 +1111,9 @@ class ActivityLoggerTest {
     // Complete flow without timing data
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseSentToClient(fullFlowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
     tracker.serverDisconnected(fullFlowContext, serverAddress);
     tracker.clientDisconnected(flowContext, null);
 
@@ -1150,7 +1156,8 @@ class ActivityLoggerTest {
 
     // Connect client, then receive request (no SSL handshake for HTTP)
     tracker.clientConnected(flowContext);
-    tracker.requestReceivedFromClient(flowContext, request);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
 
     // Verify the timing data is set in FlowContext
     Long establishmentTime = flowContext.getTimingData("tcp_connection_establishment_time_ms");
@@ -1303,15 +1310,16 @@ class ActivityLoggerTest {
     assertThat(serverStartTime).isNotNull();
 
     // Request/response
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     System.out.println("[TEST-TRACE] Step 5: requestReceivedFromClient");
-    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
     Long requestStartTime = fullFlowContext.getTimingData("request_start_time");
     System.out.println(
         "[TEST-TRACE] After requestReceivedFromClient: request_start_time=" + requestStartTime);
     assertThat(requestStartTime).isNotNull();
 
     System.out.println("[TEST-TRACE] Step 6: responseSentToClient (generates INFO log)");
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
     Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
     System.out.println(
         "[TEST-TRACE] After responseSentToClient: http_request_processing_time_ms="
@@ -1363,9 +1371,9 @@ class ActivityLoggerTest {
     // Client connection
     tracker.clientConnected(flowContext);
     assertThat(flowContext.getTimingData("tcp_client_connection_start_time_ms")).isNotNull();
-
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // For non-SSL, request received triggers establishment time calculation
-    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
     assertThat(flowContext.getTimingData("request_start_time")).isNotNull();
     assertThat(flowContext.getTimingData("tcp_connection_establishment_time_ms")).isNotNull();
 
@@ -1374,8 +1382,7 @@ class ActivityLoggerTest {
     // Server connection
     tracker.serverConnected(fullFlowContext, serverAddress);
     assertThat(fullFlowContext.getTimingData("tcp_server_connection_start_time_ms")).isNotNull();
-
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
     assertThat(fullFlowContext.getTimingData("http_request_processing_time_ms")).isNotNull();
 
     // Server disconnect
@@ -1411,10 +1418,10 @@ class ActivityLoggerTest {
         fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
     System.out.println("Duration before disconnect: " + durationBeforeDisconnect);
     // The duration is null at this point (server still connected)
-
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // Request/response happens while server is connected
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     // Duration still not available (server still connected for keep-alive)
     Long durationAfterResponse = fullFlowContext.getTimingData("tcp_server_connection_duration_ms");
@@ -1453,8 +1460,9 @@ class ActivityLoggerTest {
 
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseSentToClient(fullFlowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
     tracker.serverDisconnected(fullFlowContext, serverAddress);
     tracker.clientDisconnected(flowContext, sslSession);
 
@@ -1485,8 +1493,9 @@ class ActivityLoggerTest {
     when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(null);
 
     // Simulate HTTP request without calling lifecycle methods that set timing data
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     // The log message should be generated after responseSentToClient
     String logMessage = tracker.lastLogMessage;
@@ -1522,14 +1531,14 @@ class ActivityLoggerTest {
     setupMocks();
     when(flowContext.getClientAddress()).thenReturn(clientAddress);
     when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
-
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // Simulate complete flow with all connections closed
     tracker.clientConnected(flowContext);
     tracker.clientSSLHandshakeStarted(flowContext);
     tracker.clientSSLHandshakeSucceeded(flowContext, sslSession);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
     tracker.serverDisconnected(fullFlowContext, serverAddress);
     tracker.clientDisconnected(flowContext, sslSession);
 
@@ -1567,8 +1576,9 @@ class ActivityLoggerTest {
     when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(null);
 
     // Simulate HTTP request without calling lifecycle methods that set timing data
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     String logMessage = tracker.lastLogMessage;
     System.out.println("LTSV Log without TCP data: " + logMessage);
@@ -1616,16 +1626,16 @@ class ActivityLoggerTest {
         .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
 
     // Complete flow
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
 
     // Before receiving response from server, latency should not be set
     Long latencyBefore = fullFlowContext.getTimingData("response_latency_ms");
     assertThat(latencyBefore).isNull();
-
     // Receive response from server - this sets latency
-    tracker.responseReceivedFromServer(fullFlowContext, response);
+    tracker.responseReceivedFromServer(fullFlowContext, response, requestId);
 
     // After receiving response from server, latency should be set
     Long latencyAfter = fullFlowContext.getTimingData("response_latency_ms");
@@ -1636,7 +1646,7 @@ class ActivityLoggerTest {
     Long firstByteTime = fullFlowContext.getTimingData("response_first_byte_time_ms");
     assertThat(firstByteTime).isNotNull();
 
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
     tracker.serverDisconnected(fullFlowContext, serverAddress);
     tracker.clientDisconnected(flowContext, null);
   }
@@ -1672,15 +1682,16 @@ class ActivityLoggerTest {
     // Complete flow
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseReceivedFromServer(fullFlowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseReceivedFromServer(fullFlowContext, response, requestId);
 
     // Before sending response to client, transfer time should not be set
     Long transferTimeBefore = fullFlowContext.getTimingData("response_transfer_time_ms");
     assertThat(transferTimeBefore).isNull();
 
     // Send response to client - this calculates transfer time
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     // After sending response, transfer time should be set
     Long transferTimeAfter = fullFlowContext.getTimingData("response_transfer_time_ms");
@@ -1718,13 +1729,13 @@ class ActivityLoggerTest {
 
     when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
-
+    String requestId = UlidCreator.getMonotonicUlid().toString();
     // Complete flow
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseReceivedFromServer(fullFlowContext, response);
-    tracker.responseSentToClient(fullFlowContext, response);
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseReceivedFromServer(fullFlowContext, response, requestId);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     // Verify the relationship: response_time >= latency (transfer_time >= 0)
     Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
@@ -1789,9 +1800,10 @@ class ActivityLoggerTest {
     // Complete flow
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
-    tracker.requestReceivedFromClient(fullFlowContext, request);
-    tracker.responseReceivedFromServer(fullFlowContext, response);
-    tracker.responseSentToClient(fullFlowContext, response);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
+    tracker.responseReceivedFromServer(fullFlowContext, response, requestId);
+    tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     String logMessage = tracker.lastLogMessage;
     System.out.println("Latency Log: " + logMessage);
@@ -1833,9 +1845,10 @@ class ActivityLoggerTest {
 
     // Skip responseReceivedFromServer call
     tracker.clientConnected(flowContext);
-    tracker.requestReceivedFromClient(flowContext, request);
+    String requestId = UlidCreator.getMonotonicUlid().toString();
+    tracker.requestReceivedFromClient(flowContext, request, requestId);
     // Note: NOT calling responseReceivedFromServer
-    tracker.responseSentToClient(flowContext, response);
+    tracker.responseSentToClient(flowContext, response, requestId);
 
     String logMessage = tracker.lastLogMessage;
     System.out.println("Log without responseReceivedFromServer: " + logMessage);
