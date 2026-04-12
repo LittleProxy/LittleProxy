@@ -35,7 +35,8 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig) {
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData) {
 
     StringBuilder sb = new StringBuilder();
     sb.append("flow_id=").append(escapeKv(flowId));
@@ -148,7 +149,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
             }
           }
         } else {
-          String value = field.extractValue(context, request, response);
+          String value = field.extractValue(context, request, response, requestTimingData);
           // Skip fields with null values (e.g., TCP timing data not yet available)
           if (value != null) {
             sb.append(" ");

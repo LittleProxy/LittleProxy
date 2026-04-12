@@ -32,7 +32,8 @@ public interface LogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig);
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData);
 
   /**
    * Formats a lifecycle event for structured logging at DEBUG/TRACE levels.

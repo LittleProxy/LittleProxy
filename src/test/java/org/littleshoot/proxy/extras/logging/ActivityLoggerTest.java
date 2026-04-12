@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -262,6 +264,7 @@ class ActivityLoggerTest {
     boolean infoSummaryLogged = false;
     String lastInfoSummary;
     boolean logFlowTiming;
+    Map<String, Map<String, Long>> completedRequestTimings = new ConcurrentHashMap<>();
 
     public TestableActivityLogger(LogFormat logFormat) {
       super(logFormat, null);
@@ -287,6 +290,16 @@ class ActivityLoggerTest {
     @Override
     protected boolean shouldLogInfoEntry() {
       return true; // Always log INFO entries in tests
+    }
+
+    @Override
+    protected void onRequestCompleted(String requestId, Map<String, Long> requestTimingData) {
+      completedRequestTimings.put(requestId, requestTimingData);
+    }
+
+    Long getCompletedRequestTimingData(String requestId, String key) {
+      Map<String, Long> timingData = completedRequestTimings.get(requestId);
+      return timingData != null ? timingData.get(key) : null;
     }
 
     void enableFlowTimingLogging() {
@@ -1313,14 +1326,15 @@ class ActivityLoggerTest {
     String requestId = UlidCreator.getMonotonicUlid().toString();
     System.out.println("[TEST-TRACE] Step 5: requestReceivedFromClient");
     tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
-    Long requestStartTime = fullFlowContext.getTimingData("request_start_time");
+    Long requestStartTime = tracker.getRequestTimingData(requestId, "request_start_time");
     System.out.println(
         "[TEST-TRACE] After requestReceivedFromClient: request_start_time=" + requestStartTime);
     assertThat(requestStartTime).isNotNull();
 
     System.out.println("[TEST-TRACE] Step 6: responseSentToClient (generates INFO log)");
     tracker.responseSentToClient(fullFlowContext, response, requestId);
-    Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
+    Long processingTime =
+        tracker.getCompletedRequestTimingData(requestId, "http_request_processing_time_ms");
     System.out.println(
         "[TEST-TRACE] After responseSentToClient: http_request_processing_time_ms="
             + processingTime);
@@ -1374,7 +1388,7 @@ class ActivityLoggerTest {
     String requestId = UlidCreator.getMonotonicUlid().toString();
     // For non-SSL, request received triggers establishment time calculation
     tracker.requestReceivedFromClient(flowContext, request, requestId);
-    assertThat(flowContext.getTimingData("request_start_time")).isNotNull();
+    assertThat(tracker.getRequestTimingData(requestId, "request_start_time")).isNotNull();
     assertThat(flowContext.getTimingData("tcp_connection_establishment_time_ms")).isNotNull();
 
     // For non-SSL flows, SSL handshake fields are not set (no assertion needed)
@@ -1383,7 +1397,8 @@ class ActivityLoggerTest {
     tracker.serverConnected(fullFlowContext, serverAddress);
     assertThat(fullFlowContext.getTimingData("tcp_server_connection_start_time_ms")).isNotNull();
     tracker.responseSentToClient(fullFlowContext, response, requestId);
-    assertThat(fullFlowContext.getTimingData("http_request_processing_time_ms")).isNotNull();
+    assertThat(tracker.getCompletedRequestTimingData(requestId, "http_request_processing_time_ms"))
+        .isNotNull();
 
     // Server disconnect
     tracker.serverDisconnected(fullFlowContext, serverAddress);
@@ -1610,21 +1625,6 @@ class ActivityLoggerTest {
     when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
     when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
 
-    // Configure mocks to use a real map for timing data
-    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
-
-    org.mockito.Mockito.doAnswer(
-            inv -> {
-              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
-              return null;
-            })
-        .when(fullFlowContext)
-        .setTimingData(
-            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
-
-    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
-        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
-
     // Complete flow
     String requestId = UlidCreator.getMonotonicUlid().toString();
     tracker.clientConnected(flowContext);
@@ -1632,18 +1632,18 @@ class ActivityLoggerTest {
     tracker.requestReceivedFromClient(fullFlowContext, request, requestId);
 
     // Before receiving response from server, latency should not be set
-    Long latencyBefore = fullFlowContext.getTimingData("response_latency_ms");
+    Long latencyBefore = tracker.getRequestTimingData(requestId, "response_latency_ms");
     assertThat(latencyBefore).isNull();
     // Receive response from server - this sets latency
     tracker.responseReceivedFromServer(fullFlowContext, response, requestId);
 
     // After receiving response from server, latency should be set
-    Long latencyAfter = fullFlowContext.getTimingData("response_latency_ms");
+    Long latencyAfter = tracker.getRequestTimingData(requestId, "response_latency_ms");
     assertThat(latencyAfter).isNotNull();
     assertThat(latencyAfter).isGreaterThanOrEqualTo(0L);
 
     // First byte time should also be set
-    Long firstByteTime = fullFlowContext.getTimingData("response_first_byte_time_ms");
+    Long firstByteTime = tracker.getRequestTimingData(requestId, "response_first_byte_time_ms");
     assertThat(firstByteTime).isNotNull();
 
     tracker.responseSentToClient(fullFlowContext, response, requestId);
@@ -1664,21 +1664,6 @@ class ActivityLoggerTest {
     when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
     when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
 
-    // Configure mocks to use a real map for timing data
-    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
-
-    org.mockito.Mockito.doAnswer(
-            inv -> {
-              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
-              return null;
-            })
-        .when(fullFlowContext)
-        .setTimingData(
-            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
-
-    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
-        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
-
     // Complete flow
     tracker.clientConnected(flowContext);
     tracker.serverConnected(fullFlowContext, serverAddress);
@@ -1687,14 +1672,15 @@ class ActivityLoggerTest {
     tracker.responseReceivedFromServer(fullFlowContext, response, requestId);
 
     // Before sending response to client, transfer time should not be set
-    Long transferTimeBefore = fullFlowContext.getTimingData("response_transfer_time_ms");
+    Long transferTimeBefore = tracker.getRequestTimingData(requestId, "response_transfer_time_ms");
     assertThat(transferTimeBefore).isNull();
 
     // Send response to client - this calculates transfer time
     tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     // After sending response, transfer time should be set
-    Long transferTimeAfter = fullFlowContext.getTimingData("response_transfer_time_ms");
+    Long transferTimeAfter =
+        tracker.getCompletedRequestTimingData(requestId, "response_transfer_time_ms");
     assertThat(transferTimeAfter).isNotNull();
     assertThat(transferTimeAfter).isGreaterThanOrEqualTo(0L);
 
@@ -1715,20 +1701,6 @@ class ActivityLoggerTest {
     when(fullFlowContext.getClientAddress()).thenReturn(clientAddress);
     when(fullFlowContext.getServerHostAndPort()).thenReturn("10.0.0.1:80");
 
-    // Configure mocks to use a real map for timing data
-    java.util.Map<String, Long> fullTimingData = new java.util.concurrent.ConcurrentHashMap<>();
-
-    org.mockito.Mockito.doAnswer(
-            inv -> {
-              fullTimingData.put(inv.getArgument(0), inv.getArgument(1));
-              return null;
-            })
-        .when(fullFlowContext)
-        .setTimingData(
-            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
-
-    when(fullFlowContext.getTimingData(org.mockito.ArgumentMatchers.anyString()))
-        .thenAnswer(inv -> fullTimingData.get(inv.getArgument(0)));
     String requestId = UlidCreator.getMonotonicUlid().toString();
     // Complete flow
     tracker.clientConnected(flowContext);
@@ -1738,9 +1710,11 @@ class ActivityLoggerTest {
     tracker.responseSentToClient(fullFlowContext, response, requestId);
 
     // Verify the relationship: response_time >= latency (transfer_time >= 0)
-    Long processingTime = fullFlowContext.getTimingData("http_request_processing_time_ms");
-    Long latency = fullFlowContext.getTimingData("response_latency_ms");
-    Long transferTime = fullFlowContext.getTimingData("response_transfer_time_ms");
+    Long processingTime =
+        tracker.getCompletedRequestTimingData(requestId, "http_request_processing_time_ms");
+    Long latency = tracker.getCompletedRequestTimingData(requestId, "response_latency_ms");
+    Long transferTime =
+        tracker.getCompletedRequestTimingData(requestId, "response_transfer_time_ms");
 
     assertThat(processingTime).isNotNull();
     assertThat(latency).isNotNull();

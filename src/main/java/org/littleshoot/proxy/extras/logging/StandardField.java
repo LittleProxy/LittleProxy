@@ -6,6 +6,7 @@ import java.net.InetSocketAddress;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 
 /**
@@ -66,6 +67,15 @@ public enum StandardField implements LogField {
 
   @Override
   public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+    return extractValue(flowContext, request, response, null);
+  }
+
+  @Override
+  public String extractValue(
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      Map<String, Long> requestTimingData) {
     switch (this) {
       case FLOW_ID:
         String flowId = flowContext.getFlowId();
@@ -96,7 +106,7 @@ public enum StandardField implements LogField {
 
       case HTTP_REQUEST_PROCESSING_TIME_MS:
         Long httpRequestProcessingTime =
-            flowContext.getTimingData("http_request_processing_time_ms");
+            getTimingData(flowContext, requestTimingData, "http_request_processing_time_ms");
         return httpRequestProcessingTime != null ? String.valueOf(httpRequestProcessingTime) : "-";
 
       case REFERER:
@@ -140,11 +150,12 @@ public enum StandardField implements LogField {
         return dnsResolutionTime != null ? String.valueOf(dnsResolutionTime) : null;
 
       case RESPONSE_LATENCY_MS:
-        Long responseLatency = flowContext.getTimingData("response_latency_ms");
+        Long responseLatency = getTimingData(flowContext, requestTimingData, "response_latency_ms");
         return responseLatency != null ? String.valueOf(responseLatency) : "-";
 
       case RESPONSE_TRANSFER_TIME_MS:
-        Long responseTransferTime = flowContext.getTimingData("response_transfer_time_ms");
+        Long responseTransferTime =
+            getTimingData(flowContext, requestTimingData, "response_transfer_time_ms");
         return responseTransferTime != null ? String.valueOf(responseTransferTime) : "-";
 
       case SATURATION_COUNT:
@@ -156,6 +167,12 @@ public enum StandardField implements LogField {
       default:
         return "-";
     }
+  }
+
+  private Long getTimingData(
+      FlowContext flowContext, Map<String, Long> requestTimingData, String key) {
+    Long value = requestTimingData != null ? requestTimingData.get(key) : null;
+    return value != null ? value : flowContext.getTimingData(key);
   }
 
   private String extractRemoteIp(HttpRequest request, FlowContext flowContext) {

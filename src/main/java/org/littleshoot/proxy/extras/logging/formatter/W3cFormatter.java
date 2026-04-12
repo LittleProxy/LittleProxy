@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFormat;
@@ -28,7 +29,8 @@ public class W3cFormatter extends AbstractLogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig) {
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData) {
 
     StringBuilder sb = new StringBuilder();
     String clientIp = getClientIp(context);

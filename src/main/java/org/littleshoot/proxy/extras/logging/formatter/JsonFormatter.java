@@ -24,7 +24,8 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig) {
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData) {
 
     StringBuilder sb = new StringBuilder();
 
@@ -119,7 +120,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
               .append("\"");
         }
       } else {
-        String value = field.extractValue(context, request, response);
+        String value = field.extractValue(context, request, response, requestTimingData);
         // Skip fields with null values (e.g., TCP timing data not yet available)
         if (value != null) {
           sb.append(",");

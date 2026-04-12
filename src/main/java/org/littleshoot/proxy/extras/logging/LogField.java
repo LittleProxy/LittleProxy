@@ -2,6 +2,7 @@ package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 
 /**
@@ -33,4 +34,12 @@ public interface LogField {
    * @return the extracted value, or "-" if not available
    */
   String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response);
+
+  default String extractValue(
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      Map<String, Long> requestTimingData) {
+    return extractValue(flowContext, request, response);
+  }
 }

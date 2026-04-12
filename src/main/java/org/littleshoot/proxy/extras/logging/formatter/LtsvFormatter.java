@@ -23,7 +23,8 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig) {
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData) {
 
     StringBuilder sb = new StringBuilder();
 
@@ -104,7 +105,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else {
-        String value = field.extractValue(context, request, response);
+        String value = field.extractValue(context, request, response, requestTimingData);
         // Skip fields with null values (e.g., TCP timing data not yet available)
         if (value != null) {
           sb.append("\t");

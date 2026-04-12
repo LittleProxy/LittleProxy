@@ -24,7 +24,8 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig) {
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData) {
 
     StringBuilder sb = new StringBuilder();
 
@@ -68,7 +69,7 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
                 escapeCsv(flattenHeaders(excludeField.extractMatchingHeaders(response.headers()))))
             .append("\"");
       } else {
-        String value = field.extractValue(context, request, response);
+        String value = field.extractValue(context, request, response, requestTimingData);
         // For CSV, use empty string for null values (maintains column alignment)
         String csvValue = value != null ? value : "";
         sb.append(",");

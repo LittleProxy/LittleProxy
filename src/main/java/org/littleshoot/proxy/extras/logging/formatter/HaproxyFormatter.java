@@ -3,6 +3,7 @@ package org.littleshoot.proxy.extras.logging.formatter;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFormat;
@@ -24,14 +25,16 @@ public class HaproxyFormatter extends AbstractLogEntryFormatter {
       HttpResponse response,
       ZonedDateTime now,
       String flowId,
-      LogFieldConfiguration fieldConfig) {
+      LogFieldConfiguration fieldConfig,
+      Map<String, Long> requestTimingData) {
 
     StringBuilder sb = new StringBuilder();
     String clientIp = getClientIp(context);
     int clientPort = getClientPort(context);
 
     // Get timing data from flow context
-    String durationMs = getTimingData(context, "http_request_processing_time_ms");
+    String durationMs =
+        getTimingData(context, requestTimingData, "http_request_processing_time_ms");
 
     // HAProxy HTTP log format:
     // process[pid]: client_ip:port [accept_date] frontend backend/server Tq Tw Tc Tr Ta status

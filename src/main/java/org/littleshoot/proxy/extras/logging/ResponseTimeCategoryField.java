@@ -4,6 +4,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 
 /**
@@ -50,7 +51,22 @@ public class ResponseTimeCategoryField implements LogField {
 
   @Override
   public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
-    Long httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time_ms");
+    return extractValue(flowContext, request, response, null);
+  }
+
+  @Override
+  public String extractValue(
+      FlowContext flowContext,
+      HttpRequest request,
+      HttpResponse response,
+      Map<String, Long> requestTimingData) {
+    Long httpRequestProcessingTime =
+        requestTimingData != null
+            ? requestTimingData.get("http_request_processing_time_ms")
+            : flowContext.getTimingData("http_request_processing_time_ms");
+    if (httpRequestProcessingTime == null) {
+      httpRequestProcessingTime = flowContext.getTimingData("http_request_processing_time_ms");
+    }
     return httpRequestProcessingTime != null
         ? categorizeResponseTime(httpRequestProcessingTime)
         : "-";

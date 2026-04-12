@@ -180,6 +180,15 @@ public abstract class AbstractLogEntryFormatter implements LogEntryFormatter {
     return value != null ? String.valueOf(value) : "-";
   }
 
+  protected String getTimingData(
+      FlowContext context, Map<String, Long> requestTimingData, String key) {
+    Long value = requestTimingData != null ? requestTimingData.get(key) : null;
+    if (value == null) {
+      value = context.getTimingData(key);
+    }
+    return value != null ? String.valueOf(value) : "-";
+  }
+
   /**
    * Gets client port from flow context.
    *
