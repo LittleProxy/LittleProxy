@@ -10,7 +10,7 @@ public class TimedRequest {
   private final long startTime;
   private final String clientConnectionId;
   private final String requestId;
-  private String serverConnectionId;
+  private volatile String serverConnectionId;
   private final Map<String, Long> data = new ConcurrentHashMap<>();
 
   public TimedRequest(
