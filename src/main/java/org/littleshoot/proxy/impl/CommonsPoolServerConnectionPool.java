@@ -249,6 +249,16 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
     public PooledObject<ProxyToServerConnection> wrap(ProxyToServerConnection value) {
       return new DefaultPooledObject<>(value);
     }
+
+    @Override
+    public boolean validateObject(String key, PooledObject<ProxyToServerConnection> pooledObject) {
+      ProxyToServerConnection connection = pooledObject.getObject();
+      if (connection == null || !connection.isConnected()) {
+        validationFailureCount.incrementAndGet();
+        return false;
+      }
+      return true;
+    }
   }
 
   private static class ConnectionContext {
