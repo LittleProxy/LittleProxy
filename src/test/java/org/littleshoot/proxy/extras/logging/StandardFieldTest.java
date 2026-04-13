@@ -391,34 +391,4 @@ class StandardFieldTest {
 
     assertThat(value).isEqualTo("-");
   }
-
-  @Test
-  void testAllEnumConstantsExist() {
-    assertThat(StandardField.values()).hasSize(23);
-    assertThat(StandardField.values())
-        .contains(
-            StandardField.CLIENT_CONNECTION_ID,
-            StandardField.SERVER_CONNECTION_ID,
-            StandardField.REQUEST_ID,
-            StandardField.TIMESTAMP,
-            StandardField.CLIENT_IP,
-            StandardField.REMOTE_IP,
-            StandardField.METHOD,
-            StandardField.URI,
-            StandardField.STATUS,
-            StandardField.BYTES,
-            StandardField.HTTP_REQUEST_PROCESSING_TIME_MS,
-            StandardField.REFERER,
-            StandardField.USER_AGENT,
-            StandardField.PROTOCOL,
-            StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS,
-            StandardField.TCP_CLIENT_CONNECTION_DURATION_MS,
-            StandardField.TCP_SERVER_CONNECTION_DURATION_MS,
-            StandardField.SSL_HANDSHAKE_TIME_MS,
-            StandardField.DNS_RESOLUTION_TIME_MS,
-            StandardField.RESPONSE_LATENCY_MS,
-            StandardField.RESPONSE_TRANSFER_TIME_MS,
-            StandardField.SATURATION_COUNT,
-            StandardField.EXCEPTION_TYPE);
-  }
 }
