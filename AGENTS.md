@@ -93,7 +93,7 @@ mvn spotless:apply
 
 - Use JUnit 5 with AssertJ assertions
 - Test class naming: `ClassNameTest`
-- Test method naming: descriptive with `#` separator
+- Test method naming: use descriptive names without the `test` prefix (JUnit 3 legacy). Since JUnit 4+, `@Test` annotations make naming conventions unnecessary. Examples: `filtering()`, `methodUnderTest_condition_expectedResult`, or `shouldFilterOnError`. Note: `#` is not a valid Java identifier — do not use it in method names
 - Use `@Tag("slow-test")` for long-running tests
 - Mock external dependencies with Mockito
 
