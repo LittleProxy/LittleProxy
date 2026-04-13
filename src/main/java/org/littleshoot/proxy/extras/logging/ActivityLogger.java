@@ -7,7 +7,6 @@ import java.net.InetSocketAddress;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLSession;
 import org.littleshoot.proxy.ActivityTrackerAdapter;
@@ -40,91 +39,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private final LogFieldConfiguration fieldConfiguration;
   private final LogEntryFormatter formatter;
   private final TimingMode timingMode;
-
-  /** Tracks request timing information. */
-  public static class TimedRequest {
-    private final HttpRequest request;
-    private final long startTime;
-    private final String clientConnectionId;
-    private final String requestId;
-    private String serverConnectionId;
-    private final Map<String, Long> data = new ConcurrentHashMap<>();
-
-    public TimedRequest(
-        HttpRequest request, long startTime, String clientConnectionId, String requestId) {
-      this.request = request;
-      this.startTime = startTime;
-      this.clientConnectionId = clientConnectionId;
-      this.requestId = requestId;
-    }
-
-    public TimedRequest(
-        HttpRequest request,
-        long startTime,
-        String clientConnectionId,
-        String requestId,
-        Map<String, Long> timingData) {
-      this(request, startTime, clientConnectionId, requestId);
-      if (timingData != null) {
-        data.putAll(timingData);
-      }
-    }
-
-    public HttpRequest getRequest() {
-      return request;
-    }
-
-    public long getStartTime() {
-      return startTime;
-    }
-
-    public String getClientConnectionId() {
-      return clientConnectionId;
-    }
-
-    public String getRequestId() {
-      return requestId;
-    }
-
-    public String getServerConnectionId() {
-      return serverConnectionId;
-    }
-
-    public void setServerConnectionId(String serverConnectionId) {
-      this.serverConnectionId = serverConnectionId;
-    }
-
-    /**
-     * Stores timing data for this flow.
-     *
-     * @param key the timing metric key
-     * @param value the timing value in milliseconds
-     */
-    public void setTimingData(String key, Long value) {
-      Objects.requireNonNull(key, "timing key must not be null");
-      Objects.requireNonNull(value, "timing value must not be null");
-      data.put(key, value);
-    }
-
-    /**
-     * Retrieves timing data for this flow.
-     *
-     * @param key the timing metric key
-     * @return the timing value in milliseconds, or null if not available
-     */
-    public Long getTimingData(String key) {
-      return data.get(key);
-    }
-
-    /**
-     * Gets all timing data for this flow.
-     *
-     * @return map of all timing data
-     */
-    public Map<String, Long> getTimings() {
-      return Map.copyOf(data);
-    }
-  }
 
   /** Tracks flow ID for client connections. */
   private static class ClientState {

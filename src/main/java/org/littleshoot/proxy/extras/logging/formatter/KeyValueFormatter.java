@@ -8,7 +8,6 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
-import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 import org.littleshoot.proxy.extras.logging.ExcludeRequestHeaderField;
 import org.littleshoot.proxy.extras.logging.ExcludeResponseHeaderField;
 import org.littleshoot.proxy.extras.logging.LogField;
@@ -18,6 +17,7 @@ import org.littleshoot.proxy.extras.logging.PrefixRequestHeaderField;
 import org.littleshoot.proxy.extras.logging.PrefixResponseHeaderField;
 import org.littleshoot.proxy.extras.logging.RegexRequestHeaderField;
 import org.littleshoot.proxy.extras.logging.RegexResponseHeaderField;
+import org.littleshoot.proxy.extras.logging.TimedRequest;
 
 /**
  * Formatter for Key-Value structured text format.

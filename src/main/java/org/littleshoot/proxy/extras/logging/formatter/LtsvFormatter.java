@@ -6,7 +6,7 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.*;
-import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
+import org.littleshoot.proxy.extras.logging.TimedRequest;
 
 /**
  * Formatter for Labeled Tab-Separated Values (LTSV) format.

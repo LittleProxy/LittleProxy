@@ -57,7 +57,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
@@ -91,7 +91,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
@@ -115,7 +115,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
@@ -140,7 +140,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
@@ -163,7 +163,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
@@ -186,7 +186,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
@@ -211,7 +211,7 @@ class SquidFormatterTest {
     String result =
         formatter.format(
             flowContext,
-            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+            new org.littleshoot.proxy.extras.logging.TimedRequest(
                 request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,

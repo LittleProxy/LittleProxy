@@ -4,9 +4,9 @@ import io.netty.handler.codec.http.HttpResponse;
 import java.time.ZonedDateTime;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
-import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFormat;
+import org.littleshoot.proxy.extras.logging.TimedRequest;
 
 /**
  * Strategy interface for formatting log entries in different formats. Implementations of this

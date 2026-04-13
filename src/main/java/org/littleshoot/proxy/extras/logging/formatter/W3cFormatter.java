@@ -6,9 +6,9 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import org.littleshoot.proxy.FlowContext;
-import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
 import org.littleshoot.proxy.extras.logging.LogFieldConfiguration;
 import org.littleshoot.proxy.extras.logging.LogFormat;
+import org.littleshoot.proxy.extras.logging.TimedRequest;
 
 /**
  * Formatter for W3C Extended Log File Format.

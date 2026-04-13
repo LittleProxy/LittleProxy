@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.extras.logging.*;
-import org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest;
+import org.littleshoot.proxy.extras.logging.TimedRequest;
 
 /**
  * Formatter for Comma-Separated Values (CSV) format.
