@@ -72,7 +72,7 @@ This guide covers logging performance optimization techniques and configuration 
 
 # Direct Java command
 java -server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m \
-  -jar ./target/littleproxy-2.6.1-SNAPSHOT-littleproxy-shade.jar \
+  -jar ./target/littleproxy-2.7.0-littleproxy-shade.jar \
   --server --config ./config/littleproxy.properties --port 9092 \
   --log_config ./target/classes/littleproxy_async_log4j2.xml
 ```
@@ -582,7 +582,7 @@ Add debug output to Log4j2:
 ```bash
 # Check async logger buffer status
 java -Dlog4j2.AsyncLoggerConfig.StatusLogger.level=INFO \
-  -jar ./target/littleproxy-2.6.1-SNAPSHOT-littleproxy-shade.jar \
+  -jar ./target/littleproxy-2.7.0-littleproxy-shade.jar \
   --server --config ./config/littleproxy.properties --port 9092
 ```
 

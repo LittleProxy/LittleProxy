@@ -1,6 +1,10 @@
 package org.littleshoot.proxy.extras;
 
+import static java.lang.System.nanoTime;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Arrays.asList;
 import static java.util.Objects.requireNonNullElse;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.google.common.io.ByteStreams;
 import java.io.File;
@@ -12,8 +16,12 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.Security;
-import java.util.Arrays;
-import javax.net.ssl.*;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import org.littleshoot.proxy.SslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -183,20 +191,34 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
   }
 
   private void nativeCall(final String... commands) {
-    LOG.info("Running '{}'", Arrays.asList(commands));
+    long start = nanoTime();
+    LOG.info("Running '{}'", asList(commands));
     final ProcessBuilder pb = new ProcessBuilder(commands);
+    // Merge stderr into stdout so we only need to read one stream
+    pb.redirectErrorStream(true);
     try {
       final Process process = pb.start();
       byte[] data;
       try (InputStream is = process.getInputStream()) {
         data = ByteStreams.toByteArray(is);
       }
-      String dataAsString = new String(data);
-
+      int exitCode = process.waitFor();
+      String dataAsString = new String(data, UTF_8);
       LOG.info(
-          "Completed native call: '{}'\nResponse: '{}'", Arrays.asList(commands), dataAsString);
-    } catch (final IOException e) {
-      LOG.error("Error running commands: {}", Arrays.asList(commands), e);
+          "Completed native call '{}' in {} ms (exit: {})\nResponse: '{}'",
+          asList(commands),
+          duration(start),
+          exitCode,
+          dataAsString);
+    } catch (IOException e) {
+      LOG.error("Error running commands {} after {} ms", asList(commands), duration(start), e);
+    } catch (InterruptedException e) {
+      LOG.error("Error running commands {} after {} ms", asList(commands), duration(start), e);
+      Thread.currentThread().interrupt();
     }
+  }
+
+  private long duration(long start) {
+    return NANOSECONDS.toMillis(nanoTime() - start);
   }
 }
