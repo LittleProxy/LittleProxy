@@ -210,12 +210,14 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
             <version>${commons.pool2.version}</version>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>com.github.chrisvest</groupId>
             <artifactId>stormpot</artifactId>
             <version>${stormpot.version}</version>
+            <optional>true</optional>
         </dependency>
 
         <!-- Netty - using specific modules instead of netty-all for smaller footprint -->
