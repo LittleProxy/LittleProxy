@@ -15,11 +15,9 @@ import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import stormpot.Allocator;
-import stormpot.BlazePool;
 import stormpot.Completion;
-import stormpot.Config;
 import stormpot.Expiration;
-import stormpot.LifecycledPool;
+import stormpot.Pool;
 import stormpot.PoolException;
 import stormpot.Poolable;
 import stormpot.Slot;
@@ -33,7 +31,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
   private final int maxConnectionsPerHost;
   private final int maxConnections;
-  private final ConcurrentMap<String, LifecycledPool<StormpotPooledConnection>> poolsByHost =
+  private final ConcurrentMap<String, Pool<StormpotPooledConnection>> poolsByHost =
       new ConcurrentHashMap<>();
   private final ConcurrentMap<ProxyToServerConnection, StormpotPooledConnection>
       poolablesByConnection = new ConcurrentHashMap<>();
@@ -78,7 +76,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
         new ConnectionContext(clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {
-      LifecycledPool<StormpotPooledConnection> pool =
+      Pool<StormpotPooledConnection> pool =
           poolsByHost.computeIfAbsent(serverHostAndPort, this::createPool);
       Timeout timeout = new Timeout(1, TimeUnit.MILLISECONDS);
       StormpotPooledConnection pooled = pool.claim(timeout);
@@ -163,7 +161,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
 
   @Override
   public void closeAll() {
-    for (LifecycledPool<StormpotPooledConnection> pool : poolsByHost.values()) {
+    for (Pool<StormpotPooledConnection> pool : poolsByHost.values()) {
       Completion completion = pool.shutdown();
       try {
         completion.await(new Timeout(5, TimeUnit.SECONDS));
@@ -225,13 +223,12 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
         validationFailureCount.get());
   }
 
-  private LifecycledPool<StormpotPooledConnection> createPool(String serverHostAndPort) {
+  private Pool<StormpotPooledConnection> createPool(String serverHostAndPort) {
     StormpotAllocator allocator = new StormpotAllocator(serverHostAndPort);
-    Config<StormpotPooledConnection> config = new Config<>();
-    config.setAllocator(allocator);
-    config.setSize(maxConnectionsPerHost);
-    config.setExpiration(new ConnectionExpiration());
-    return new BlazePool<>(config);
+    return Pool.from(allocator)
+        .setSize(maxConnectionsPerHost)
+        .setExpiration(new ConnectionExpiration())
+        .build();
   }
 
   private class StormpotAllocator implements Allocator<StormpotPooledConnection> {
