@@ -70,7 +70,7 @@ public class RegexResponseHeaderField implements LogField {
    * @param regex the regex pattern string to match
    */
   public RegexResponseHeaderField(String regex) {
-    this(Pattern.compile(regex));
+    this(Pattern.compile(regex, Pattern.CASE_INSENSITIVE));
   }
 
   /**
@@ -80,7 +80,7 @@ public class RegexResponseHeaderField implements LogField {
    * @param fieldNameTransformer function to transform header names to field names
    */
   public RegexResponseHeaderField(String regex, Function<String, String> fieldNameTransformer) {
-    this(Pattern.compile(regex), fieldNameTransformer);
+    this(Pattern.compile(regex, Pattern.CASE_INSENSITIVE), fieldNameTransformer);
   }
 
   /**
@@ -95,7 +95,7 @@ public class RegexResponseHeaderField implements LogField {
       String regex,
       Function<String, String> fieldNameTransformer,
       Function<String, String> valueTransformer) {
-    this(Pattern.compile(regex), fieldNameTransformer, valueTransformer);
+    this(Pattern.compile(regex, Pattern.CASE_INSENSITIVE), fieldNameTransformer, valueTransformer);
   }
 
   @Override
