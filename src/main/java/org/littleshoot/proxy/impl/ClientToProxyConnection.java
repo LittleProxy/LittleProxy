@@ -12,6 +12,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_PROXY_AUTHENTI
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.NEGOTIATING_CONNECT;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -120,6 +121,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /** This is the current server connection that we're using while transferring chunked data. */
   @Nullable private volatile ProxyToServerConnection currentServerConnection;
 
+  private final Map<ProxyToServerConnection, FullFlowContext> serverFlowContexts =
+      new ConcurrentHashMap<>();
+
   /** The current filters to apply to incoming requests/chunks. */
   private volatile HttpFilters currentFilters = NOOP_FILTER;
 
@@ -131,6 +135,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   private final AtomicBoolean authenticated = new AtomicBoolean();
 
   private final GlobalTrafficShapingHandler globalTrafficShapingHandler;
+
+  /** Cached FlowContext for consistent timing data across client lifecycle events. */
+  private final FlowContext clientFlowContext;
 
   /** The current HTTP request that this connection is currently servicing. */
   @Nullable private volatile HttpRequest currentRequest;
@@ -144,12 +151,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       ChannelPipeline pipeline,
       GlobalTrafficShapingHandler globalTrafficShapingHandler) {
     super(AWAITING_INITIAL, proxyServer, false);
+    this.clientFlowContext = new FlowContext(this);
 
     initChannelPipeline(pipeline);
 
     if (sslEngineSource != null) {
       LOG.debug("Enabling encryption of traffic from client to proxy");
       SSLEngine sslEngine = sslEngineSource.newSslEngine();
+      recordClientSSLHandshakeStarted();
       encrypt(pipeline, sslEngine, authenticateClients)
           .addListener(
               future -> {
@@ -463,6 +472,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
       fixHttpVersionHeaderIfNecessary(httpResponse);
       modifyResponseHeadersToReflectProxying(httpResponse);
+
+      // modifyResponseHeadersToReflectProxying strips hop-by-hop headers (Upgrade, Connection),
+      // but a WebSocket upgrade response requires both to be present for the client to switch
+      // protocols. Re-add them after the general stripping.
+      if (isSwitchingToWebSocketProtocol) {
+        httpResponse.headers().set(HttpHeaderNames.UPGRADE, "websocket");
+        httpResponse.headers().set(HttpHeaderNames.CONNECTION, "Upgrade");
+      }
     } else {
       isSwitchingToWebSocketProtocol = false;
     }
@@ -479,10 +496,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     write(filteredhttpObject)
         .addListener(
             l -> {
-              if (ProxyUtils.isLastChunk(filteredhttpObject)) {
-                writeEmptyBuffer();
-              } else if (isSwitchingToWebSocketProtocol) {
+              if (isSwitchingToWebSocketProtocol) {
                 switchToWebSocketProtocol(serverConnection);
+              } else if (ProxyUtils.isLastChunk(filteredhttpObject)) {
+                writeEmptyBuffer();
               }
 
               closeConnectionsAfterWriteIfNecessary(
@@ -511,7 +528,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
           .replace(
               MAIN_HANDLER_NAME,
               "pipe-to-server",
-              new ProxyConnectionPipeHandler(serverConnection));
+              new WebSocketFramePipeHandler(serverConnection, currentFilters, true));
     }
     orderedHandlersToRemove.forEach(this::removeHandlerIfPresent);
   }
@@ -590,12 +607,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             // there are no current request from the client
             && currentRequest == null)
         ||
-        // cover three use cases :
-        // - The client hasn't sent data as recently as the server
+        // The client hasn't sent data as recently as the server
         // - Both sides are idle (no activity on either end)
         // - After a response is complete and neither client nor server has sent anything new
         lastReadTime <= currentServerConnection.lastReadTime) {
       super.timedOut();
+      recordConnectionTimedOut();
     }
   }
 
@@ -727,6 +744,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected synchronized void becameSaturated() {
     super.becameSaturated();
+    recordConnectionSaturated();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
       synchronized (serverConnection) {
         if (isSaturated()) {
@@ -743,6 +761,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected synchronized void becameWritable() {
     super.becameWritable();
+    recordConnectionWritable();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
       synchronized (serverConnection) {
         if (!isSaturated()) {
@@ -781,6 +800,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected void exceptionCaught(Throwable cause) {
     try {
+      recordConnectionExceptionCaught(cause);
       if (cause instanceof IOException) {
         // IOExceptions are expected errors, for example when a browser is killed and aborts a
         // connection.
@@ -1530,7 +1550,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         protected void bytesRead(int numberOfBytes) {
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.bytesReceivedFromClient(flowContext, numberOfBytes);
+            try {
+              tracker.bytesReceivedFromClient(flowContext, numberOfBytes);
+            } catch (Exception e) {
+              LOG.error("Unable to bytesReceivedFromClient", e);
+            }
           }
         }
       };
@@ -1539,9 +1563,17 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new RequestReadMonitor() {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
+          String requestId = UlidCreator.getMonotonicUlid().toString();
+          if (ctx != null && ctx.channel() != null) {
+            ctx.channel().attr(REQUEST_ID_KEY).set(requestId);
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.requestReceivedFromClient(flowContext, httpRequest);
+            try {
+              tracker.requestReceivedFromClient(flowContext, httpRequest, requestId);
+            } catch (Exception e) {
+              LOG.error("Unable to requestReceivedFromClient", e);
+            }
           }
         }
       };
@@ -1552,7 +1584,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         protected void bytesWritten(int numberOfBytes) {
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.bytesSentToClient(flowContext, numberOfBytes);
+            try {
+              tracker.bytesSentToClient(flowContext, numberOfBytes);
+            } catch (Exception e) {
+              LOG.error("Unable to bytesSentToClient", e);
+            }
           }
         }
       };
@@ -1561,44 +1597,111 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new ResponseWrittenMonitor() {
         @Override
         protected void responseWritten(HttpResponse httpResponse) {
+          String requestId = null;
+          if (ctx != null && ctx.channel() != null) {
+            requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseSentToClient(flowContext, httpResponse);
+            try {
+              tracker.responseSentToClient(flowContext, httpResponse, requestId);
+            } catch (Exception e) {
+              LOG.error("Unable to write response", e);
+            }
           }
         }
       };
 
   private void recordClientConnected() {
-    try {
-      InetSocketAddress clientAddress = getClientAddress();
-      clientDetails.setClientAddress(clientAddress);
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        tracker.clientConnected(clientAddress);
+    InetSocketAddress clientAddress = getClientAddress();
+    clientDetails.setClientAddress(clientAddress);
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.clientConnected(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientConnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientConnected", e);
+    }
+  }
+
+  private void recordClientSSLHandshakeStarted() {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.clientSSLHandshakeStarted(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientSSLHandshakeStarted", e);
+      }
     }
   }
 
   private void recordClientSSLHandshakeSucceeded() {
-    try {
-      InetSocketAddress clientAddress = getClientAddress();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        tracker.clientSSLHandshakeSucceeded(clientAddress, clientSslSession);
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.clientSSLHandshakeSucceeded(flowContext, clientSslSession);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientSSLHandshakeSucceeded", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientSSLHandshakeSucceeded", e);
     }
   }
 
   private void recordClientDisconnected() {
-    try {
-      InetSocketAddress clientAddress = getClientAddress();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        tracker.clientDisconnected(clientAddress, clientSslSession);
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.clientDisconnected(flowContext, clientSslSession);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientDisconnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientDisconnected", e);
+    }
+  }
+
+  private void recordConnectionWritable() {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.connectionWritable(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionWritable", e);
+      }
+    }
+  }
+
+  private void recordConnectionTimedOut() {
+
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.connectionTimedOut(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionTimedOut", e);
+      }
+    }
+  }
+
+  private void recordConnectionSaturated() {
+
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.connectionSaturated(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionSaturated", e);
+      }
+    }
+  }
+
+  private void recordConnectionExceptionCaught(Throwable cause) {
+
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.connectionExceptionCaught(flowContext, cause);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionExceptionCaught", e);
+      }
     }
   }
 
@@ -1607,12 +1710,27 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     return ofNullable(channel).map(c -> (InetSocketAddress) c.remoteAddress()).orElse(null);
   }
 
-  private FlowContext flowContext() {
-    if (currentServerConnection != null) {
-      return new FullFlowContext(this, currentServerConnection);
-    } else {
-      return new FlowContext(this);
+  /**
+   * Returns either a {@link FlowContext} if there is not yet a server connection, or a {@link
+   * FullFlowContext} if there is one.
+   *
+   * @return the most specific flow context available
+   */
+  FlowContext flowContext() {
+    FlowContext cached = clientFlowContext;
+    if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
+      cached = flowContextForServerConnection(currentServerConnection);
     }
+    return cached;
+  }
+
+  FullFlowContext flowContextForServerConnection(ProxyToServerConnection serverConnection) {
+    return serverFlowContexts.computeIfAbsent(
+        serverConnection, sc -> new FullFlowContext(this, sc));
+  }
+
+  void clearFlowContextForServerConnection(ProxyToServerConnection serverConnection) {
+    serverFlowContexts.remove(serverConnection);
   }
 
   public HAProxyMessage getHaProxyMessage() {

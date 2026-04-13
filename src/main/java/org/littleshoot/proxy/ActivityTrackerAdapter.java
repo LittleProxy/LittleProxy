@@ -15,7 +15,8 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {}
+  public void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId) {}
 
   @Override
   public void bytesSentToServer(FullFlowContext flowContext, int numberOfBytes) {}
@@ -27,20 +28,43 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void bytesReceivedFromServer(FullFlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse) {}
+  public void responseReceivedFromServer(
+      FullFlowContext flowContext, HttpResponse httpResponse, String requestId) {}
 
   @Override
   public void bytesSentToClient(FlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {}
+  public void responseSentToClient(
+      FlowContext flowContext, HttpResponse httpResponse, String requestId) {}
 
   @Override
-  public void clientConnected(InetSocketAddress clientAddress) {}
+  public void clientConnected(FlowContext flowContext) {}
 
   @Override
-  public void clientSSLHandshakeSucceeded(InetSocketAddress clientAddress, SSLSession sslSession) {}
+  public void clientSSLHandshakeStarted(FlowContext flowContext) {}
 
   @Override
-  public void clientDisconnected(InetSocketAddress clientAddress, SSLSession sslSession) {}
+  public void clientSSLHandshakeSucceeded(FlowContext flowContext, SSLSession sslSession) {}
+
+  @Override
+  public void clientDisconnected(FlowContext flowContext, SSLSession sslSession) {}
+
+  @Override
+  public void serverConnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {}
+
+  @Override
+  public void serverDisconnected(FullFlowContext flowContext, InetSocketAddress serverAddress) {}
+
+  @Override
+  public void connectionSaturated(FlowContext flowContext) {}
+
+  @Override
+  public void connectionWritable(FlowContext flowContext) {}
+
+  @Override
+  public void connectionTimedOut(FlowContext flowContext) {}
+
+  @Override
+  public void connectionExceptionCaught(FlowContext flowContext, Throwable cause) {}
 }

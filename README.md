@@ -17,19 +17,53 @@ Proxy is now running on `http://localhost:8080`
 ## Installation
 
 ### Maven
-
 ```xml
 <dependency>
     <groupId>io.github.littleproxy</groupId>
     <artifactId>littleproxy</artifactId>
-    <version>2.6.0</version>
+    <version>2.7.0</version>
 </dependency>
+```
+#### acceptor_threads
+
+This will start LittleProxy with the specified number of acceptor threads.
+
+```bash
+$ ./run.bash --acceptor_threads 10
+```
+
+
+#### server
+
+This will start LittleProxy as a server, i.e it will not stop, until you stop the process running it (via a `kill`kill command).
+
+```bash
+$ ./run.bash --server
+```
+
+#### Help
+
+This will print the help message:
+
+```bash 
+$ ./run.bash --help
+```
+
+## Embedding in your own projects
+
+You can embed LittleProxy in your own projects through Maven with the following :
+```
+    <dependency>
+        <groupId>io.github.littleproxy</groupId>
+        <artifactId>littleproxy</artifactId>
+        <version>2.7.0</version>
+    </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation "io.github.littleproxy:littleproxy:2.6.0"
+implementation "io.github.littleproxy:littleproxy:2.7.0"
 ```
 
 ## Basic Usage
