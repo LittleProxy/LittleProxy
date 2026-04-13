@@ -89,7 +89,7 @@ public class FullFlowContext extends FlowContext {
    * @return the timing value in milliseconds, or null if not available
    */
   public Long getTimingData(String key) {
-    return Optional.ofNullable(super.getTimingData(key)).orElseGet(() -> timingData.get(key));
+    return Optional.ofNullable(timingData.get(key)).orElseGet(() -> super.getTimingData(key));
   }
 
   @Override
