@@ -92,6 +92,15 @@ public class FullFlowContext extends FlowContext {
     return Optional.ofNullable(super.getTimingData(key)).orElseGet(() -> timingData.get(key));
   }
 
+  @Override
+  public long incrementTimingData(String key, long delta) {
+    Objects.requireNonNull(key, "timing key must not be null");
+    Long superValue = super.getTimingData(key);
+    long base = superValue != null ? superValue : 0L;
+    long newValue = timingData.compute(key, (ignored, v) -> (v != null ? v : 0L) + delta);
+    return base + newValue;
+  }
+
   /**
    * Gets all timing data for this flow.
    *

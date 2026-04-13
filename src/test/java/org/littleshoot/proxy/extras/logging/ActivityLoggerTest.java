@@ -346,6 +346,14 @@ class ActivityLoggerTest {
     when(context.getTimingData(org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(inv -> timingData.get(inv.getArgument(0)));
     when(context.getTimings()).thenAnswer(inv -> Map.copyOf(timingData));
+    when(context.incrementTimingData(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong()))
+        .thenAnswer(
+            inv -> {
+              String key = inv.getArgument(0);
+              long delta = inv.getArgument(1);
+              return timingData.compute(key, (k, v) -> (v != null ? v : 0L) + delta);
+            });
 
     return timingData;
   }

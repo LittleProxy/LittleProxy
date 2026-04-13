@@ -58,6 +58,19 @@ public class FlowContext {
   }
 
   /**
+   * Atomically increments the timing data for this flow.
+   *
+   * @param key the timing metric key
+   * @param delta the amount to increment by
+   * @return the new timing value in milliseconds
+   */
+  public long incrementTimingData(String key, long delta) {
+    Objects.requireNonNull(key, "timing key must not be null");
+    return timingData.compute(
+        key, (ignored, currentValue) -> (currentValue != null ? currentValue : 0L) + delta);
+  }
+
+  /**
    * Gets all timing data for this flow.
    *
    * @return map of all timing data

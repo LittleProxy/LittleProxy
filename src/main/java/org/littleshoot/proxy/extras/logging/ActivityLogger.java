@@ -286,7 +286,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    * @param message the formatted log message
    */
   protected void logFormattedEntry(String flowId, String message) {
-    LOG.info("{} {}",flowId, message);
+    LOG.info("{} {}", flowId, message);
   }
 
   /**
@@ -552,10 +552,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   private long incrementTimingCounter(FlowContext flowContext, String key, long delta) {
-    Long currentValue = flowContext.getTimingData(key);
-    long newValue = (currentValue != null ? currentValue : 0L) + delta;
-    flowContext.setTimingData(key, newValue);
-    return newValue;
+    return flowContext.incrementTimingData(key, delta);
   }
 
   // ==================== HELPER METHODS ====================
