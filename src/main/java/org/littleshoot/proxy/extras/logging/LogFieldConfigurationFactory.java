@@ -297,7 +297,7 @@ public class LogFieldConfigurationFactory {
         return name -> name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "_");
       case "remove_prefix":
         return name ->
-            name.toLowerCase(Locale.ROOT).replaceAll("^X-", "").replaceAll("[^a-z0-9]", "_");
+            name.toLowerCase(Locale.ROOT).replaceFirst("^x-", "").replaceAll("[^a-z0-9]", "_");
       case "lower_hyphen":
         return name -> name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "-");
       case "upper_underscore":
