@@ -80,18 +80,19 @@ class RequestHeaderFieldTest {
   void testExtractValue() {
     // Given
     FlowContext flowContext = Mockito.mock(FlowContext.class);
+    TimedRequest timedRequest = Mockito.mock(TimedRequest.class);
     HttpRequest request = Mockito.mock(HttpRequest.class);
     HttpResponse response = Mockito.mock(HttpResponse.class);
     io.netty.handler.codec.http.HttpHeaders headers =
         Mockito.mock(io.netty.handler.codec.http.HttpHeaders.class);
-
+    when(timedRequest.getRequest()).thenReturn(request);
     when(request.headers()).thenReturn(headers);
     when(headers.get("X-Custom-Header")).thenReturn("custom-value");
 
     RequestHeaderField field = new RequestHeaderField("X-Custom-Header");
 
     // When
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
 
     // Then
     assertThat(value).isEqualTo("custom-value");
@@ -101,18 +102,19 @@ class RequestHeaderFieldTest {
   void testExtractValueWhenMissing() {
     // Given
     FlowContext flowContext = Mockito.mock(FlowContext.class);
+    TimedRequest timedRequest = Mockito.mock(TimedRequest.class);
     HttpRequest request = Mockito.mock(HttpRequest.class);
     HttpResponse response = Mockito.mock(HttpResponse.class);
     io.netty.handler.codec.http.HttpHeaders headers =
         Mockito.mock(io.netty.handler.codec.http.HttpHeaders.class);
-
+    when(timedRequest.getRequest()).thenReturn(request);
     when(request.headers()).thenReturn(headers);
     when(headers.get("Non-Existent-Header")).thenReturn(null);
 
     RequestHeaderField field = new RequestHeaderField("Non-Existent-Header");
 
     // When
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
 
     // Then
     assertThat(value).isEqualTo("-");

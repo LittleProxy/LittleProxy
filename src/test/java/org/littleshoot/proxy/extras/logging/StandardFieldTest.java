@@ -16,6 +16,7 @@ import org.littleshoot.proxy.FlowContext;
 class StandardFieldTest {
 
   private FlowContext flowContext;
+  private TimedRequest timedRequest;
   private HttpRequest request;
   private HttpResponse response;
   private HttpHeaders requestHeaders;
@@ -24,11 +25,13 @@ class StandardFieldTest {
   @BeforeEach
   void setUp() {
     flowContext = mock(FlowContext.class);
+    timedRequest = mock(TimedRequest.class);
     request = mock(HttpRequest.class);
     response = mock(HttpResponse.class);
     requestHeaders = mock(HttpHeaders.class);
     responseHeaders = mock(HttpHeaders.class);
 
+    when(timedRequest.getRequest()).thenReturn(request);
     when(request.headers()).thenReturn(requestHeaders);
     when(response.headers()).thenReturn(responseHeaders);
   }
@@ -43,7 +46,7 @@ class StandardFieldTest {
 
   @Test
   void testTimestampField() {
-    String value = StandardField.TIMESTAMP.extractValue(flowContext, request, response);
+    String value = StandardField.TIMESTAMP.extractValue(flowContext, timedRequest, response);
     assertThat(value).isNotNull();
     assertThat(value).contains("T"); // ISO format has T
     assertThat(value).contains("Z"); // UTC timezone
@@ -53,7 +56,7 @@ class StandardFieldTest {
   void testClientIpField() {
     when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
 
-    String value = StandardField.CLIENT_IP.extractValue(flowContext, request, response);
+    String value = StandardField.CLIENT_IP.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("192.168.1.1");
   }
@@ -62,7 +65,7 @@ class StandardFieldTest {
   void testClientIpFieldWhenNull() {
     when(flowContext.getClientAddress()).thenReturn(null);
 
-    String value = StandardField.CLIENT_IP.extractValue(flowContext, request, response);
+    String value = StandardField.CLIENT_IP.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -72,7 +75,7 @@ class StandardFieldTest {
     when(requestHeaders.get("X-Forwarded-For")).thenReturn("10.0.0.1, 10.0.0.2, 10.0.0.3");
     when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
 
-    String value = StandardField.REMOTE_IP.extractValue(flowContext, request, response);
+    String value = StandardField.REMOTE_IP.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("10.0.0.1");
   }
@@ -83,7 +86,7 @@ class StandardFieldTest {
     when(requestHeaders.get("X-Real-IP")).thenReturn("10.0.0.5");
     when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
 
-    String value = StandardField.REMOTE_IP.extractValue(flowContext, request, response);
+    String value = StandardField.REMOTE_IP.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("10.0.0.5");
   }
@@ -94,7 +97,7 @@ class StandardFieldTest {
     when(requestHeaders.get("X-Real-IP")).thenReturn(null);
     when(flowContext.getClientAddress()).thenReturn(new InetSocketAddress("192.168.1.1", 12345));
 
-    String value = StandardField.REMOTE_IP.extractValue(flowContext, request, response);
+    String value = StandardField.REMOTE_IP.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("192.168.1.1");
   }
@@ -105,7 +108,7 @@ class StandardFieldTest {
     when(requestHeaders.get("X-Real-IP")).thenReturn(null);
     when(flowContext.getClientAddress()).thenReturn(null);
 
-    String value = StandardField.REMOTE_IP.extractValue(flowContext, request, response);
+    String value = StandardField.REMOTE_IP.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -114,7 +117,7 @@ class StandardFieldTest {
   void testMethodField() {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.POST);
 
-    String value = StandardField.METHOD.extractValue(flowContext, request, response);
+    String value = StandardField.METHOD.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("POST");
   }
@@ -124,7 +127,7 @@ class StandardFieldTest {
     when(request.uri()).thenReturn("http://example.com/path?query=1");
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
 
-    String value = StandardField.URI.extractValue(flowContext, request, response);
+    String value = StandardField.URI.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("http://example.com/path?query=1");
   }
@@ -135,7 +138,7 @@ class StandardFieldTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
     when(requestHeaders.get("Host")).thenReturn("example.com");
 
-    String value = StandardField.URI.extractValue(flowContext, request, response);
+    String value = StandardField.URI.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("http://example.com/path?query=1");
   }
@@ -147,7 +150,7 @@ class StandardFieldTest {
     when(requestHeaders.get("Host")).thenReturn("example.com");
     when(flowContext.getClientSslSession()).thenReturn(mock(SSLSession.class));
 
-    String value = StandardField.URI.extractValue(flowContext, request, response);
+    String value = StandardField.URI.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("https://example.com/path?query=1");
   }
@@ -158,7 +161,7 @@ class StandardFieldTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
     when(flowContext.getClientSslSession()).thenReturn(mock(SSLSession.class));
 
-    String value = StandardField.URI.extractValue(flowContext, request, response);
+    String value = StandardField.URI.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("https://example.com/path?query=1");
   }
@@ -168,7 +171,7 @@ class StandardFieldTest {
     when(request.uri()).thenReturn("example.com:443");
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.CONNECT);
 
-    String value = StandardField.URI.extractValue(flowContext, request, response);
+    String value = StandardField.URI.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("example.com:443");
   }
@@ -179,7 +182,7 @@ class StandardFieldTest {
     when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
     when(requestHeaders.get("Host")).thenReturn(null);
 
-    String value = StandardField.URI.extractValue(flowContext, request, response);
+    String value = StandardField.URI.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("/path");
   }
@@ -188,7 +191,7 @@ class StandardFieldTest {
   void testStatusField() {
     when(response.status()).thenReturn(io.netty.handler.codec.http.HttpResponseStatus.OK);
 
-    String value = StandardField.STATUS.extractValue(flowContext, request, response);
+    String value = StandardField.STATUS.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("200");
   }
@@ -197,7 +200,7 @@ class StandardFieldTest {
   void testBytesField() {
     when(responseHeaders.get("Content-Length")).thenReturn("1024");
 
-    String value = StandardField.BYTES.extractValue(flowContext, request, response);
+    String value = StandardField.BYTES.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("1024");
   }
@@ -206,7 +209,7 @@ class StandardFieldTest {
   void testBytesFieldWhenNull() {
     when(responseHeaders.get("Content-Length")).thenReturn(null);
 
-    String value = StandardField.BYTES.extractValue(flowContext, request, response);
+    String value = StandardField.BYTES.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -216,7 +219,8 @@ class StandardFieldTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(42L);
 
     String value =
-        StandardField.HTTP_REQUEST_PROCESSING_TIME_MS.extractValue(flowContext, request, response);
+        StandardField.HTTP_REQUEST_PROCESSING_TIME_MS.extractValue(
+            flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("42");
   }
@@ -226,7 +230,8 @@ class StandardFieldTest {
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(null);
 
     String value =
-        StandardField.HTTP_REQUEST_PROCESSING_TIME_MS.extractValue(flowContext, request, response);
+        StandardField.HTTP_REQUEST_PROCESSING_TIME_MS.extractValue(
+            flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -235,7 +240,7 @@ class StandardFieldTest {
   void testRefererField() {
     when(requestHeaders.get("Referer")).thenReturn("http://example.com/page");
 
-    String value = StandardField.REFERER.extractValue(flowContext, request, response);
+    String value = StandardField.REFERER.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("http://example.com/page");
   }
@@ -244,7 +249,7 @@ class StandardFieldTest {
   void testRefererFieldWhenNull() {
     when(requestHeaders.get("Referer")).thenReturn(null);
 
-    String value = StandardField.REFERER.extractValue(flowContext, request, response);
+    String value = StandardField.REFERER.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -253,7 +258,7 @@ class StandardFieldTest {
   void testUserAgentField() {
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
-    String value = StandardField.USER_AGENT.extractValue(flowContext, request, response);
+    String value = StandardField.USER_AGENT.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("Mozilla/5.0");
   }
@@ -262,7 +267,7 @@ class StandardFieldTest {
   void testUserAgentFieldWhenNull() {
     when(requestHeaders.get("User-Agent")).thenReturn(null);
 
-    String value = StandardField.USER_AGENT.extractValue(flowContext, request, response);
+    String value = StandardField.USER_AGENT.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -271,7 +276,7 @@ class StandardFieldTest {
   void testProtocolField() {
     when(request.protocolVersion()).thenReturn(io.netty.handler.codec.http.HttpVersion.HTTP_1_1);
 
-    String value = StandardField.PROTOCOL.extractValue(flowContext, request, response);
+    String value = StandardField.PROTOCOL.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("HTTP/1.1");
   }
@@ -282,7 +287,7 @@ class StandardFieldTest {
 
     String value =
         StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS.extractValue(
-            flowContext, request, response);
+            flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("100");
   }
@@ -293,7 +298,7 @@ class StandardFieldTest {
 
     String value =
         StandardField.TCP_CONNECTION_ESTABLISHMENT_TIME_MS.extractValue(
-            flowContext, request, response);
+            flowContext, timedRequest, response);
 
     assertThat(value).isNull();
   }
@@ -304,7 +309,7 @@ class StandardFieldTest {
 
     String value =
         StandardField.TCP_CLIENT_CONNECTION_DURATION_MS.extractValue(
-            flowContext, request, response);
+            flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("5000");
   }
@@ -315,7 +320,7 @@ class StandardFieldTest {
 
     String value =
         StandardField.TCP_CLIENT_CONNECTION_DURATION_MS.extractValue(
-            flowContext, request, response);
+            flowContext, timedRequest, response);
 
     assertThat(value).isNull();
   }
@@ -326,7 +331,7 @@ class StandardFieldTest {
 
     String value =
         StandardField.TCP_SERVER_CONNECTION_DURATION_MS.extractValue(
-            flowContext, request, response);
+            flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("3000");
   }
@@ -335,7 +340,8 @@ class StandardFieldTest {
   void testSslHandshakeTimeField() {
     when(flowContext.getTimingData("ssl_handshake_time_ms")).thenReturn(200L);
 
-    String value = StandardField.SSL_HANDSHAKE_TIME_MS.extractValue(flowContext, request, response);
+    String value =
+        StandardField.SSL_HANDSHAKE_TIME_MS.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("200");
   }
@@ -345,7 +351,7 @@ class StandardFieldTest {
     when(flowContext.getTimingData("dns_resolution_time_ms")).thenReturn(50L);
 
     String value =
-        StandardField.DNS_RESOLUTION_TIME_MS.extractValue(flowContext, request, response);
+        StandardField.DNS_RESOLUTION_TIME_MS.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("50");
   }
@@ -354,7 +360,8 @@ class StandardFieldTest {
   void testResponseLatencyField() {
     when(flowContext.getTimingData("response_latency_ms")).thenReturn(150L);
 
-    String value = StandardField.RESPONSE_LATENCY_MS.extractValue(flowContext, request, response);
+    String value =
+        StandardField.RESPONSE_LATENCY_MS.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("150");
   }
@@ -363,7 +370,8 @@ class StandardFieldTest {
   void testResponseLatencyFieldWhenNull() {
     when(flowContext.getTimingData("response_latency_ms")).thenReturn(null);
 
-    String value = StandardField.RESPONSE_LATENCY_MS.extractValue(flowContext, request, response);
+    String value =
+        StandardField.RESPONSE_LATENCY_MS.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
@@ -373,21 +381,21 @@ class StandardFieldTest {
     when(flowContext.getTimingData("response_transfer_time_ms")).thenReturn(75L);
 
     String value =
-        StandardField.RESPONSE_TRANSFER_TIME_MS.extractValue(flowContext, request, response);
+        StandardField.RESPONSE_TRANSFER_TIME_MS.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("75");
   }
 
   @Test
   void testSaturationCountField() {
-    String value = StandardField.SATURATION_COUNT.extractValue(flowContext, request, response);
+    String value = StandardField.SATURATION_COUNT.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }
 
   @Test
   void testExceptionTypeField() {
-    String value = StandardField.EXCEPTION_TYPE.extractValue(flowContext, request, response);
+    String value = StandardField.EXCEPTION_TYPE.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }

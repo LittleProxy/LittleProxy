@@ -2,7 +2,6 @@ package org.littleshoot.proxy.extras.logging;
 
 import com.google.common.base.Preconditions;
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
@@ -110,7 +109,7 @@ public class RegexResponseHeaderField implements LogField {
   }
 
   @Override
-  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+  public String extractValue(FlowContext flowContext, TimedRequest request, HttpResponse response) {
     // This method is not used directly for pattern fields
     // Instead, use extractMatchingHeaders() to get all matches
     return "-";

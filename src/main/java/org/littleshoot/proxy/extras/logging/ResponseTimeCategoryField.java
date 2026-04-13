@@ -1,6 +1,5 @@
 package org.littleshoot.proxy.extras.logging;
 
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.Arrays;
 import java.util.List;
@@ -50,16 +49,9 @@ public class ResponseTimeCategoryField implements LogField {
   }
 
   @Override
-  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
-    return extractValue(flowContext, request, response, null);
-  }
-
-  @Override
   public String extractValue(
-      FlowContext flowContext,
-      HttpRequest request,
-      HttpResponse response,
-      Map<String, Long> requestTimingData) {
+      FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
+    Map<String, Long> requestTimingData = timedRequest.getTimings();
     Long httpRequestProcessingTime =
         requestTimingData != null
             ? requestTimingData.get("http_request_processing_time_ms")

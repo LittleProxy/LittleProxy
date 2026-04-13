@@ -19,6 +19,7 @@ import org.littleshoot.proxy.FlowContext;
 class ExcludeRequestHeaderFieldTest {
 
   private FlowContext flowContext;
+  private TimedRequest timedRequest;
   private HttpRequest request;
   private HttpResponse response;
   private HttpHeaders headers;
@@ -26,10 +27,11 @@ class ExcludeRequestHeaderFieldTest {
   @BeforeEach
   void setUp() {
     flowContext = mock(FlowContext.class);
-    request = mock(HttpRequest.class);
+    timedRequest = mock(TimedRequest.class);
     response = mock(HttpResponse.class);
     headers = mock(HttpHeaders.class);
-
+    request = mock(HttpRequest.class);
+    when(timedRequest.getRequest()).thenReturn(request);
     when(request.headers()).thenReturn(headers);
   }
 
@@ -80,7 +82,7 @@ class ExcludeRequestHeaderFieldTest {
   void testExtractValue() {
     ExcludeRequestHeaderField field = new ExcludeRequestHeaderField("Authorization");
 
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }

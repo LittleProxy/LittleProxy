@@ -17,14 +17,17 @@ import org.littleshoot.proxy.FlowContext;
 class ResponseTimeCategoryFieldTest {
 
   private FlowContext flowContext;
+  private TimedRequest timedRequest;
   private HttpRequest request;
   private HttpResponse response;
 
   @BeforeEach
   void setUp() {
     flowContext = mock(FlowContext.class);
+    timedRequest = mock(TimedRequest.class);
     request = mock(HttpRequest.class);
     response = mock(HttpResponse.class);
+    when(timedRequest.getRequest()).thenReturn(request);
   }
 
   @Test
@@ -66,7 +69,7 @@ class ResponseTimeCategoryFieldTest {
   void testFastCategory() {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField();
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(50L);
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
     assertThat(value).isEqualTo("fast");
   }
 
@@ -74,7 +77,7 @@ class ResponseTimeCategoryFieldTest {
   void testMediumCategory() {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField();
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(250L);
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
     assertThat(value).isEqualTo("medium");
   }
 
@@ -82,7 +85,7 @@ class ResponseTimeCategoryFieldTest {
   void testSlowCategory() {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField();
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(1000L);
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
     assertThat(value).isEqualTo("slow");
   }
 
@@ -90,7 +93,7 @@ class ResponseTimeCategoryFieldTest {
   void testVerySlowCategory() {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField();
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(5000L);
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
     assertThat(value).isEqualTo("very_slow");
   }
 
@@ -98,7 +101,7 @@ class ResponseTimeCategoryFieldTest {
   void testNullTimingData() {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField();
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(null);
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
     assertThat(value).isEqualTo("-");
   }
 
@@ -107,22 +110,22 @@ class ResponseTimeCategoryFieldTest {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField();
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(99L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("fast");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("fast");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(100L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("medium");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("medium");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(499L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("medium");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("medium");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(500L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("slow");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("slow");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(1999L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("slow");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("slow");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(2000L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("very_slow");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("very_slow");
   }
 
   @Test
@@ -130,23 +133,23 @@ class ResponseTimeCategoryFieldTest {
     ResponseTimeCategoryField field =
         new ResponseTimeCategoryField(Collections.singletonList(500L));
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(100L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("fast");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("fast");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(500L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("medium");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("medium");
   }
 
   @Test
   void testTwoThresholds() {
     ResponseTimeCategoryField field = new ResponseTimeCategoryField(Arrays.asList(100L, 500L));
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(50L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("fast");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("fast");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(200L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("medium");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("medium");
 
     when(flowContext.getTimingData("http_request_processing_time_ms")).thenReturn(600L);
-    assertThat(field.extractValue(flowContext, request, response)).isEqualTo("slow");
+    assertThat(field.extractValue(flowContext, timedRequest, response)).isEqualTo("slow");
   }
 
   @Test

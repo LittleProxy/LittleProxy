@@ -14,6 +14,7 @@ import org.littleshoot.proxy.FlowContext;
 class ResponseHeaderFieldTest {
 
   private FlowContext flowContext;
+  private TimedRequest timedRequest;
   private HttpRequest request;
   private HttpResponse response;
   private HttpHeaders headers;
@@ -21,10 +22,12 @@ class ResponseHeaderFieldTest {
   @BeforeEach
   void setUp() {
     flowContext = mock(FlowContext.class);
+    timedRequest = mock(TimedRequest.class);
     request = mock(HttpRequest.class);
     response = mock(HttpResponse.class);
     headers = mock(HttpHeaders.class);
 
+    when(timedRequest.getRequest()).thenReturn(request);
     when(response.headers()).thenReturn(headers);
   }
 
@@ -73,7 +76,7 @@ class ResponseHeaderFieldTest {
 
     when(headers.get("X-Custom-Header")).thenReturn("custom-value");
 
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("custom-value");
   }
@@ -84,7 +87,7 @@ class ResponseHeaderFieldTest {
 
     when(headers.get("X-Custom-Header")).thenReturn(null);
 
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }

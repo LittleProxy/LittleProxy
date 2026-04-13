@@ -19,6 +19,7 @@ import org.littleshoot.proxy.FlowContext;
 class RegexRequestHeaderFieldTest {
 
   private FlowContext flowContext;
+  private TimedRequest timedRequest;
   private HttpRequest request;
   private HttpResponse response;
   private HttpHeaders headers;
@@ -26,10 +27,11 @@ class RegexRequestHeaderFieldTest {
   @BeforeEach
   void setUp() {
     flowContext = mock(FlowContext.class);
+    timedRequest = mock(TimedRequest.class);
     request = mock(HttpRequest.class);
     response = mock(HttpResponse.class);
     headers = mock(HttpHeaders.class);
-
+    when(timedRequest.getRequest()).thenReturn(request);
     when(request.headers()).thenReturn(headers);
   }
 
@@ -84,7 +86,7 @@ class RegexRequestHeaderFieldTest {
   void testExtractValue() {
     RegexRequestHeaderField field = new RegexRequestHeaderField("X-.*");
 
-    String value = field.extractValue(flowContext, request, response);
+    String value = field.extractValue(flowContext, timedRequest, response);
 
     assertThat(value).isEqualTo("-");
   }

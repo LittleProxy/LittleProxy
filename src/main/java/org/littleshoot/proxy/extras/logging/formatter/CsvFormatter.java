@@ -70,7 +70,7 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
                 escapeCsv(flattenHeaders(excludeField.extractMatchingHeaders(response.headers()))))
             .append("\"");
       } else {
-        String value = field.extractValue(context, request, response, requestTimingData);
+        String value = field.extractValue(context, timedRequest, response);
         // For CSV, use empty string for null values (maintains column alignment)
         String csvValue = value != null ? value : "";
         sb.append(",");

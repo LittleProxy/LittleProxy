@@ -72,16 +72,10 @@ public enum StandardField implements LogField {
   }
 
   @Override
-  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
-    return extractValue(flowContext, request, response, null);
-  }
-
-  @Override
   public String extractValue(
-      FlowContext flowContext,
-      HttpRequest request,
-      HttpResponse response,
-      Map<String, Long> requestTimingData) {
+      FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
+    HttpRequest request = timedRequest.getRequest();
+    Map<String, Long> requestTimingData = timedRequest.getTimings();
     switch (this) {
       case CLIENT_CONNECTION_ID:
         String clientConnId = flowContext.getFlowId();
@@ -93,8 +87,8 @@ public enum StandardField implements LogField {
         return serverConnId != null ? String.valueOf(serverConnId) : "-";
 
       case REQUEST_ID:
-        Long reqId = requestTimingData != null ? requestTimingData.get("request_id") : null;
-        return reqId != null ? String.valueOf(reqId) : "-";
+        String reqId = timedRequest.getRequestId();
+        return reqId != null ? reqId : "-";
 
       case TIMESTAMP:
         return ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

@@ -36,7 +36,9 @@ public enum ComputedField implements LogField {
   }
 
   @Override
-  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+  public String extractValue(
+      FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
+    HttpRequest request = timedRequest.getRequest();
     switch (this) {
       case GEOLOCATION_COUNTRY:
         return extractGeolocationCountry(flowContext);

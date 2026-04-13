@@ -1,6 +1,5 @@
 package org.littleshoot.proxy.extras.logging;
 
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.util.Locale;
 import java.util.Objects;
@@ -51,7 +50,8 @@ public class ResponseHeaderField implements LogField {
   }
 
   @Override
-  public String extractValue(FlowContext flowContext, HttpRequest request, HttpResponse response) {
+  public String extractValue(
+      FlowContext flowContext, TimedRequest timedRequest, HttpResponse response) {
     if (response == null || response.headers() == null) {
       return "-";
     }

@@ -151,7 +151,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
             }
           }
         } else {
-          String value = field.extractValue(context, request, response, requestTimingData);
+          String value = field.extractValue(context, timedRequest, response);
           // Skip fields with null values (e.g., TCP timing data not yet available)
           if (value != null) {
             sb.append(" ");

@@ -26,7 +26,6 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
       LogFieldConfiguration fieldConfig) {
     HttpRequest request = timedRequest.getRequest();
     String clientConnectionId = timedRequest.getClientConnectionId();
-    Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
 
@@ -106,7 +105,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
               .append(sanitizeLtsv(entry.getValue()));
         }
       } else {
-        String value = field.extractValue(context, request, response, requestTimingData);
+        String value = field.extractValue(context, timedRequest, response);
         // Skip fields with null values (e.g., TCP timing data not yet available)
         if (value != null) {
           sb.append("\t");
