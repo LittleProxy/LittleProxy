@@ -303,8 +303,7 @@ public class LogFieldConfigurationFactory {
       case "upper_underscore":
         return name -> name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "_");
       default:
-        LOG.warn("Unknown field name transformer: {}", transformerName);
-        return null;
+        throw new IllegalArgumentException("Unknown field name transformer: " + transformerName);
     }
   }
 
@@ -351,8 +350,7 @@ public class LogFieldConfigurationFactory {
           return value.substring(0, 100) + "...";
         };
       default:
-        LOG.warn("Unknown value transformer: {}", transformerName);
-        return null;
+        throw new IllegalArgumentException("Unknown value transformer: " + transformerName);
     }
   }
 }
