@@ -1,16 +1,6 @@
 # Release Notes
 
 
-
-
-
-
-
-
-
-
-
-
 - 2.8.0 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
   - Major Activity Tracking & Logging Enhancements (#689) by Charles Lescot
     - **ULID-based Flow IDs**: Globally unique, sortable identifiers (e.g., 01KGNMFEFZ84ZAR511NTRAFW13) replacing sequential flow IDs for better distributed tracing
@@ -30,7 +20,6 @@
     - **Advanced Field Configuration**: Builder pattern for custom logging fields, header filtering (prefix/regex matching), sensitive data masking, and pre-configured field sets (SecurityMonitoring, PerformanceAnalytics, APIManagement)
     - **Unified Lifecycle Event Formatting**: DEBUG/TRACE logs now use configured format (JSON, LTSV, etc.) for consistent structured logging across all levels
     - **New Documentation**: Added comprehensive Timing Metrics guide (docs/TIMING_METRICS.md) and Architecture documentation references
-  - **Comprehensive Test Coverage Expansion**: Increased test coverage from 50 to 589+ tests across 46 test files, adding extensive unit tests for all formatters, adapters, interfaces, exceptions, and configuration presets
   - Breaking Changes (#689) by Charles Lescot
     - Package relocation: ActivityLogger moved to org.littleshoot.proxy.extras.logging
     - ActivityTracker method signatures changed to accept FlowContext instead of InetSocketAddress
