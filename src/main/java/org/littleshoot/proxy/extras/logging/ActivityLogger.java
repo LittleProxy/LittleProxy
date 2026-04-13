@@ -286,7 +286,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
    * @param message the formatted log message
    */
   protected void logFormattedEntry(String flowId, String message) {
-    LOG.info("{}", message);
+    LOG.info("{} {}",flowId, message);
   }
 
   /**
