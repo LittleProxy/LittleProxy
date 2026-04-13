@@ -612,11 +612,12 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     long newCount = (currentCount != null ? currentCount : 0) + 1;
     flowContext.setTimingData("client_saturation_count", newCount);
 
-    logLifecycleEvent(
-        LifecycleEvent.CONNECTION_SATURATED,
-        flowContext,
-        Map.of("client_address", clientAddress, "saturation_count", newCount),
-        flowId);
+    Map<String, Object> attributes = new HashMap<>();
+    attributes.put("saturation_count", newCount);
+    if (clientAddress != null) {
+      attributes.put("client_address", clientAddress);
+    }
+    logLifecycleEvent(LifecycleEvent.CONNECTION_SATURATED, flowContext, attributes, flowId);
   }
 
   @Override
@@ -626,11 +627,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
-    logLifecycleEvent(
-        LifecycleEvent.CONNECTION_WRITABLE,
-        flowContext,
-        Map.of("client_address", clientAddress),
-        flowId);
+    Map<String, Object> attributes = new HashMap<>();
+    if (clientAddress != null) {
+      attributes.put("client_address", clientAddress);
+    }
+    logLifecycleEvent(LifecycleEvent.CONNECTION_WRITABLE, flowContext, attributes, flowId);
   }
 
   @Override
@@ -640,11 +641,11 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
-    logLifecycleEvent(
-        LifecycleEvent.CONNECTION_TIMED_OUT,
-        flowContext,
-        Map.of("client_address", clientAddress),
-        flowId);
+    Map<String, Object> attributes = new HashMap<>();
+    if (clientAddress != null) {
+      attributes.put("client_address", clientAddress);
+    }
+    logLifecycleEvent(LifecycleEvent.CONNECTION_TIMED_OUT, flowContext, attributes, flowId);
   }
 
   @Override
@@ -662,14 +663,13 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // Get exception type for logging
     String exceptionType = cause != null ? cause.getClass().getSimpleName() : "Unknown";
 
-    logLifecycleEvent(
-        LifecycleEvent.CONNECTION_EXCEPTION_CAUGHT,
-        flowContext,
-        Map.of(
-            "client_address", clientAddress,
-            "exception_type", exceptionType,
-            "exception_count", newCount),
-        flowId);
+    Map<String, Object> attributes = new HashMap<>();
+    attributes.put("exception_type", exceptionType);
+    attributes.put("exception_count", newCount);
+    if (clientAddress != null) {
+      attributes.put("client_address", clientAddress);
+    }
+    logLifecycleEvent(LifecycleEvent.CONNECTION_EXCEPTION_CAUGHT, flowContext, attributes, flowId);
   }
 
   // ==================== VALIDATION ====================
