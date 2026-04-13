@@ -394,10 +394,12 @@ class StandardFieldTest {
 
   @Test
   void testAllEnumConstantsExist() {
-    assertThat(StandardField.values()).hasSize(21);
+    assertThat(StandardField.values()).hasSize(23);
     assertThat(StandardField.values())
         .contains(
-            StandardField.FLOW_ID,
+            StandardField.CLIENT_CONNECTION_ID,
+            StandardField.SERVER_CONNECTION_ID,
+            StandardField.REQUEST_ID,
             StandardField.TIMESTAMP,
             StandardField.CLIENT_IP,
             StandardField.REMOTE_IP,

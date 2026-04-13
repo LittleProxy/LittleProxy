@@ -26,13 +26,13 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
       ZonedDateTime now,
       LogFieldConfiguration fieldConfig) {
     HttpRequest request = timedRequest.getRequest();
-    String flowId = timedRequest.getFlowId();
+    String clientConnectionId = timedRequest.getClientConnectionId();
     Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
 
     sb.append("{");
-    sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
+    sb.append("\"client_connection_id\":\"").append(escapeJson(clientConnectionId)).append("\"");
 
     // Use configured fields dynamically
     for (LogField field : fieldConfig.getFields()) {
@@ -151,7 +151,7 @@ public class JsonFormatter extends AbstractLogEntryFormatter {
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
-    sb.append("\"flow_id\":\"").append(escapeJson(flowId)).append("\"");
+    sb.append("\"client_connection_id\":\"").append(escapeJson(flowId)).append("\"");
     sb.append(",\"event\":\"").append(escapeJson(event.getEventName())).append("\"");
     sb.append(",\"client_ip\":\"").append(escapeJson(getClientIp(context))).append("\"");
 

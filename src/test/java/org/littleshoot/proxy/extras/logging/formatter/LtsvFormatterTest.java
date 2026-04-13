@@ -57,12 +57,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "test-flow-id", java.util.Map.of()),
+                request, 0L, "test-flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id:test-flow-id");
+    assertThat(result).contains("client_connection_id:test-flow-id");
     assertThat(result).contains("client_ip:127.0.0.1");
     assertThat(result).contains("method:GET");
     assertThat(result).contains("status:200");
@@ -76,12 +76,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).isEqualTo("flow_id:flow-id");
+    assertThat(result).isEqualTo("client_connection_id:flow-id");
   }
 
   @Test
@@ -97,12 +97,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id:flow-id");
+    assertThat(result).contains("client_connection_id:flow-id");
     assertThat(result).contains("http_request_processing_time_ms:42");
   }
 
@@ -119,13 +119,13 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
     // Null timing data shows as "-"
-    assertThat(result).isEqualTo("flow_id:flow-id\thttp_request_processing_time_ms:-");
+    assertThat(result).isEqualTo("client_connection_id:flow-id\thttp_request_processing_time_ms:-");
   }
 
   @Test
@@ -143,7 +143,7 @@ class LtsvFormatterTest {
         formatter.formatLifecycleEvent(
             LifecycleEvent.RESPONSE_SENT, flowContext, attributes, "test-flow-id");
 
-    assertThat(result).contains("flow_id:test-flow-id");
+    assertThat(result).contains("client_connection_id:test-flow-id");
     assertThat(result).contains("event:response_sent");
     assertThat(result).contains("client_ip:127.0.0.1");
     assertThat(result).contains("status:200");
@@ -161,12 +161,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id:flow-id");
+    assertThat(result).contains("client_connection_id:flow-id");
     assertThat(result).contains("bytes:1024");
   }
 
@@ -182,12 +182,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id:flow-id");
+    assertThat(result).contains("client_connection_id:flow-id");
     assertThat(result).contains("uri:/api/users?id=123");
   }
 
@@ -202,12 +202,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id:flow-id");
+    assertThat(result).contains("client_connection_id:flow-id");
     assertThat(result).contains("user_agent:Mozilla/5.0");
   }
 
@@ -222,12 +222,12 @@ class LtsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id:flow-id");
+    assertThat(result).contains("client_connection_id:flow-id");
     assertThat(result).contains("client_ip:-");
   }
 }

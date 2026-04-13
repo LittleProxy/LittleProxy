@@ -55,7 +55,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             config);
@@ -85,7 +85,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());
@@ -107,7 +107,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());
@@ -129,7 +129,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());
@@ -152,7 +152,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());
@@ -175,7 +175,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());
@@ -202,7 +202,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());
@@ -224,7 +224,7 @@ class W3cFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             now,
             LogFieldConfiguration.builder().build());

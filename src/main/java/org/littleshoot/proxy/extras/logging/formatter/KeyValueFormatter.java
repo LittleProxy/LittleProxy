@@ -37,11 +37,11 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
       ZonedDateTime now,
       LogFieldConfiguration fieldConfig) {
     HttpRequest request = timedRequest.getRequest();
-    String flowId = timedRequest.getFlowId();
+    String clientConnectionId = timedRequest.getClientConnectionId();
     Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
-    sb.append("flow_id=").append(escapeKv(flowId));
+    sb.append("client_connection_id=").append(escapeKv(clientConnectionId));
 
     // If no custom fields configured, use default core fields for backward compatibility
     if (fieldConfig.getFields().isEmpty()) {
@@ -175,7 +175,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("flow_id=").append(flowId);
+    sb.append("client_connection_id=").append(flowId);
     sb.append(" event=").append(event.getEventName());
     sb.append(" client_ip=").append(getClientIp(context));
 

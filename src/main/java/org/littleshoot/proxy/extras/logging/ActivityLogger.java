@@ -45,18 +45,26 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   public static class TimedRequest {
     private final HttpRequest request;
     private final long startTime;
-    private final String flowId;
+    private final String clientConnectionId;
+    private final String requestId;
+    private String serverConnectionId;
     private final Map<String, Long> data = new ConcurrentHashMap<>();
 
-    public TimedRequest(HttpRequest request, long startTime, String flowId) {
+    public TimedRequest(
+        HttpRequest request, long startTime, String clientConnectionId, String requestId) {
       this.request = request;
       this.startTime = startTime;
-      this.flowId = flowId;
+      this.clientConnectionId = clientConnectionId;
+      this.requestId = requestId;
     }
 
     public TimedRequest(
-        HttpRequest request, long startTime, String flowId, Map<String, Long> timingData) {
-      this(request, startTime, flowId);
+        HttpRequest request,
+        long startTime,
+        String clientConnectionId,
+        String requestId,
+        Map<String, Long> timingData) {
+      this(request, startTime, clientConnectionId, requestId);
       if (timingData != null) {
         data.putAll(timingData);
       }
@@ -70,8 +78,20 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       return startTime;
     }
 
-    public String getFlowId() {
-      return flowId;
+    public String getClientConnectionId() {
+      return clientConnectionId;
+    }
+
+    public String getRequestId() {
+      return requestId;
+    }
+
+    public String getServerConnectionId() {
+      return serverConnectionId;
+    }
+
+    public void setServerConnectionId(String serverConnectionId) {
+      this.serverConnectionId = serverConnectionId;
     }
 
     /**
@@ -164,8 +184,21 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       FlowContext flowContext, HttpRequest httpRequest, String requestId) {
 
     long now = System.currentTimeMillis();
-    TimedRequest timedRequest = new TimedRequest(httpRequest, now, flowContext.getFlowId());
+    TimedRequest timedRequest =
+        new TimedRequest(httpRequest, now, flowContext.getFlowId(), requestId);
     timedRequest.setTimingData("request_start_time", now);
+    timedRequest.setTimingData("request_id", Long.parseLong(requestId.substring(0, 10), 36));
+
+    // If we have a FullFlowContext with server connection info, store the server connection ID
+    if (flowContext instanceof FullFlowContext) {
+      String serverConnId = ((FullFlowContext) flowContext).getServerConnectionId();
+      if (serverConnId != null) {
+        timedRequest.setServerConnectionId(serverConnId);
+        timedRequest.setTimingData(
+            "server_connection_id", Long.parseLong(serverConnId.substring(0, 10), 36));
+      }
+    }
+
     requestMap.put(requestId, timedRequest);
 
     // For non-SSL connections, set tcp_connection_establishment_time_ms if not already set
@@ -286,7 +319,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       return;
     }
 
-    String flowId = timedRequest.getFlowId();
+    String clientConnectionId = timedRequest.getClientConnectionId();
     long now = System.currentTimeMillis();
     long httpRequestProcessingTimeMs = now - timedRequest.getStartTime();
 
@@ -300,13 +333,13 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
     Map<String, Object> newMap = new HashMap<>(timedRequest.getTimings());
     newMap.put("status", "" + httpResponse.status().code());
-    logLifecycleEvent(LifecycleEvent.RESPONSE_SENT, flowContext, newMap, flowId);
+    logLifecycleEvent(LifecycleEvent.RESPONSE_SENT, flowContext, newMap, clientConnectionId);
 
     // INFO: Use configured format (KEYVALUE, JSON, etc.)
     if (shouldLogInfoEntry()) {
       String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
       if (logMessage != null) {
-        logFormattedEntry(flowId, logMessage);
+        logFormattedEntry(clientConnectionId, logMessage);
       }
     }
 
@@ -614,7 +647,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private String getFlowId(String requestId) {
     TimedRequest timedRequest = requestMap.get(requestId);
     if (timedRequest != null) {
-      return timedRequest.flowId;
+      return timedRequest.getClientConnectionId();
     }
     return null;
   }

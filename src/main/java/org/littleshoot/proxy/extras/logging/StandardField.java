@@ -14,7 +14,13 @@ import org.littleshoot.proxy.FlowContext;
  * predefined extraction logic and represent the most common logging data points.
  */
 public enum StandardField implements LogField {
-  FLOW_ID("flow_id", "Unique flow identifier (ULID) for tracing requests across the proxy"),
+  CLIENT_CONNECTION_ID(
+      "client_connection_id",
+      "Unique client connection identifier (ULID) - stable across keep-alive requests"),
+  SERVER_CONNECTION_ID(
+      "server_connection_id",
+      "Unique server connection identifier (ULID) - changes when proxy reconnects to origin"),
+  REQUEST_ID("request_id", "Per-request identifier (ULID) - unique per HTTP request, not reused"),
   TIMESTAMP("timestamp", "Timestamp when the request was processed"),
   CLIENT_IP("client_ip", "IP address of the client making the request"),
   REMOTE_IP("remote_ip", "Remote IP address (from X-Forwarded-For or X-Real-IP)"),
@@ -77,9 +83,18 @@ public enum StandardField implements LogField {
       HttpResponse response,
       Map<String, Long> requestTimingData) {
     switch (this) {
-      case FLOW_ID:
-        String flowId = flowContext.getFlowId();
-        return flowId != null ? flowId : "-";
+      case CLIENT_CONNECTION_ID:
+        String clientConnId = flowContext.getFlowId();
+        return clientConnId != null ? clientConnId : "-";
+
+      case SERVER_CONNECTION_ID:
+        Long serverConnId =
+            requestTimingData != null ? requestTimingData.get("server_connection_id") : null;
+        return serverConnId != null ? String.valueOf(serverConnId) : "-";
+
+      case REQUEST_ID:
+        Long reqId = requestTimingData != null ? requestTimingData.get("request_id") : null;
+        return reqId != null ? String.valueOf(reqId) : "-";
 
       case TIMESTAMP:
         return ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

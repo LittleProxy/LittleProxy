@@ -57,7 +57,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "test-flow-id", java.util.Map.of()),
+                request, 0L, "test-flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -76,7 +76,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -96,7 +96,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -119,7 +119,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -161,7 +161,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -180,7 +180,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -200,7 +200,7 @@ class CsvFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);

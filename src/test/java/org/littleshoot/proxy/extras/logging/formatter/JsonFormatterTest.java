@@ -57,14 +57,14 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "test-flow-id", java.util.Map.of()),
+                request, 0L, "test-flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
     assertThat(result).startsWith("{");
     assertThat(result).endsWith("}");
-    assertThat(result).contains("\"flow_id\":\"test-flow-id\"");
+    assertThat(result).contains("\"client_connection_id\":\"test-flow-id\"");
     assertThat(result).contains("\"client_ip\":\"127.0.0.1\"");
     assertThat(result).contains("\"method\":\"GET\"");
     assertThat(result).contains("\"status\":\"200\"");
@@ -82,7 +82,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -103,7 +103,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -124,7 +124,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -146,7 +146,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -171,7 +171,7 @@ class JsonFormatterTest {
 
     assertThat(result).startsWith("{");
     assertThat(result).endsWith("}");
-    assertThat(result).contains("\"flow_id\":\"test-flow-id\"");
+    assertThat(result).contains("\"client_connection_id\":\"test-flow-id\"");
     assertThat(result).contains("\"event\":\"response_sent\"");
     assertThat(result).contains("\"client_ip\":\"127.0.0.1\"");
     assertThat(result).contains("\"status\":\"200\"");
@@ -189,7 +189,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -209,7 +209,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -228,7 +228,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -247,7 +247,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -263,12 +263,12 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).isEqualTo("{\"flow_id\":\"flow-id\"}");
+    assertThat(result).isEqualTo("{\"client_connection_id\":\"flow-id\"}");
   }
 
   @Test
@@ -282,7 +282,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
@@ -301,7 +301,7 @@ class JsonFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);

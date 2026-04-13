@@ -58,12 +58,12 @@ class KeyValueFormatterTest {
         formatter.format(
             fullFlowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "test-flow-id", java.util.Map.of()),
+                request, 0L, "test-flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);
 
-    assertThat(result).contains("flow_id=test-flow-id");
+    assertThat(result).contains("client_connection_id=test-flow-id");
     assertThat(result).contains("client_ip=127.0.0.1");
     assertThat(result).contains("client_port=12345");
     assertThat(result).contains("server_ip=10.0.0.1");
@@ -89,7 +89,7 @@ class KeyValueFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             LogFieldConfiguration.builder().build());
@@ -111,7 +111,7 @@ class KeyValueFormatterTest {
         formatter.format(
             fullFlowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             LogFieldConfiguration.builder().build());
@@ -133,7 +133,7 @@ class KeyValueFormatterTest {
         formatter.format(
             fullFlowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             LogFieldConfiguration.builder().build());
@@ -157,7 +157,7 @@ class KeyValueFormatterTest {
         formatter.formatLifecycleEvent(
             LifecycleEvent.RESPONSE_SENT, flowContext, attributes, "test-flow-id");
 
-    assertThat(result).contains("flow_id=test-flow-id");
+    assertThat(result).contains("client_connection_id=test-flow-id");
     assertThat(result).contains("event=response_sent");
     assertThat(result).contains("client_ip=127.0.0.1");
     assertThat(result).contains("status=\"200\"");
@@ -176,7 +176,7 @@ class KeyValueFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             LogFieldConfiguration.builder().build());
@@ -197,7 +197,7 @@ class KeyValueFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             LogFieldConfiguration.builder().build());
@@ -227,7 +227,7 @@ class KeyValueFormatterTest {
         formatter.format(
             flowContext,
             new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
-                request, 0L, "flow-id", java.util.Map.of()),
+                request, 0L, "flow-id", "request-id", java.util.Map.of()),
             response,
             ZonedDateTime.now(),
             config);

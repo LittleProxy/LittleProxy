@@ -25,13 +25,12 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
       ZonedDateTime now,
       LogFieldConfiguration fieldConfig) {
     HttpRequest request = timedRequest.getRequest();
-    String flowId = timedRequest.getFlowId();
+    String clientConnectionId = timedRequest.getClientConnectionId();
     Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
 
-    // Labeled Tab-Separated Values
-    sb.append("flow_id:").append(sanitizeLtsv(flowId));
+    sb.append("client_connection_id:").append(sanitizeLtsv(clientConnectionId));
     for (LogField field : fieldConfig.getFields()) {
       // Handle prefix-based fields that expand to multiple entries
       if (field instanceof PrefixRequestHeaderField) {
@@ -128,7 +127,7 @@ public class LtsvFormatter extends AbstractLogEntryFormatter {
   public String formatLifecycleEvent(
       LifecycleEvent event, FlowContext context, Map<String, Object> attributes, String flowId) {
     StringBuilder sb = new StringBuilder();
-    sb.append("flow_id:").append(sanitizeLtsv(flowId));
+    sb.append("client_connection_id:").append(sanitizeLtsv(flowId));
     sb.append("\tevent:").append(sanitizeLtsv(event.getEventName()));
     sb.append("\tclient_ip:").append(sanitizeLtsv(getClientIp(context)));
 

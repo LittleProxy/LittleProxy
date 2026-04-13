@@ -26,13 +26,12 @@ public class CsvFormatter extends AbstractLogEntryFormatter {
       ZonedDateTime now,
       LogFieldConfiguration fieldConfig) {
     HttpRequest request = timedRequest.getRequest();
-    String flowId = timedRequest.getFlowId();
+    String clientConnectionId = timedRequest.getClientConnectionId();
     Map<String, Long> requestTimingData = timedRequest.getTimings();
 
     StringBuilder sb = new StringBuilder();
 
-    // Comma-Separated Values
-    sb.append("\"").append(escapeCsv(flowId)).append("\"");
+    sb.append("\"").append(escapeCsv(clientConnectionId)).append("\"");
     for (LogField field : fieldConfig.getFields()) {
       // Handle pattern-based fields that expand to multiple entries - flatten into single cell
       if (field instanceof PrefixRequestHeaderField) {

@@ -48,6 +48,15 @@ public class FullFlowContext extends FlowContext {
     return ctx;
   }
 
+  /**
+   * Returns the server-side connection identifier for this flow context.
+   *
+   * @return the server connection identifier
+   */
+  public String getServerConnectionId() {
+    return serverConnectionId;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (o == null || getClass() != o.getClass()) return false;
