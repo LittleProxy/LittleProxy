@@ -4,6 +4,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.*;
 
 import com.github.f4b6a3.ulid.Ulid;
 import com.github.f4b6a3.ulid.UlidCreator;
+import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -644,10 +645,8 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
       try {
         if (msg instanceof HttpResponse) {
           Attribute<String> attr = ctx.channel().attr(REQUEST_ID_KEY);
-          String requestId = null;
-          if (attr.get() != null) {
-            requestId = attr.get();
-          }
+          Preconditions.checkNotNull(attr, "requestId attribute must not be null");
+          String requestId = attr.get();
           responseRead((HttpResponse) msg, requestId);
         }
       } catch (Throwable t) {
