@@ -101,7 +101,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     TimedRequest timedRequest =
         new TimedRequest(httpRequest, now, flowContext.getFlowId(), requestId);
     timedRequest.setTimingData("request_start_time", now);
-    timedRequest.setTimingData("request_id", Long.parseLong(requestId.substring(0, 10), 36));
 
     // If we have a FullFlowContext with server connection info, store the server connection ID
     if (flowContext instanceof FullFlowContext) {
