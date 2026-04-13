@@ -249,16 +249,18 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     newMap.put("status", "" + httpResponse.status().code());
     logLifecycleEvent(LifecycleEvent.RESPONSE_SENT, flowContext, newMap, clientConnectionId);
 
-    // INFO: Use configured format (KEYVALUE, JSON, etc.)
-    if (shouldLogInfoEntry()) {
-      String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
-      if (logMessage != null) {
-        logFormattedEntry(clientConnectionId, logMessage);
+    try {
+      onRequestCompleted(requestId, timedRequest.getTimings());
+      // INFO: Use configured format (KEYVALUE, JSON, etc.)
+      if (shouldLogInfoEntry()) {
+        String logMessage = formatLogEntry(flowContext, timedRequest, httpResponse);
+        if (logMessage != null) {
+          logFormattedEntry(clientConnectionId, logMessage);
+        }
       }
+    } finally {
+      requestMap.remove(requestId);
     }
-
-    onRequestCompleted(requestId, timedRequest.getTimings());
-    requestMap.remove(requestId);
   }
 
   @Override
