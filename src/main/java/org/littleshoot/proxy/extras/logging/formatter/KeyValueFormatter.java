@@ -92,7 +92,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
               sb.append(" ");
               sb.append(escapeKvKey(entry.getKey()));
               sb.append("=");
-              sb.append(escapeKv(entry.getValue()));
+              sb.append(quoteIfNeeded(escapeKv(entry.getValue())));
             }
           }
         } else if (field instanceof PrefixResponseHeaderField) {
@@ -103,7 +103,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
               sb.append(" ");
               sb.append(escapeKvKey(entry.getKey()));
               sb.append("=");
-              sb.append(escapeKv(entry.getValue()));
+              sb.append(quoteIfNeeded(escapeKv(entry.getValue())));
             }
           }
         } else if (field instanceof RegexRequestHeaderField) {
@@ -114,7 +114,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
               sb.append(" ");
               sb.append(escapeKvKey(entry.getKey()));
               sb.append("=");
-              sb.append(escapeKv(entry.getValue()));
+              sb.append(quoteIfNeeded(escapeKv(entry.getValue())));
             }
           }
         } else if (field instanceof RegexResponseHeaderField) {
@@ -125,7 +125,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
               sb.append(" ");
               sb.append(escapeKvKey(entry.getKey()));
               sb.append("=");
-              sb.append(escapeKv(entry.getValue()));
+              sb.append(quoteIfNeeded(escapeKv(entry.getValue())));
             }
           }
         } else if (field instanceof ExcludeRequestHeaderField) {
@@ -136,7 +136,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
               sb.append(" ");
               sb.append(escapeKvKey(entry.getKey()));
               sb.append("=");
-              sb.append(escapeKv(entry.getValue()));
+              sb.append(quoteIfNeeded(escapeKv(entry.getValue())));
             }
           }
         } else if (field instanceof ExcludeResponseHeaderField) {
@@ -147,7 +147,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
               sb.append(" ");
               sb.append(escapeKvKey(entry.getKey()));
               sb.append("=");
-              sb.append(escapeKv(entry.getValue()));
+              sb.append(quoteIfNeeded(escapeKv(entry.getValue())));
             }
           }
         } else {
@@ -157,7 +157,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
             sb.append(" ");
             sb.append(escapeKvKey(field.getName()));
             sb.append("=");
-            sb.append(escapeKv(value));
+            sb.append(quoteIfNeeded(escapeKv(value)));
           }
         }
       }
@@ -189,7 +189,7 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
         sb.append(" ");
         sb.append(key);
         sb.append("=");
-        sb.append(escapeKv(value));
+        sb.append(quoteIfNeeded(escapeKv(value)));
       }
     }
 
@@ -213,5 +213,12 @@ public class KeyValueFormatter extends AbstractLogEntryFormatter {
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t");
+  }
+
+  private String quoteIfNeeded(String escaped) {
+    if ("-".equals(escaped)) {
+      return escaped;
+    }
+    return "\"" + escaped + "\"";
   }
 }

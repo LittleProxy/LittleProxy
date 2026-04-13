@@ -160,8 +160,8 @@ class KeyValueFormatterTest {
     assertThat(result).contains("flow_id=test-flow-id");
     assertThat(result).contains("event=response_sent");
     assertThat(result).contains("client_ip=127.0.0.1");
-    assertThat(result).contains("status=200");
-    assertThat(result).contains("processing_time_ms=15");
+    assertThat(result).contains("status=\"200\"");
+    assertThat(result).contains("processing_time_ms=\"15\"");
   }
 
   @Test
@@ -203,5 +203,35 @@ class KeyValueFormatterTest {
             LogFieldConfiguration.builder().build());
 
     assertThat(result).contains("uri=\"/path with spaces\"");
+  }
+
+  @Test
+  void testFormatWithHeaderContainingSpacesAndQuotes() {
+    when(request.method()).thenReturn(io.netty.handler.codec.http.HttpMethod.GET);
+    when(request.uri()).thenReturn("/test");
+    when(request.protocolVersion()).thenReturn(io.netty.handler.codec.http.HttpVersion.HTTP_1_1);
+    when(response.status()).thenReturn(io.netty.handler.codec.http.HttpResponseStatus.OK);
+    when(responseHeaders.get("Content-Length")).thenReturn("100");
+
+    HttpHeaders requestHeaders = request.headers();
+    when(request.headers()).thenReturn(requestHeaders);
+    when(requestHeaders.get("X-Custom-Header")).thenReturn("Value with \"quotes\" and spaces");
+
+    LogFieldConfiguration config =
+        LogFieldConfiguration.builder()
+            .addStandardField(org.littleshoot.proxy.extras.logging.StandardField.URI)
+            .addRequestHeader("X-Custom-Header")
+            .build();
+
+    String result =
+        formatter.format(
+            flowContext,
+            new org.littleshoot.proxy.extras.logging.ActivityLogger.TimedRequest(
+                request, 0L, "flow-id", java.util.Map.of()),
+            response,
+            ZonedDateTime.now(),
+            config);
+
+    assertThat(result).contains("req_x_custom_header=\"Value with \\\"quotes\\\" and spaces\"");
   }
 }
