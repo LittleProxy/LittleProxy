@@ -430,7 +430,7 @@ Log4j2 supports Groovy scripts for dynamic filtering without compilation. This i
 
 **4. Rate Limiting for Specific Loggers:**
 ```xml
-<Logger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO">
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="INFO">
     <BurstFilter level="INFO" rate="200" maxBurst="100"/>
 </Logger>
 ```
