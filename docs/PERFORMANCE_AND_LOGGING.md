@@ -464,7 +464,7 @@ The `ActivityLogger` class implements a sophisticated three-tier logging strateg
 - Exception details with stack traces
 
 **Example output**:
-```
+```text
 TRACE: ENTER clientConnected - address=/192.168.1.1:12345, thread=netty-worker-1, timestamp=1234567890
 TRACE: ENTER serverConnected - serverAddress=example.com:443, flowContext=FullFlowContext@abc123, timestamp=1234567891
 TRACE: Connection saturated - side=server, flowContext=FullFlowContext@abc123
@@ -490,7 +490,7 @@ TRACE: Connection saturated - side=server, flowContext=FullFlowContext@abc123
 - Formatted log entries (CLF, JSON, etc.)
 
 **Example output**:
-```
+```text
 DEBUG: Client connected: /192.168.1.1:12345
 DEBUG: Server connected: example.com:443 (took 45ms)
 DEBUG: Client SSL handshake succeeded: /192.168.1.1:12345, duration: 12ms
@@ -522,7 +522,7 @@ DEBUG: Connection exception caught: client, type: IOException, message: Connecti
   - Exception information
 
 **Example output**:
-```
+```text
 INFO: flow_id=01HV8J3K2M4N5P6Q7R8S9T0UV client_ip=192.168.1.1 client_port=12345 server_ip=10.0.0.1 server_port=443 method=GET uri="/api/status" protocol=HTTP/1.1 status=200 bytes=1234 http_request_ms=150 tcp_connection_ms=152 server_connect_ms=45 ssl_handshake_ms=12 client_saturations=0 server_saturations=0 exception=none
 ```
 
@@ -560,7 +560,7 @@ Configure log levels in your Log4j2 configuration:
 --activity_log_format KEYVALUE
 ```
 The default structured text format with `field=value` pairs. Example:
-```
+```text
 flow_id=01KGNMFEFZ84ZAR511NTRAFW13 client_ip=127.0.0.1 client_port=53326 method=CONNECT status=200 ...
 ```
 
