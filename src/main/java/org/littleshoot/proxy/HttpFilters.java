@@ -7,6 +7,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import java.net.InetSocketAddress;
+import java.util.function.Supplier;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.impl.ProxyUtils;
@@ -188,4 +189,22 @@ public interface HttpFilters {
    * @return true to allow mitm, false to not mitm the proxy to server connection.
    */
   boolean proxyToServerAllowMitm();
+
+  /**
+   * Notifies the filter that a WebSocket frame has been received and is about to be forwarded.
+   * Called after the HTTP connection has been upgraded to WebSocket.
+   *
+   * <p>The {@code frameBytes} contain the raw, unmodified WebSocket frame as received from the
+   * network. Client-to-server frames are masked per RFC 6455; server-to-client frames are not.
+   *
+   * <p>This method is informational — the frame cannot be modified or suppressed here.
+   *
+   * <p><b>Important:</b> The {@code frameBytes} supplier must be called synchronously within this
+   * method. Storing the supplier for later invocation will result in undefined behavior as the
+   * underlying buffer is released after this method returns.
+   *
+   * @param frameBytes the raw bytes of the WebSocket frame
+   * @param fromClient true if the frame was sent by the client, false if sent by the server
+   */
+  default void webSocketFrameReceived(Supplier<byte[]> frameBytes, boolean fromClient) {}
 }
