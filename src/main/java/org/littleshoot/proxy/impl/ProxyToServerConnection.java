@@ -246,14 +246,16 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       throws UnknownHostException {
     Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
     ChainedProxy resolvedChainedProxy = chainedProxy;
-    if (resolvedChainedProxy == null) {
-      ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
-      if (chainedProxyManager != null) {
-        chainedProxyManager.lookupChainedProxies(
-            initialHttpRequest, chainedProxies, clientConnection.getClientDetails());
-        if (chainedProxies.isEmpty()) {
-          return null;
-        }
+    ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+    if (chainedProxyManager != null) {
+      chainedProxyManager.lookupChainedProxies(
+          initialHttpRequest, chainedProxies, clientConnection.getClientDetails());
+      if (chainedProxies.isEmpty() && resolvedChainedProxy == null) {
+        return null;
+      }
+      if (resolvedChainedProxy != null) {
+        chainedProxies.remove(resolvedChainedProxy);
+      } else {
         resolvedChainedProxy = chainedProxies.poll();
       }
     }
