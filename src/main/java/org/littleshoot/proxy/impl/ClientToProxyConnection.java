@@ -322,7 +322,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
                   globalTrafficShapingHandler);
         } else {
           // Use the shared pool for regular requests
-          // Resolve ChainedProxy before pooling to segregate connections by upstream route
+          // Resolve ChainedProxy address before pooling to segregate connections by upstream route
           ChainedProxy chainedProxy = null;
           ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
           if (chainedProxyManager != null) {
@@ -333,9 +333,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
               chainedProxy = chainedProxies.poll();
             }
           }
+          InetSocketAddress chainedProxyAddress =
+              chainedProxy != null ? chainedProxy.getChainedProxyAddress() : null;
           currentServerConnection =
               pool.getOrCreateConnection(
-                  serverHostAndPort, chainedProxy, this, currentFilters, httpRequest);
+                  serverHostAndPort, chainedProxyAddress, this, currentFilters, httpRequest);
         }
 
         if (currentServerConnection == null) {

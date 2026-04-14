@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,17 +68,16 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     this.totalConnectionPermits = new Semaphore(this.maxConnections, true);
   }
 
-
-
   @Override
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
-      @Nullable ChainedProxy chainedProxy,
+      @Nullable InetSocketAddress chainedProxyAddress,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
-    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
+    ChainedProxy chainedProxy = resolveChainedProxy(initialHttpRequest, clientConnection);
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
     ConnectionContext context =
         new ConnectionContext(chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
@@ -300,6 +300,22 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     public void release() {
       slot.release(this);
     }
+  }
+
+  @Nullable
+  private ChainedProxy resolveChainedProxy(
+      HttpRequest httpRequest, ClientToProxyConnection clientConnection) {
+    ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+    if (chainedProxyManager == null) {
+      return null;
+    }
+    Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
+    chainedProxyManager.lookupChainedProxies(
+        httpRequest, chainedProxies, clientConnection.getClientDetails());
+    if (chainedProxies.isEmpty()) {
+      return null;
+    }
+    return chainedProxies.poll();
   }
 
   private static class ConnectionExpiration implements Expiration<StormpotPooledConnection> {

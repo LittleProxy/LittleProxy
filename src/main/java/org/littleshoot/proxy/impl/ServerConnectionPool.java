@@ -2,11 +2,9 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
-
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import org.jspecify.annotations.Nullable;
-import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.HttpFilters;
 
 /**
@@ -26,7 +24,8 @@ public interface ServerConnectionPool {
    * Gets a connection for the given host and port, or creates one if it doesn't exist.
    *
    * @param serverHostAndPort the server host and port key
-   * @param chainedProxy the resolved chained proxy, used to segregate connections by upstream route
+   * @param chainedProxyAddress the address of the resolved chained proxy, used to segregate
+   *     connections by upstream route (null for direct connections)
    * @param clientConnection the client connection that needs the server connection
    * @param initialFilters the initial HTTP filters
    * @param initialHttpRequest the initial HTTP request
@@ -34,7 +33,7 @@ public interface ServerConnectionPool {
    */
   @Nullable ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
-      @Nullable ChainedProxy chainedProxy,
+      @Nullable InetSocketAddress chainedProxyAddress,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest);
@@ -117,14 +116,15 @@ public interface ServerConnectionPool {
    */
   PoolMetrics getMetrics();
 
-  default String computePoolKey(String serverHostAndPort, ChainedProxy chainedProxy) {
-    if (chainedProxy == null) {
-      return serverHostAndPort + ":null";
+  default String computePoolKey(
+      String serverHostAndPort, @Nullable InetSocketAddress chainedProxyAddress) {
+    if (chainedProxyAddress == null) {
+      return serverHostAndPort + ":direct";
     }
-    InetSocketAddress addr = chainedProxy.getChainedProxyAddress();
-    if (addr == null) {
-      return serverHostAndPort + ":null";
-    }
-    return serverHostAndPort + ":" + addr.getAddress().getHostAddress() + ":" + addr.getPort();
+    return serverHostAndPort
+        + ":"
+        + chainedProxyAddress.getAddress().getHostAddress()
+        + ":"
+        + chainedProxyAddress.getPort();
   }
 }

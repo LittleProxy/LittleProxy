@@ -16,6 +16,7 @@ import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,16 +67,16 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
     this.pool = new GenericKeyedObjectPool<>(new ConnectionFactory(), config);
   }
 
-
   @Override
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
-      @Nullable ChainedProxy chainedProxy,
+      @Nullable InetSocketAddress chainedProxyAddress,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
-    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
+    ChainedProxy chainedProxy = resolveChainedProxy(initialHttpRequest, clientConnection);
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
     ConnectionContext context =
         new ConnectionContext(chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
@@ -265,6 +266,22 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
       }
       return true;
     }
+  }
+
+  @Nullable
+  private ChainedProxy resolveChainedProxy(
+      HttpRequest httpRequest, ClientToProxyConnection clientConnection) {
+    ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+    if (chainedProxyManager == null) {
+      return null;
+    }
+    Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
+    chainedProxyManager.lookupChainedProxies(
+        httpRequest, chainedProxies, clientConnection.getClientDetails());
+    if (chainedProxies.isEmpty()) {
+      return null;
+    }
+    return chainedProxies.poll();
   }
 
   private static class ConnectionContext {
