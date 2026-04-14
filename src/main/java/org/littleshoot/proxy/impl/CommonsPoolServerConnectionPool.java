@@ -78,7 +78,8 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
     ChainedProxy chainedProxy = resolveChainedProxy(initialHttpRequest, clientConnection);
     String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
     ConnectionContext context =
-        new ConnectionContext(chainedProxy, clientConnection, initialFilters, initialHttpRequest);
+       new ConnectionContext(
+            serverHostAndPort, chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {
       ProxyToServerConnection connection = pool.borrowObject(poolKey);
@@ -248,13 +249,14 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
               proxyServer,
               CommonsPoolServerConnectionPool.this,
               context.clientConnection,
-              key,
+              context.serverHostAndPort,
               context.chainedProxy,
               context.initialFilters,
               context.initialHttpRequest,
               globalTrafficShapingHandler);
       if (connection == null) {
-        throw new IllegalStateException("Unable to create pooled connection for " + key);
+        throw new IllegalStateException(
+            "Unable to create pooled connection for " + context.serverHostAndPort);
       }
       connectionKeys.put(connection, key);
       return connection;
@@ -303,16 +305,19 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
   }
 
   private static class ConnectionContext {
+    private final String serverHostAndPort;
     private final ChainedProxy chainedProxy;
     private final ClientToProxyConnection clientConnection;
     private final HttpFilters initialFilters;
     private final HttpRequest initialHttpRequest;
 
     private ConnectionContext(
+        String serverHostAndPort,
         ChainedProxy chainedProxy,
         ClientToProxyConnection clientConnection,
         HttpFilters initialFilters,
         HttpRequest initialHttpRequest) {
+      this.serverHostAndPort = serverHostAndPort;
       this.chainedProxy = chainedProxy;
       this.clientConnection = clientConnection;
       this.initialFilters = initialFilters;
