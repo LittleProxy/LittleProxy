@@ -139,15 +139,14 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   @Override
   @Nullable
   public PendingRequest removePendingRequest(Channel channel) {
-    Queue<PendingRequest> queue = pendingRequestsByChannel.get(channel);
-    if (queue == null || queue.isEmpty()) {
-      return null;
-    }
-    PendingRequest request = queue.poll();
-    if (queue.isEmpty()) {
-      pendingRequestsByChannel.remove(channel);
-    }
-    return request;
+    final PendingRequest[] result = new PendingRequest[1];
+    pendingRequestsByChannel.computeIfPresent(
+        channel,
+        (k, queue) -> {
+          result[0] = queue.poll();
+          return queue.isEmpty() ? null : queue;
+        });
+    return result[0];
   }
 
   @Override
