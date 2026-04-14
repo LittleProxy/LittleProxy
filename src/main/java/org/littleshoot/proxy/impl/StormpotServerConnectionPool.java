@@ -358,13 +358,11 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   }
 
   private class ConnectionExpiration implements Expiration<StormpotPooledConnection> {
-    private final long idleThresholdMillis;
+    private final long idleTimeoutMillis;
 
     ConnectionExpiration(@Nullable Duration idleTimeout) {
-      this.idleThresholdMillis =
-          idleTimeout != null && idleTimeout.toMillis() > 0
-              ? System.currentTimeMillis() - idleTimeout.toMillis()
-              : 0;
+      this.idleTimeoutMillis =
+          idleTimeout != null && idleTimeout.toMillis() > 0 ? idleTimeout.toMillis() : 0;
     }
 
     @Override
@@ -376,7 +374,8 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
           || !pooled.connection.isAvailableForNewRequest()) {
         return true;
       }
-      if (idleThresholdMillis > 0 && pooled.releasedAt < idleThresholdMillis) {
+      if (idleTimeoutMillis > 0
+          && System.currentTimeMillis() - idleTimeoutMillis > pooled.releasedAt) {
         return true;
       }
       return false;
