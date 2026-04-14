@@ -147,6 +147,11 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
   }
 
   @Override
+  public void drainPendingRequests(Channel channel) {
+    pendingRequestsByChannel.remove(channel);
+  }
+
+  @Override
   public void removeConnection(ProxyToServerConnection connection) {
     String key = connectionKeys.remove(connection);
     if (key == null) {

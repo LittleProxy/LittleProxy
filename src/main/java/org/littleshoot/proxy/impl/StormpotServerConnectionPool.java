@@ -148,6 +148,11 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   }
 
   @Override
+  public void drainPendingRequests(Channel channel) {
+    pendingRequestsByChannel.remove(channel);
+  }
+
+  @Override
   public void removeConnection(ProxyToServerConnection connection) {
     StormpotPooledConnection pooled = poolablesByConnection.remove(connection);
     if (pooled != null) {

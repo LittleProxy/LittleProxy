@@ -72,6 +72,13 @@ public interface ServerConnectionPool {
   @Nullable PendingRequest peekPendingRequest(Channel channel);
 
   /**
+   * Drains and removes all pending requests for the given channel.
+   *
+   * @param channel the server channel
+   */
+  void drainPendingRequests(Channel channel);
+
+  /**
    * Removes a connection from the pool when it's disconnected.
    *
    * @param connection the connection being removed

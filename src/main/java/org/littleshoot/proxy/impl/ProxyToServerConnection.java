@@ -610,6 +610,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // Remove from pool if this connection was managed by a pool
     if (connectionPool != null) {
       connectionPool.removeConnection(this);
+      if (channel != null) {
+        connectionPool.drainPendingRequests(channel);
+      }
     }
     ClientToProxyConnection clientConn = getClientConnection();
     if (clientConn != null) {

@@ -245,6 +245,11 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   }
 
   @Override
+  public void drainPendingRequests(Channel channel) {
+    pendingRequestsByChannel.remove(channel);
+  }
+
+  @Override
   public void removeConnection(ProxyToServerConnection connection) {
     if (connection == null) {
       return;
