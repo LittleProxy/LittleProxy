@@ -95,6 +95,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
         pooled.release();
         return null;
       }
+      pooled.setLeased(true);
       poolablesByConnection.put(pooled.connection, pooled);
       borrowCount.incrementAndGet();
       return pooled.connection;
@@ -232,9 +233,16 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
 
   @Override
   public PoolMetrics getMetrics() {
-    int total = poolablesByConnection.size();
+    java.util.ArrayList<StormpotPooledConnection> snapshot =
+        new java.util.ArrayList<>(poolablesByConnection.values());
+    int total = snapshot.size();
     int idle = 0;
-    int active = total;
+    for (StormpotPooledConnection pooled : snapshot) {
+      if (!pooled.isLeased()) {
+        idle++;
+      }
+    }
+    int active = total - idle;
     return new PoolMetrics(
         total,
         active,
@@ -308,15 +316,26 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     private final Slot slot;
     private final ProxyToServerConnection connection;
     private volatile long releasedAt;
+    private volatile boolean leased;
 
     private StormpotPooledConnection(Slot slot, ProxyToServerConnection connection) {
       this.slot = slot;
       this.connection = connection;
       this.releasedAt = System.currentTimeMillis();
+      this.leased = false;
+    }
+
+    boolean isLeased() {
+      return leased;
+    }
+
+    void setLeased(boolean leased) {
+      this.leased = leased;
     }
 
     @Override
     public void release() {
+      leased = false;
       releasedAt = System.currentTimeMillis();
       slot.release(this);
     }
