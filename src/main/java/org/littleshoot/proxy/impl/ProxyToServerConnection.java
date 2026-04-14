@@ -397,6 +397,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       if (pendingRequest != null) {
         this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
         this.currentHttpRequest = pendingRequest.getRequest();
+        this.currentFilters = pendingRequest.getFilters();
       }
     }
 
@@ -533,7 +534,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       if (connectionPool != null && channel != null) {
         ClientToProxyConnection clientConn = getClientConnection();
         if (clientConn != null) {
-          connectionPool.registerPendingRequest(channel, clientConn, (HttpRequest) httpObject);
+          connectionPool.registerPendingRequest(
+              channel, clientConn, (HttpRequest) httpObject, currentFilters);
           if (currentHttpRequest == null) {
             currentHttpRequest = (HttpRequest) httpObject;
           }

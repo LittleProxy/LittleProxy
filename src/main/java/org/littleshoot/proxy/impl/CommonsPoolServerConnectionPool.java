@@ -116,10 +116,13 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
 
   @Override
   public void registerPendingRequest(
-      Channel channel, ClientToProxyConnection clientConnection, HttpRequest request) {
+      Channel channel,
+      ClientToProxyConnection clientConnection,
+      HttpRequest request,
+      HttpFilters filters) {
     pendingRequestsByChannel
         .computeIfAbsent(channel, k -> new ConcurrentLinkedQueue<>())
-        .add(new PendingRequest(clientConnection, request));
+        .add(new PendingRequest(clientConnection, request, filters));
   }
 
   @Override

@@ -51,9 +51,13 @@ public interface ServerConnectionPool {
    * @param channel the server channel
    * @param clientConnection the client connection that made the request
    * @param request the HTTP request
+   * @param filters the filters active for this request
    */
   void registerPendingRequest(
-      Channel channel, ClientToProxyConnection clientConnection, HttpRequest request);
+      Channel channel,
+      ClientToProxyConnection clientConnection,
+      HttpRequest request,
+      HttpFilters filters);
 
   /**
    * Gets and removes the oldest pending request for the given channel (FIFO order for pipelining).

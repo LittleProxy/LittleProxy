@@ -15,17 +15,18 @@ public class ConcurrentMapServerConnectionPoolTest {
   void pendingRequestShouldStoreDataCorrectly() {
     HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
-    PendingRequest pendingRequest = new PendingRequest(null, request);
+    PendingRequest pendingRequest = new PendingRequest(null, request, null);
 
     assertThat(pendingRequest.getClientConnection()).isNull();
     assertThat(pendingRequest.getRequest()).isSameAs(request);
+    assertThat(pendingRequest.getFilters()).isNull();
     assertThat(pendingRequest.getTimestamp()).isGreaterThan(0);
   }
 
   @Test
   void pendingRequestTimestampShouldBeRecent() {
     long before = System.currentTimeMillis();
-    PendingRequest pendingRequest = new PendingRequest(null, null);
+    PendingRequest pendingRequest = new PendingRequest(null, null, null);
     long after = System.currentTimeMillis();
 
     assertThat(pendingRequest.getTimestamp()).isGreaterThanOrEqualTo(before);
