@@ -168,6 +168,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   public void removeConnection(ProxyToServerConnection connection) {
     StormpotPooledConnection pooled = poolablesByConnection.remove(connection);
     if (pooled != null) {
+      evictionCount.incrementAndGet();
       try {
         pooled.release();
       } catch (Exception e) {

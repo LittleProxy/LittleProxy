@@ -274,6 +274,16 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
       }
       return true;
     }
+
+    @Override
+    public void destroyObject(String key, PooledObject<ProxyToServerConnection> pooledObject) {
+      evictionCount.incrementAndGet();
+      ProxyToServerConnection connection = pooledObject.getObject();
+      if (connection != null) {
+        connectionKeys.remove(connection);
+        connection.disconnect();
+      }
+    }
   }
 
   @Nullable
