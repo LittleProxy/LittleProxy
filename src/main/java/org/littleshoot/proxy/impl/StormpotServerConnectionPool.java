@@ -88,6 +88,11 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       if (pooled == null) {
         return null;
       }
+      if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
+        validationFailureCount.incrementAndGet();
+        pooled.release();
+        return null;
+      }
       poolablesByConnection.put(pooled.connection, pooled);
       borrowCount.incrementAndGet();
       return pooled.connection;
@@ -101,6 +106,10 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     } finally {
       creationContext.remove();
     }
+  }
+
+  private boolean isConnectionValid(ProxyToServerConnection connection) {
+    return connection.isConnected() && connection.isAvailableForNewRequest();
   }
 
   @Override
@@ -240,7 +249,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     StormpotAllocator allocator = new StormpotAllocator(serverHostAndPort);
     return Pool.from(allocator)
         .setSize(maxConnectionsPerHost)
-        .setExpiration(new ConnectionExpiration())
+        .setExpiration(new ConnectionExpiration(idleTimeout))
         .build();
   }
 
@@ -298,14 +307,17 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   private static class StormpotPooledConnection implements Poolable {
     private final Slot slot;
     private final ProxyToServerConnection connection;
+    private volatile long releasedAt;
 
     private StormpotPooledConnection(Slot slot, ProxyToServerConnection connection) {
       this.slot = slot;
       this.connection = connection;
+      this.releasedAt = System.currentTimeMillis();
     }
 
     @Override
     public void release() {
+      releasedAt = System.currentTimeMillis();
       slot.release(this);
     }
   }
@@ -326,12 +338,27 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     return chainedProxies.poll();
   }
 
-  private static class ConnectionExpiration implements Expiration<StormpotPooledConnection> {
+  private class ConnectionExpiration implements Expiration<StormpotPooledConnection> {
+    private final long idleThresholdMillis;
+
+    ConnectionExpiration(@Nullable Duration idleTimeout) {
+      this.idleThresholdMillis =
+          idleTimeout != null && idleTimeout.toMillis() > 0
+              ? System.currentTimeMillis() - idleTimeout.toMillis()
+              : 0;
+    }
+
     @Override
     public boolean hasExpired(stormpot.SlotInfo<? extends StormpotPooledConnection> slotInfo)
         throws Exception {
       StormpotPooledConnection pooled = slotInfo.getPoolable();
-      return pooled == null || !pooled.connection.isConnected();
+      if (pooled == null || !pooled.connection.isConnected()) {
+        return true;
+      }
+      if (idleThresholdMillis > 0 && pooled.releasedAt < idleThresholdMillis) {
+        return true;
+      }
+      return false;
     }
   }
 
