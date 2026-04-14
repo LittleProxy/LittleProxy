@@ -1121,6 +1121,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     logger.debug("Got proxy authorization!");
     // We need to remove the header before sending the request on.
     String authentication = request.headers().get(HttpHeaderNames.PROXY_AUTHORIZATION);
+    if(authentication != null){
+      authentication = authentication.replaceAll(".*", "*");
+    }
     logger.debug(authentication);
     request.headers().remove(HttpHeaderNames.PROXY_AUTHORIZATION);
     authenticated.set(true);
