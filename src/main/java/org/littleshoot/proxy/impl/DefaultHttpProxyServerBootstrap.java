@@ -177,6 +177,11 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
         LOG.warn("Unknown server connection pool type: {}", poolTypeValue);
       }
     }
+    if (props.containsKey(DefaultHttpProxyServer.USE_SHARED_SERVER_CONNECTION_POOL)) {
+      useSharedServerConnectionPool =
+          Boolean.parseBoolean(
+              props.getProperty(DefaultHttpProxyServer.USE_SHARED_SERVER_CONNECTION_POOL).trim());
+    }
     if (props.containsKey(DefaultHttpProxyServer.MAX_CONNECTIONS_PER_HOST)) {
       maxConnectionsPerHost =
           ProxyUtils.extractInt(

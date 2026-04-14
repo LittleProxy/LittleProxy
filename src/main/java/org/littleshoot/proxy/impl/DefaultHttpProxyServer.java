@@ -71,6 +71,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   public static final String SEND_PROXY_PROTOCOL = "send_proxy_protocol";
   public static final String ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
   public static final String SERVER_CONNECTION_POOL_TYPE = "server_connection_pool_type";
+  public static final String USE_SHARED_SERVER_CONNECTION_POOL =
+      "use_shared_server_connection_pool";
   public static final String MAX_TOTAL_CONNECTIONS = "max_total_connections";
   public static final String MAX_CONNECTIONS_PER_HOST = "max_connections_per_host";
   public static final String ALLOW_REQUESTS_TO_ORIGIN_SERVER = "allow_requests_to_origin_server";
