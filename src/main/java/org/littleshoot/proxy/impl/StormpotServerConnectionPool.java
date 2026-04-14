@@ -91,6 +91,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       }
       if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
         validationFailureCount.incrementAndGet();
+        pooled.connection.disconnect();
         pooled.release();
         return null;
       }
@@ -120,6 +121,9 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     }
     StormpotPooledConnection pooled = poolablesByConnection.get(connection);
     if (pooled != null) {
+      if (!connection.isAvailableForNewRequest()) {
+        connection.disconnect();
+      }
       pooled.release();
       returnCount.incrementAndGet();
     }
@@ -348,7 +352,9 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     public boolean hasExpired(stormpot.SlotInfo<? extends StormpotPooledConnection> slotInfo)
         throws Exception {
       StormpotPooledConnection pooled = slotInfo.getPoolable();
-      if (pooled == null || !pooled.connection.isConnected()) {
+      if (pooled == null
+          || !pooled.connection.isConnected()
+          || !pooled.connection.isAvailableForNewRequest()) {
         return true;
       }
       if (idleThresholdMillis > 0 && pooled.releasedAt < idleThresholdMillis) {
