@@ -38,7 +38,7 @@ public class DefaultHttpProxyServerConfig {
   private boolean allowRequestsToOriginServer;
   private boolean acceptProxyProtocol;
   private boolean sendProxyProtocol;
-  private ServerConnectionPoolConfig serverConnectionPoolConfig;
+  private ServerConnectionPoolConfig serverConnectionPoolConfig = new ServerConnectionPoolConfig();
 
   public TransportProtocol getTransportProtocol() {
     return transportProtocol;
@@ -267,7 +267,10 @@ public class DefaultHttpProxyServerConfig {
 
   public DefaultHttpProxyServerConfig setServerConnectionPoolConfig(
       ServerConnectionPoolConfig serverConnectionPoolConfig) {
-    this.serverConnectionPoolConfig = serverConnectionPoolConfig;
+    this.serverConnectionPoolConfig =
+        serverConnectionPoolConfig != null
+            ? serverConnectionPoolConfig
+            : new ServerConnectionPoolConfig();
     return this;
   }
 }
