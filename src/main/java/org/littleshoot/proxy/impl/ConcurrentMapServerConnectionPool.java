@@ -2,6 +2,7 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +14,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
+import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,28 +94,29 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_TOTAL_CONNECTIONS;
   }
 
+
   @Override
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
+      @Nullable ChainedProxy chainedProxy,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
-    ProxyToServerConnection available = borrowAvailableConnection(serverHostAndPort);
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
+    ProxyToServerConnection available = borrowAvailableConnection(poolKey);
     if (available != null) {
       borrowCount.incrementAndGet();
       return available;
     }
 
     int currentHostCount =
-        connectionCountByHostAndPort
-            .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
-            .get();
+        connectionCountByHostAndPort.computeIfAbsent(poolKey, k -> new AtomicInteger(0)).get();
 
     if (currentHostCount >= maxConnectionsPerHost) {
       LOG.warn(
           "Per-host connection limit reached for {}: {} connections, max is {}",
-          serverHostAndPort,
+          poolKey,
           currentHostCount,
           maxConnectionsPerHost);
       return null;
@@ -128,20 +131,18 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     }
 
     synchronized (this) {
-      ProxyToServerConnection existingAvailable = borrowAvailableConnection(serverHostAndPort);
+      ProxyToServerConnection existingAvailable = borrowAvailableConnection(poolKey);
       if (existingAvailable != null) {
         return existingAvailable;
       }
 
       int hostCount =
-          connectionCountByHostAndPort
-              .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
-              .get();
+          connectionCountByHostAndPort.computeIfAbsent(poolKey, k -> new AtomicInteger(0)).get();
 
       if (hostCount >= maxConnectionsPerHost) {
         LOG.warn(
             "Per-host limit reached after sync for {}: {} connections, max is {}",
-            serverHostAndPort,
+            poolKey,
             hostCount,
             maxConnectionsPerHost);
         return null;
@@ -162,16 +163,17 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
                 this,
                 clientConnection,
                 serverHostAndPort,
+                chainedProxy,
                 initialFilters,
                 initialHttpRequest,
                 globalTrafficShapingHandler);
 
         if (newConnection != null) {
           connectionsByHostAndPort
-              .computeIfAbsent(serverHostAndPort, k -> new ConcurrentHashMap<>())
+              .computeIfAbsent(poolKey, k -> new ConcurrentHashMap<>())
               .put(newConnection, Boolean.TRUE);
           connectionCountByHostAndPort
-              .computeIfAbsent(serverHostAndPort, k -> new AtomicInteger(0))
+              .computeIfAbsent(poolKey, k -> new AtomicInteger(0))
               .incrementAndGet();
           totalConnectionsCreated.incrementAndGet();
           borrowCount.incrementAndGet();
@@ -190,18 +192,20 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       return;
     }
     String serverHostAndPort = connection.getServerHostAndPort();
+    ChainedProxy chainedProxy = connection.getChainedProxy();
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
-        connectionsByHostAndPort.get(serverHostAndPort);
+        connectionsByHostAndPort.get(poolKey);
     if (connections == null || !connections.containsKey(connection)) {
       return;
     }
     if (!connection.isConnected()) {
-      removeConnection(serverHostAndPort, connection);
+      removeConnection(connection);
       return;
     }
     returnCount.incrementAndGet();
     availableConnectionsByHostAndPort
-        .computeIfAbsent(serverHostAndPort, k -> new ConcurrentLinkedQueue<>())
+        .computeIfAbsent(poolKey, k -> new ConcurrentLinkedQueue<>())
         .add(new PooledConnection(connection, System.currentTimeMillis()));
   }
 
@@ -238,25 +242,31 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   }
 
   @Override
-  public void removeConnection(String serverHostAndPort, ProxyToServerConnection connection) {
+  public void removeConnection(ProxyToServerConnection connection) {
+    if (connection == null) {
+      return;
+    }
+    String serverHostAndPort = connection.getServerHostAndPort();
+    ChainedProxy chainedProxy = connection.getChainedProxy();
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
-        connectionsByHostAndPort.get(serverHostAndPort);
+        connectionsByHostAndPort.get(poolKey);
     if (connections != null) {
       if (connections.remove(connection) != null) {
-        AtomicInteger count = connectionCountByHostAndPort.get(serverHostAndPort);
+        AtomicInteger count = connectionCountByHostAndPort.get(poolKey);
         if (count != null) {
           int newCount = count.decrementAndGet();
           if (newCount <= 0) {
-            connectionCountByHostAndPort.remove(serverHostAndPort);
-            connectionsByHostAndPort.remove(serverHostAndPort);
-            availableConnectionsByHostAndPort.remove(serverHostAndPort);
+            connectionCountByHostAndPort.remove(poolKey);
+            connectionsByHostAndPort.remove(poolKey);
+            availableConnectionsByHostAndPort.remove(poolKey);
           }
         }
         totalConnectionsCreated.decrementAndGet();
       }
     }
     Queue<PooledConnection> available =
-        (Queue<PooledConnection>) availableConnectionsByHostAndPort.get(serverHostAndPort);
+        (Queue<PooledConnection>) availableConnectionsByHostAndPort.get(poolKey);
     if (available != null) {
       available.removeIf(p -> p.connection == connection);
     }
@@ -370,7 +380,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       }
       for (PooledConnection pooled : toRemove) {
         queue.remove(pooled);
-        removeConnection(serverHostAndPort, pooled.connection);
+        removeConnection(pooled.connection);
         pooled.connection.close();
       }
     }
@@ -381,8 +391,8 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   }
 
   @Nullable
-  private ProxyToServerConnection borrowAvailableConnection(String serverHostAndPort) {
-    Queue<PooledConnection> queue = availableConnectionsByHostAndPort.get(serverHostAndPort);
+  private ProxyToServerConnection borrowAvailableConnection(String poolKey) {
+    Queue<PooledConnection> queue = availableConnectionsByHostAndPort.get(poolKey);
     if (queue == null || queue.isEmpty()) {
       return null;
     }
@@ -392,14 +402,14 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
         return null;
       }
       if (!pooled.connection.isConnected()) {
-        removeConnection(serverHostAndPort, pooled.connection);
+        removeConnection(pooled.connection);
         continue;
       }
       if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
         validationFailureCount.incrementAndGet();
-        removeConnection(serverHostAndPort, pooled.connection);
+        removeConnection(pooled.connection);
         pooled.connection.close();
-        LOG.debug("Connection validation failed, removing connection to {}", serverHostAndPort);
+        LOG.debug("Connection validation failed, removing connection to {}", poolKey);
         continue;
       }
       if (pooled.connection.isAvailableForNewRequest()) {

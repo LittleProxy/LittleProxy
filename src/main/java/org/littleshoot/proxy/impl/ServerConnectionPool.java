@@ -2,8 +2,11 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import org.jspecify.annotations.Nullable;
+import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.HttpFilters;
 
 /**
@@ -23,6 +26,7 @@ public interface ServerConnectionPool {
    * Gets a connection for the given host and port, or creates one if it doesn't exist.
    *
    * @param serverHostAndPort the server host and port key
+   * @param chainedProxy the resolved chained proxy, used to segregate connections by upstream route
    * @param clientConnection the client connection that needs the server connection
    * @param initialFilters the initial HTTP filters
    * @param initialHttpRequest the initial HTTP request
@@ -30,6 +34,7 @@ public interface ServerConnectionPool {
    */
   @Nullable ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
+      @Nullable ChainedProxy chainedProxy,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest);
@@ -70,10 +75,9 @@ public interface ServerConnectionPool {
   /**
    * Removes a connection from the pool when it's disconnected.
    *
-   * @param serverHostAndPort the server host and port key
    * @param connection the connection being removed
    */
-  void removeConnection(String serverHostAndPort, ProxyToServerConnection connection);
+  void removeConnection(ProxyToServerConnection connection);
 
   /** Closes all connections in the pool. */
   void closeAll();
@@ -112,4 +116,15 @@ public interface ServerConnectionPool {
    * @return PoolMetrics with current statistics
    */
   PoolMetrics getMetrics();
+
+  default String computePoolKey(String serverHostAndPort, ChainedProxy chainedProxy) {
+    if (chainedProxy == null) {
+      return serverHostAndPort + ":null";
+    }
+    InetSocketAddress addr = chainedProxy.getChainedProxyAddress();
+    if (addr == null) {
+      return serverHostAndPort + ":null";
+    }
+    return serverHostAndPort + ":" + addr.getAddress().getHostAddress() + ":" + addr.getPort();
+  }
 }

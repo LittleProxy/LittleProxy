@@ -2,6 +2,7 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +15,7 @@ import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
 import org.jspecify.annotations.Nullable;
+import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,22 +66,25 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
     this.pool = new GenericKeyedObjectPool<>(new ConnectionFactory(), config);
   }
 
+
   @Override
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
+      @Nullable ChainedProxy chainedProxy,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
     ConnectionContext context =
-        new ConnectionContext(clientConnection, initialFilters, initialHttpRequest);
+        new ConnectionContext(chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {
-      ProxyToServerConnection connection = pool.borrowObject(serverHostAndPort);
+      ProxyToServerConnection connection = pool.borrowObject(poolKey);
       borrowCount.incrementAndGet();
       return connection;
     } catch (Exception e) {
-      LOG.warn("Failed to borrow connection for {}", serverHostAndPort, e);
+      LOG.warn("Failed to borrow connection for {}", poolKey, e);
       return null;
     } finally {
       creationContext.remove();
@@ -141,7 +146,7 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
   }
 
   @Override
-  public void removeConnection(String serverHostAndPort, ProxyToServerConnection connection) {
+  public void removeConnection(ProxyToServerConnection connection) {
     String key = connectionKeys.remove(connection);
     if (key == null) {
       return;
@@ -235,6 +240,7 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
               CommonsPoolServerConnectionPool.this,
               context.clientConnection,
               key,
+              context.chainedProxy,
               context.initialFilters,
               context.initialHttpRequest,
               globalTrafficShapingHandler);
@@ -262,14 +268,17 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
   }
 
   private static class ConnectionContext {
+    private final ChainedProxy chainedProxy;
     private final ClientToProxyConnection clientConnection;
     private final HttpFilters initialFilters;
     private final HttpRequest initialHttpRequest;
 
     private ConnectionContext(
+        ChainedProxy chainedProxy,
         ClientToProxyConnection clientConnection,
         HttpFilters initialFilters,
         HttpRequest initialHttpRequest) {
+      this.chainedProxy = chainedProxy;
       this.clientConnection = clientConnection;
       this.initialFilters = initialFilters;
       this.initialHttpRequest = initialHttpRequest;

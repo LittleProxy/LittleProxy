@@ -239,19 +239,22 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       ServerConnectionPool connectionPool,
       ClientToProxyConnection clientConnection,
       String serverHostAndPort,
+      @Nullable ChainedProxy chainedProxy,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest,
       GlobalTrafficShapingHandler globalTrafficShapingHandler)
       throws UnknownHostException {
     Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
-    ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
-    if (chainedProxyManager != null) {
-      // Pass client details from the client connection for chained proxy resolution
-      chainedProxyManager.lookupChainedProxies(
-          initialHttpRequest, chainedProxies, clientConnection.getClientDetails());
-      if (chainedProxies.isEmpty()) {
-        // ChainedProxyManager returned no proxies, can't connect
-        return null;
+    ChainedProxy resolvedChainedProxy = chainedProxy;
+    if (resolvedChainedProxy == null) {
+      ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+      if (chainedProxyManager != null) {
+        chainedProxyManager.lookupChainedProxies(
+            initialHttpRequest, chainedProxies, clientConnection.getClientDetails());
+        if (chainedProxies.isEmpty()) {
+          return null;
+        }
+        resolvedChainedProxy = chainedProxies.poll();
       }
     }
     return new ProxyToServerConnection(
@@ -259,7 +262,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         connectionPool,
         clientConnection,
         serverHostAndPort,
-        chainedProxies.poll(),
+        resolvedChainedProxy,
         chainedProxies,
         initialFilters,
         globalTrafficShapingHandler);
@@ -606,7 +609,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
     // Remove from pool if this connection was managed by a pool
     if (connectionPool != null) {
-      connectionPool.removeConnection(serverHostAndPort, this);
+      connectionPool.removeConnection(this);
     }
     ClientToProxyConnection clientConn = getClientConnection();
     if (clientConn != null) {

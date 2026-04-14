@@ -2,6 +2,7 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,6 +12,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.jspecify.annotations.Nullable;
+import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.HttpFilters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,19 +67,22 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     this.totalConnectionPermits = new Semaphore(this.maxConnections, true);
   }
 
+
+
   @Override
   @Nullable
   public ProxyToServerConnection getOrCreateConnection(
       String serverHostAndPort,
+      @Nullable ChainedProxy chainedProxy,
       ClientToProxyConnection clientConnection,
       HttpFilters initialFilters,
       HttpRequest initialHttpRequest) {
+    String poolKey = computePoolKey(serverHostAndPort, chainedProxy);
     ConnectionContext context =
-        new ConnectionContext(clientConnection, initialFilters, initialHttpRequest);
+        new ConnectionContext(chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {
-      Pool<StormpotPooledConnection> pool =
-          poolsByHost.computeIfAbsent(serverHostAndPort, this::createPool);
+      Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
       Timeout timeout = new Timeout(1, TimeUnit.MILLISECONDS);
       StormpotPooledConnection pooled = pool.claim(timeout);
       if (pooled == null) {
@@ -87,11 +92,11 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       borrowCount.incrementAndGet();
       return pooled.connection;
     } catch (PoolException e) {
-      LOG.warn("Failed to claim Stormpot connection for {}", serverHostAndPort, e);
+      LOG.warn("Failed to claim Stormpot connection for {}", poolKey, e);
       return null;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      LOG.warn("Interrupted while claiming Stormpot connection for {}", serverHostAndPort, e);
+      LOG.warn("Interrupted while claiming Stormpot connection for {}", poolKey, e);
       return null;
     } finally {
       creationContext.remove();
@@ -143,18 +148,18 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   }
 
   @Override
-  public void removeConnection(String serverHostAndPort, ProxyToServerConnection connection) {
+  public void removeConnection(ProxyToServerConnection connection) {
     StormpotPooledConnection pooled = poolablesByConnection.remove(connection);
     if (pooled != null) {
       try {
         pooled.connection.close();
       } catch (Exception e) {
-        LOG.debug("Failed to close Stormpot connection for {}", serverHostAndPort, e);
+        LOG.debug("Failed to close Stormpot connection", e);
       }
       try {
         pooled.release();
       } catch (Exception e) {
-        LOG.debug("Failed to release Stormpot connection for {}", serverHostAndPort, e);
+        LOG.debug("Failed to release Stormpot connection", e);
       }
     }
   }
@@ -254,6 +259,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
                 StormpotServerConnectionPool.this,
                 context.clientConnection,
                 serverHostAndPort,
+                context.chainedProxy,
                 context.initialFilters,
                 context.initialHttpRequest,
                 globalTrafficShapingHandler);
@@ -306,14 +312,17 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   }
 
   private static class ConnectionContext {
+    private final ChainedProxy chainedProxy;
     private final ClientToProxyConnection clientConnection;
     private final HttpFilters initialFilters;
     private final HttpRequest initialHttpRequest;
 
     private ConnectionContext(
+        ChainedProxy chainedProxy,
         ClientToProxyConnection clientConnection,
         HttpFilters initialFilters,
         HttpRequest initialHttpRequest) {
+      this.chainedProxy = chainedProxy;
       this.clientConnection = clientConnection;
       this.initialFilters = initialFilters;
       this.initialHttpRequest = initialHttpRequest;

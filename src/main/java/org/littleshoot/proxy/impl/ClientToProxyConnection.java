@@ -50,7 +50,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,6 +65,7 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.ChainedProxyType;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
@@ -319,8 +322,20 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
                   globalTrafficShapingHandler);
         } else {
           // Use the shared pool for regular requests
+          // Resolve ChainedProxy before pooling to segregate connections by upstream route
+          ChainedProxy chainedProxy = null;
+          ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+          if (chainedProxyManager != null) {
+            Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
+            chainedProxyManager.lookupChainedProxies(
+                httpRequest, chainedProxies, getClientDetails());
+            if (!chainedProxies.isEmpty()) {
+              chainedProxy = chainedProxies.poll();
+            }
+          }
           currentServerConnection =
-              pool.getOrCreateConnection(serverHostAndPort, this, currentFilters, httpRequest);
+              pool.getOrCreateConnection(
+                  serverHostAndPort, chainedProxy, this, currentFilters, httpRequest);
         }
 
         if (currentServerConnection == null) {
