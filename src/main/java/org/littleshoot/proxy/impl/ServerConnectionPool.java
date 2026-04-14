@@ -132,6 +132,14 @@ public interface ServerConnectionPool {
     if (chainedProxyAddress == null) {
       return serverHostAndPort + ":direct";
     }
+    if (chainedProxyAddress.getAddress() == null) {
+      // Unresolved address - use hostname string instead
+      return serverHostAndPort
+          + ":"
+          + chainedProxyAddress.getHostString()
+          + ":"
+          + chainedProxyAddress.getPort();
+    }
     return serverHostAndPort
         + ":"
         + chainedProxyAddress.getAddress().getHostAddress()
