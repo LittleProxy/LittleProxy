@@ -169,11 +169,6 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     StormpotPooledConnection pooled = poolablesByConnection.remove(connection);
     if (pooled != null) {
       try {
-        pooled.connection.close();
-      } catch (Exception e) {
-        LOG.debug("Failed to close Stormpot connection", e);
-      }
-      try {
         pooled.release();
       } catch (Exception e) {
         LOG.debug("Failed to release Stormpot connection", e);
