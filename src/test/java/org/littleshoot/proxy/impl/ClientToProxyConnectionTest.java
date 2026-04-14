@@ -41,7 +41,7 @@ class ClientToProxyConnectionTest {
     proxyServerField.set(mockConnection, mockProxyServer);
 
     ProxyConnectionLogger mockLogger = mock(ProxyConnectionLogger.class);
-    Field logField = ProxyConnection.class.getDeclaredField("LOG");
+    Field logField = ProxyConnection.class.getDeclaredField("logger");
     logField.setAccessible(true);
     logField.set(mockConnection, mockLogger);
 
@@ -74,7 +74,7 @@ class ClientToProxyConnectionTest {
     proxyServerField.set(mockConnection, mockProxyServer);
 
     ProxyConnectionLogger mockLogger = mock(ProxyConnectionLogger.class);
-    Field logField = ProxyConnection.class.getDeclaredField("LOG");
+    Field logField = ProxyConnection.class.getDeclaredField("logger");
     logField.setAccessible(true);
     logField.set(mockConnection, mockLogger);
 

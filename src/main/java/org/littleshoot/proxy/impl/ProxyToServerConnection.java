@@ -731,7 +731,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     ClientToProxyConnection targetClientConnection = getClientConnection();
 
     if (targetClientConnection == null) {
-      LOG.warn("No client connection available to respond to");
+      logger.warn("No client connection available to respond to");
       return;
     }
 
@@ -1522,7 +1522,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       try {
         tracker.serverConnected(flowContext, remoteAddress);
       } catch (Exception e) {
-        LOG.error("Unable to recordServerConnected", e);
+        logger.error("Unable to recordServerConnected", e);
       }
     }
   }
@@ -1534,7 +1534,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         try {
           tracker.serverDisconnected(flowContext, remoteAddress);
         } catch (Exception e) {
-          LOG.error("Unable to recordServerDisconnected", e);
+          logger.error("Unable to recordServerDisconnected", e);
         }
       }
     } finally {
@@ -1548,7 +1548,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       try {
         tracker.connectionSaturated(flowContext);
       } catch (Exception e) {
-        LOG.error("Unable to recordConnectionSaturated", e);
+        logger.error("Unable to recordConnectionSaturated", e);
       }
     }
   }
@@ -1559,7 +1559,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       try {
         tracker.connectionWritable(flowContext);
       } catch (Exception e) {
-        LOG.error("Unable to recordConnectionWritable", e);
+        logger.error("Unable to recordConnectionWritable", e);
       }
     }
   }
@@ -1570,7 +1570,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       try {
         tracker.connectionTimedOut(flowContext);
       } catch (Exception e) {
-        LOG.error("Unable to recordConnectionTimedOut", e);
+        logger.error("Unable to recordConnectionTimedOut", e);
       }
     }
   }
@@ -1581,7 +1581,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       try {
         tracker.connectionExceptionCaught(flowContext, cause);
       } catch (Exception e) {
-        LOG.error("Unable to recordConnectionExceptionCaught", e);
+        logger.error("Unable to recordConnectionExceptionCaught", e);
       }
     }
   }
