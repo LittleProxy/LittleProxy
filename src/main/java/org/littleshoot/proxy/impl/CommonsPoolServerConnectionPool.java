@@ -78,7 +78,7 @@ public class CommonsPoolServerConnectionPool implements ServerConnectionPool {
     ChainedProxy chainedProxy = resolveChainedProxy(initialHttpRequest, clientConnection);
     String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
     ConnectionContext context =
-       new ConnectionContext(
+        new ConnectionContext(
             serverHostAndPort, chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {

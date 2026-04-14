@@ -79,7 +79,8 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     ChainedProxy chainedProxy = resolveChainedProxy(initialHttpRequest, clientConnection);
     String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
     ConnectionContext context =
-        new ConnectionContext(chainedProxy, clientConnection, initialFilters, initialHttpRequest);
+        new ConnectionContext(
+            serverHostAndPort, chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     creationContext.set(context);
     try {
       Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
@@ -271,14 +272,14 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
                 proxyServer,
                 StormpotServerConnectionPool.this,
                 context.clientConnection,
-                serverHostAndPort,
+                context.serverHostAndPort,
                 context.chainedProxy,
                 context.initialFilters,
                 context.initialHttpRequest,
                 globalTrafficShapingHandler);
         if (connection == null) {
           throw new IllegalStateException(
-              "Unable to create pooled connection for " + serverHostAndPort);
+              "Unable to create pooled connection for " + context.serverHostAndPort);
         }
         StormpotPooledConnection pooled = new StormpotPooledConnection(slot, connection);
         poolablesByConnection.put(connection, pooled);
@@ -359,16 +360,19 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
   }
 
   private static class ConnectionContext {
+    private final String serverHostAndPort;
     private final ChainedProxy chainedProxy;
     private final ClientToProxyConnection clientConnection;
     private final HttpFilters initialFilters;
     private final HttpRequest initialHttpRequest;
 
     private ConnectionContext(
+        String serverHostAndPort,
         ChainedProxy chainedProxy,
         ClientToProxyConnection clientConnection,
         HttpFilters initialFilters,
         HttpRequest initialHttpRequest) {
+      this.serverHostAndPort = serverHostAndPort;
       this.chainedProxy = chainedProxy;
       this.clientConnection = clientConnection;
       this.initialFilters = initialFilters;
