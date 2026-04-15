@@ -673,16 +673,27 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               true);
     }
 
-    clientConnection
-        .encrypt(
-            proxyServer.getMitmManager().clientSslEngineFor(initialRequest, sslEngine.getSession()),
-            false)
-        .addListener(
-            future -> {
-              if (future.isSuccess()) {
-                clientConnection.setMitming(true);
-              }
-            });
+    serverEncryptFuture.addListener(
+        future -> {
+          if (future.isSuccess()) {
+            clientConnection
+                .encrypt(
+                    proxyServer
+                        .getMitmManager()
+                        .clientSslEngineFor(initialRequest, sslEngine.getSession()),
+                    false)
+                .addListener(
+                    clientFuture -> {
+                      if (clientFuture.isSuccess()) {
+                        clientConnection.setMitming(true);
+                      } else {
+                        LOG.warn("Failed to encrypt client connection for MITM");
+                      }
+                    });
+          } else {
+            LOG.warn("Failed to encrypt server connection for MITM");
+          }
+        });
   }
 
   private void addFirstOrReplaceHandler(String name, ChannelHandler handler) {
