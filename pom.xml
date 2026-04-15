@@ -27,7 +27,7 @@
         <dnsjava.version>3.6.4</dnsjava.version>
         <dnssec4j.version>0.1.6</dnssec4j.version>
         <error_prone.version>2.42.0</error_prone.version>
-        <guava.version>33.5.0-jre</guava.version>
+        <guava.version>33.6.0-jre</guava.version>
         <httpclient.version>4.5.14</httpclient.version>
         <jackson.bom.version>2.21.2</jackson.bom.version>
         <jetty.version>11.0.24</jetty.version>
