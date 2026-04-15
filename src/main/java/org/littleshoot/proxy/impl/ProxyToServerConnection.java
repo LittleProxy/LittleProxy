@@ -238,6 +238,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       LOG.debug("In the middle of connecting, forwarding message to connection flow: {}", msg);
       connectionFlow.read(msg);
     } else {
+      // Check if we need to perform TLS detection in MITM mode
+      checkAndPerformTlsDetection(msg);
       super.read(msg);
     }
   }
@@ -651,18 +653,119 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   /**
-   * Encrypts both server and client connections for MITM. Called from ClientToProxyConnection when
-   * TLS detection on the client-side bytes detects a TLS handshake.
+   * A connection flow step that waits for the server's response to the CONNECT request. This is
+   * used in MITM mode when we don't want to add SSL to the server connection upfront - instead, we
+   * wait for the server's response and then inspect the first bytes from the client to detect TLS.
    */
-  public void encryptForMitm() {
-    if (!currentFilters.proxyToServerAllowMitm() || proxyServer.getMitmManager() == null) {
-      LOG.debug("MITM not enabled, skipping encryption");
-      return;
-    }
+  private final ConnectionFlowStep<HttpResponse> MitmWaitForServerConnectResponse =
+      new ConnectionFlowStep<>(this, ConnectionState.AWAITING_CONNECT_OK) {
+        @Override
+        boolean shouldSuppressInitialRequest() {
+          return true;
+        }
 
+        @Override
+        protected Future<?> execute() {
+          // This step just marks that we're waiting for the server's response
+          return channel.newSucceededFuture();
+        }
+
+        @Override
+        public void read(ConnectionFlow flow, Object msg) {
+          // Server responded to CONNECT - this step is complete
+          LOG.debug("Server responded to CONNECT in MITM mode: {}", msg);
+          flow.advance();
+        }
+      };
+
+  /**
+   * A connection flow step that waits for the first bytes from the client to determine if SSL/TLS
+   * is needed. This inspects the first byte to detect TLS handshake.
+   */
+  private final ConnectionFlowStep<HttpResponse> MitmDetectTlsAndEncrypt =
+      new ConnectionFlowStep<>(this, ConnectionState.NEGOTIATING_CONNECT) {
+        @Override
+        boolean shouldSuppressInitialRequest() {
+          return true;
+        }
+
+        @Override
+        protected Future<?> execute() {
+          // Don't complete yet - wait for first data from client in read()
+          return channel.newSucceededFuture();
+        }
+
+        @Override
+        public void read(ConnectionFlow flow, Object msg) {
+          // First data from client - inspect for TLS
+          if (msg instanceof ByteBuf) {
+            ByteBuf buf = (ByteBuf) msg;
+            if (buf.readableBytes() > 0) {
+              byte firstByte = buf.getByte(buf.readerIndex());
+              boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
+
+              LOG.debug(
+                  "Inspecting first byte from client: 0x{} - TLS handshake: {}",
+                  Integer.toHexString(firstByte & 0xFF),
+                  isTlsHandshake);
+
+              if (isTlsHandshake) {
+                // This is a TLS connection - encrypt both server and client connections
+                encryptForMitm();
+              }
+
+              tlsInspectionDone = true;
+              flow.advance();
+              return;
+            }
+          }
+          // If not a ByteBuf or no readable bytes, just advance
+          tlsInspectionDone = true;
+          flow.advance();
+        }
+      };
+
+  /** Flag to track whether we've inspected the first bytes for TLS detection in MITM mode. */
+  private volatile boolean tlsInspectionDone = false;
+
+  /**
+   * Checks if we need to perform TLS detection for MITM mode and does so if needed. This inspects
+   * the first bytes from the client to determine if SSL/TLS is needed.
+   */
+  private void checkAndPerformTlsDetection(Object msg) {
+    MitmManager mitmManager = proxyServer.getMitmManager();
+    boolean isMitmEnabled = currentFilters.proxyToServerAllowMitm() && mitmManager != null;
+
+    // Only do TLS detection once, and only when in MITM mode
+    if (isMitmEnabled && !tlsInspectionDone && msg instanceof ByteBuf) {
+      ByteBuf buf = (ByteBuf) msg;
+      if (buf.readableBytes() > 0) {
+        // Peek at the first byte to determine if this is a TLS handshake
+        // TLS handshake always starts with 0x16 (decimal 22)
+        byte firstByte = buf.getByte(buf.readerIndex());
+        boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
+
+        LOG.debug(
+            "Inspecting first byte from client: 0x{} - TLS handshake: {}",
+            Integer.toHexString(firstByte & 0xFF),
+            isTlsHandshake);
+
+        if (isTlsHandshake) {
+          // This is a TLS connection - encrypt both server and client connections
+          encryptForMitm();
+        }
+
+        tlsInspectionDone = true;
+      }
+    }
+  }
+
+  /** Encrypts both server and client connections for MITM. */
+  private void encryptForMitm() {
     HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
     int port = parsedHostAndPort.getPort();
 
+    // Encrypt the server connection (for MITM)
     Future<?> serverEncryptFuture;
     if (disableSni) {
       serverEncryptFuture = encrypt(proxyServer.getMitmManager().serverSslEngine(), true);
@@ -673,6 +776,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               true);
     }
 
+    // Encrypt the client connection for MITM, but wait for server encryption first
     serverEncryptFuture.addListener(
         future -> {
           if (future.isSuccess()) {
