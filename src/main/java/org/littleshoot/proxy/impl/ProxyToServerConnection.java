@@ -238,8 +238,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       LOG.debug("In the middle of connecting, forwarding message to connection flow: {}", msg);
       connectionFlow.read(msg);
     } else {
-      // Check if we need to perform TLS detection in MITM mode
-      checkAndPerformTlsDetection(msg);
       super.read(msg);
     }
   }
@@ -652,47 +650,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  /** Flag to track whether we've inspected the first bytes for TLS detection in MITM mode. */
-  private volatile boolean tlsInspectionDone = false;
-
   /**
-   * Checks if we need to perform TLS detection for MITM mode and does so if needed. This inspects
-   * the first bytes from the client to determine if SSL/TLS is needed.
+   * Encrypts both server and client connections for MITM. Called from ClientToProxyConnection when
+   * TLS detection on the client-side bytes detects a TLS handshake.
    */
-  private void checkAndPerformTlsDetection(Object msg) {
-    MitmManager mitmManager = proxyServer.getMitmManager();
-    boolean isMitmEnabled = currentFilters.proxyToServerAllowMitm() && mitmManager != null;
-
-    // Only do TLS detection once, and only when in MITM mode
-    if (isMitmEnabled && !tlsInspectionDone && msg instanceof ByteBuf) {
-      ByteBuf buf = (ByteBuf) msg;
-      if (buf.readableBytes() > 0) {
-        // Peek at the first byte to determine if this is a TLS handshake
-        // TLS handshake always starts with 0x16 (decimal 22)
-        byte firstByte = buf.getByte(buf.readerIndex());
-        boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
-
-        LOG.debug(
-            "Inspecting first byte from client: 0x{} - TLS handshake: {}",
-            Integer.toHexString(firstByte & 0xFF),
-            isTlsHandshake);
-
-        if (isTlsHandshake) {
-          // This is a TLS connection - encrypt both server and client connections
-          encryptForMitm();
-        }
-
-        tlsInspectionDone = true;
-      }
+  public void encryptForMitm() {
+    if (!currentFilters.proxyToServerAllowMitm() || proxyServer.getMitmManager() == null) {
+      LOG.debug("MITM not enabled, skipping encryption");
+      return;
     }
-  }
 
-  /** Encrypts both server and client connections for MITM. */
-  private void encryptForMitm() {
     HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
     int port = parsedHostAndPort.getPort();
 
-    // Encrypt the server connection (for MITM)
     Future<?> serverEncryptFuture;
     if (disableSni) {
       serverEncryptFuture = encrypt(proxyServer.getMitmManager().serverSslEngine(), true);
@@ -703,7 +673,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               true);
     }
 
-    // Encrypt the client connection for MITM
     clientConnection
         .encrypt(
             proxyServer.getMitmManager().clientSslEngineFor(initialRequest, sslEngine.getSession()),

@@ -392,7 +392,32 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Override
   protected void readRaw(ByteBuf buf) {
+    checkAndPerformTlsDetectionOnClientData(buf);
     currentServerConnection.write(buf);
+  }
+
+  private volatile boolean tlsInspectionDone = false;
+
+  private void checkAndPerformTlsDetectionOnClientData(ByteBuf buf) {
+    if (!tlsInspectionDone && buf.readableBytes() > 0) {
+      byte firstByte = buf.getByte(buf.readerIndex());
+      boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
+
+      LOG.debug(
+          "Inspecting first byte from client: 0x{} - TLS handshake: {}",
+          Integer.toHexString(firstByte & 0xFF),
+          isTlsHandshake);
+
+      if (isTlsHandshake) {
+        encryptForMitm();
+      }
+      tlsInspectionDone = true;
+    }
+  }
+
+  private void encryptForMitm() {
+    LOG.debug("TLS handshake detected on CONNECT tunnel - initiating MITM");
+    currentServerConnection.encryptForMitm();
   }
 
   /* *************************************************************************
