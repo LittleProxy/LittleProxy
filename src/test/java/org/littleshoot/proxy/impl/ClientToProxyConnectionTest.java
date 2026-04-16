@@ -34,7 +34,11 @@ class ClientToProxyConnectionTest {
     when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
 
     FlowContext mockFlowContext = mock();
-    when(mockConnection.flowContext()).thenReturn(mockFlowContext);
+
+    Field clientFlowContextField =
+        ClientToProxyConnection.class.getDeclaredField("clientFlowContext");
+    clientFlowContextField.setAccessible(true);
+    clientFlowContextField.set(mockConnection, mockFlowContext);
 
     Field proxyServerField = ProxyConnection.class.getDeclaredField("proxyServer");
     proxyServerField.setAccessible(true);
@@ -67,7 +71,11 @@ class ClientToProxyConnectionTest {
     when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
 
     FlowContext mockFlowContext = mock();
-    when(mockConnection.flowContext()).thenReturn(mockFlowContext);
+
+    Field clientFlowContextField =
+        ClientToProxyConnection.class.getDeclaredField("clientFlowContext");
+    clientFlowContextField.setAccessible(true);
+    clientFlowContextField.set(mockConnection, mockFlowContext);
 
     Field proxyServerField = ProxyConnection.class.getDeclaredField("proxyServer");
     proxyServerField.setAccessible(true);
