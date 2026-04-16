@@ -50,7 +50,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,6 +65,7 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.ChainedProxyType;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
@@ -273,31 +276,70 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
 
     LOG.debug("Finding ProxyToServerConnection for: {}", serverHostAndPort);
-    if (!isMitming() && !isTunneling()) {
-      currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
-    }
+
+    // Use the shared connection pool if enabled (disabled by default for backwards compatibility)
+    ServerConnectionPool pool = proxyServer.getServerConnectionPool();
+    boolean usePool = pool != null;
 
     boolean newConnectionRequired = false;
-    if (ProxyUtils.isCONNECT(httpRequest)) {
+    if (!usePool
+        || ProxyUtils.isCONNECT(httpRequest)
+        || isTunneling()
+        || isMitming()
+        || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+      // For non-pooled mode, CONNECT, tunneling (WebSocket), or MITM, use dedicated connections
       LOG.debug(
-          "Not reusing existing ProxyToServerConnection because request is a CONNECT for: {}",
-          serverHostAndPort);
-      newConnectionRequired = true;
-    } else if (currentServerConnection == null) {
-      LOG.debug("Didn't find existing ProxyToServerConnection for: {}", serverHostAndPort);
+          "Not using shared pool for: {} (pool enabled: {}, is CONNECT: {}, is Tunneling: {}, is MITM: {})",
+          serverHostAndPort,
+          usePool,
+          ProxyUtils.isCONNECT(httpRequest),
+          isTunneling(),
+          isMitming());
+      currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
+      if (currentServerConnection == null) {
+        newConnectionRequired = true;
+      }
+    } else {
+      // For regular requests with pool enabled, get from shared pool
       newConnectionRequired = true;
     }
 
     if (newConnectionRequired) {
       try {
-        currentServerConnection =
-            ProxyToServerConnection.create(
-                proxyServer,
-                this,
-                serverHostAndPort,
-                currentFilters,
-                httpRequest,
-                globalTrafficShapingHandler);
+        // Create dedicated connection for non-pooled/CONNECT/tunneling/MITM, or use pool
+        if (!usePool
+            || ProxyUtils.isCONNECT(httpRequest)
+            || isTunneling()
+            || isMitming()
+            || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+          currentServerConnection =
+              ProxyToServerConnection.create(
+                  proxyServer,
+                  this,
+                  serverHostAndPort,
+                  currentFilters,
+                  httpRequest,
+                  globalTrafficShapingHandler);
+        } else {
+          // Use the shared pool for regular requests
+          // Resolve ChainedProxy address before pooling to segregate connections by upstream route
+          ChainedProxy chainedProxy = null;
+          ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+          if (chainedProxyManager != null) {
+            Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
+            chainedProxyManager.lookupChainedProxies(
+                httpRequest, chainedProxies, getClientDetails());
+            if (!chainedProxies.isEmpty()) {
+              chainedProxy = chainedProxies.poll();
+            }
+          }
+          InetSocketAddress chainedProxyAddress =
+              chainedProxy != null ? chainedProxy.getChainedProxyAddress() : null;
+          currentServerConnection =
+              pool.getOrCreateConnection(
+                  serverHostAndPort, chainedProxyAddress, this, currentFilters, httpRequest);
+        }
+
         if (currentServerConnection == null) {
           LOG.debug("Unable to create server connection, probably no chained proxies available");
           boolean keepAlive = writeBadGateway(httpRequest);
@@ -308,9 +350,17 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             return DISCONNECT_REQUESTED;
           }
         }
-        // Remember the connection for later
-        serverConnectionsByHostAndPort.put(
-            serverHostAndPort, requireNonNull(currentServerConnection));
+
+        // Remember the connection for tracking (for non-pooled connections or
+        // CONNECT/tunneling/MITM)
+        if (!usePool
+            || ProxyUtils.isCONNECT(httpRequest)
+            || isTunneling()
+            || isMitming()
+            || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+          serverConnectionsByHostAndPort.put(
+              serverHostAndPort, requireNonNull(currentServerConnection));
+        }
       } catch (UnknownHostException uhe) {
         LOG.info("Bad Host {}", httpRequest.uri());
         boolean keepAlive = writeBadGateway(httpRequest);
@@ -324,6 +374,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     } else {
       LOG.debug("Reusing existing server connection: {}", currentServerConnection);
       numberOfReusedServerConnections.incrementAndGet();
+    }
+
+    // For pooled connections, set the current client connection before writing
+    // This allows the server connection to know where to send the response
+    // Only set for pooled connections (not for CONNECT/tunneling/MITM/WebSocket)
+    if (usePool
+        && !ProxyUtils.isCONNECT(httpRequest)
+        && !isTunneling()
+        && !isMitming()
+        && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)
+        && currentServerConnection != null) {
+      currentServerConnection.setCurrentClientConnectionForRequest(this);
     }
 
     modifyRequestHeadersToReflectProxying(httpRequest);

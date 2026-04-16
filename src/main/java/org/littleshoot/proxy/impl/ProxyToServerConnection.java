@@ -113,6 +113,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static final String SOCKS_DECODER_NAME = "socksDecoder";
   private static final String MAIN_HANDLER_NAME = "handler";
   private final ClientToProxyConnection clientConnection;
+  private final ServerConnectionPool connectionPool;
   private final ProxyToServerConnection serverConnection = this;
   private volatile TransportProtocol transportProtocol;
   private volatile ChainedProxyType chainedProxyType;
@@ -166,6 +167,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   @Nullable private volatile HttpResponse currentHttpResponse;
 
+  /**
+   * For pooled connections, tracks the client connection that made the current request. This is set
+   * before writing a request and cleared after the response is complete.
+   */
+  @Nullable private volatile ClientToProxyConnection currentClientConnectionForRequest;
+
   /** Limits bandwidth when throttling is enabled. */
   private final GlobalTrafficShapingHandler trafficHandler;
 
@@ -211,6 +218,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       throws UnknownHostException {
     super(DISCONNECTED, proxyServer, true);
     this.clientConnection = clientConnection;
+    this.connectionPool = null;
     this.serverHostAndPort = serverHostAndPort;
     this.chainedProxy = chainedProxy;
     this.availableChainedProxies = availableChainedProxies;
@@ -221,6 +229,112 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     currentFilters.proxyToServerConnectionQueued();
 
     setupConnectionParameters();
+  }
+
+  /** Create a new ProxyToServerConnection that is managed by a shared pool. */
+  @Nullable
+  @CheckReturnValue
+  static ProxyToServerConnection createForPool(
+      DefaultHttpProxyServer proxyServer,
+      ServerConnectionPool connectionPool,
+      ClientToProxyConnection clientConnection,
+      String serverHostAndPort,
+      @Nullable ChainedProxy chainedProxy,
+      HttpFilters initialFilters,
+      HttpRequest initialHttpRequest,
+      GlobalTrafficShapingHandler globalTrafficShapingHandler)
+      throws UnknownHostException {
+    Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
+    ChainedProxy resolvedChainedProxy = chainedProxy;
+    ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+    if (chainedProxyManager != null) {
+      chainedProxyManager.lookupChainedProxies(
+          initialHttpRequest, chainedProxies, clientConnection.getClientDetails());
+      if (chainedProxies.isEmpty() && resolvedChainedProxy == null) {
+        return null;
+      }
+      if (resolvedChainedProxy != null) {
+        chainedProxies.remove(resolvedChainedProxy);
+      } else {
+        resolvedChainedProxy = chainedProxies.poll();
+      }
+    }
+    return new ProxyToServerConnection(
+        proxyServer,
+        connectionPool,
+        clientConnection,
+        serverHostAndPort,
+        resolvedChainedProxy,
+        chainedProxies,
+        initialFilters,
+        globalTrafficShapingHandler);
+  }
+
+  /** Constructor for pooled connections. */
+  private ProxyToServerConnection(
+      DefaultHttpProxyServer proxyServer,
+      ServerConnectionPool connectionPool,
+      ClientToProxyConnection clientConnection,
+      String serverHostAndPort,
+      ChainedProxy chainedProxy,
+      Queue<ChainedProxy> availableChainedProxies,
+      HttpFilters initialFilters,
+      GlobalTrafficShapingHandler globalTrafficShapingHandler)
+      throws UnknownHostException {
+    super(DISCONNECTED, proxyServer, true);
+    this.clientConnection = clientConnection;
+    this.connectionPool = connectionPool;
+    this.serverHostAndPort = serverHostAndPort;
+    this.chainedProxy = chainedProxy;
+    this.availableChainedProxies = availableChainedProxies;
+    this.trafficHandler = globalTrafficShapingHandler;
+    this.currentFilters = initialFilters;
+
+    // Report connection status to HttpFilters
+    currentFilters.proxyToServerConnectionQueued();
+
+    setupConnectionParameters();
+  }
+
+  /** Returns true if this connection is currently connected. */
+  public boolean isConnected() {
+    return is(ConnectionState.AWAITING_CHUNK)
+        || is(ConnectionState.AWAITING_CONNECT_OK)
+        || is(ConnectionState.AWAITING_INITIAL)
+        || is(ConnectionState.NEGOTIATING_CONNECT);
+  }
+
+  /**
+   * Returns true if this connection is available to handle a new request. A connection is available
+   * if it's connected and not currently processing another request.
+   */
+  public boolean isAvailableForNewRequest() {
+    if (!isConnected()) {
+      return false;
+    }
+    // Check if we're currently idle (not processing a request)
+    return currentHttpRequest == null && currentHttpResponse == null;
+  }
+
+  /**
+   * Gets the client connection to use for this request. If a connection pool is being used, this
+   * will resolve to the correct client connection based on the pending request. For non-pooled
+   * connections (CONNECT requests), this returns the direct clientConnection reference.
+   */
+  ClientToProxyConnection getClientConnection() {
+    // For pooled connections, use the current client connection if set
+    // For non-pooled connections (CONNECT), use the direct reference
+    if (connectionPool != null && currentClientConnectionForRequest != null) {
+      return currentClientConnectionForRequest;
+    }
+    return clientConnection;
+  }
+
+  /** Closes this server connection. */
+  public void close() {
+    if (channel != null) {
+      channel.close();
+    }
   }
 
   /* *************************************************************************
@@ -277,6 +391,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       httpResponse = substituteResponse;
     }
 
+    // For pooled connections, look up the pending request to get the correct client connection
+    // This supports HTTP pipelining where multiple requests are sent and responses come back in
+    // order
+    if (connectionPool != null && channel != null) {
+      PendingRequest pendingRequest = connectionPool.removePendingRequest(channel);
+      if (pendingRequest != null) {
+        this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
+        this.currentHttpRequest = pendingRequest.getRequest();
+        this.currentFilters = pendingRequest.getFilters();
+      }
+    }
+
     currentFilters.serverToProxyResponseReceiving();
 
     rememberCurrentResponse(httpResponse);
@@ -286,6 +412,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       return AWAITING_CHUNK;
     } else {
       currentFilters.serverToProxyResponseReceived();
+      markResponseComplete();
 
       return AWAITING_INITIAL;
     }
@@ -298,7 +425,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   @Override
   protected void readRaw(ByteBuf buf) {
-    clientConnection.write(buf);
+    getClientConnection().write(buf);
   }
 
   /**
@@ -355,14 +482,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     if (is(DISCONNECTED) && msg instanceof HttpRequest) {
       LOG.debug("Currently disconnected, connect and then write the message");
       connectAndWrite((HttpRequest) msg);
-      return clientConnection.channel.newSucceededFuture();
+      return getClientConnection().channel.newSucceededFuture();
     } else {
       if (isConnecting()) {
         synchronized (connectLock) {
           if (isConnecting()) {
             LOG.debug(
                 "Attempted to write while still in the process of connecting, waiting for connection.");
-            clientConnection.stopReading();
+            getClientConnection().stopReading();
             try {
               connectLock.wait(30000);
             } catch (InterruptedException ie) {
@@ -400,8 +527,22 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       chainedProxy.filterRequest(httpObject);
     }
     if (httpObject instanceof HttpRequest) {
-      // Remember that we issued this HttpRequest for later
-      currentHttpRequest = (HttpRequest) httpObject;
+      if (connectionPool == null) {
+        // Remember that we issued this HttpRequest for later
+        currentHttpRequest = (HttpRequest) httpObject;
+      }
+
+      // For pooled connections, register pending request to support HTTP pipelining
+      if (connectionPool != null && channel != null) {
+        ClientToProxyConnection clientConn = getClientConnection();
+        if (clientConn != null) {
+          connectionPool.registerPendingRequest(
+              channel, clientConn, (HttpRequest) httpObject, currentFilters);
+          if (currentHttpRequest == null) {
+            currentHttpRequest = (HttpRequest) httpObject;
+          }
+        }
+      }
     }
     return super.writeHttp(httpObject);
   }
@@ -431,6 +572,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     } else if (getCurrentState() == AWAITING_CHUNK && newState != AWAITING_CHUNK) {
       currentFilters.serverToProxyResponseReceived();
+      markResponseComplete();
     }
 
     super.become(newState);
@@ -440,21 +582,21 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   protected void becameSaturated() {
     super.becameSaturated();
     recordConnectionSaturated();
-    clientConnection.serverBecameSaturated(this);
+    getClientConnection().serverBecameSaturated(this);
   }
 
   @Override
   protected void becameWritable() {
     super.becameWritable();
     recordConnectionWritable();
-    clientConnection.serverBecameWriteable(this);
+    getClientConnection().serverBecameWriteable(this);
   }
 
   @Override
   protected void timedOut() {
     super.timedOut();
     recordConnectionTimedOut();
-    clientConnection.timedOut(this);
+    getClientConnection().timedOut(this);
   }
 
   @Override
@@ -469,7 +611,17 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         LOG.error("Unable to record connectionFailed", e);
       }
     }
-    clientConnection.serverDisconnected(this);
+    // Remove from pool if this connection was managed by a pool
+    if (connectionPool != null) {
+      connectionPool.removeConnection(this);
+      if (channel != null) {
+        connectionPool.drainPendingRequests(channel);
+      }
+    }
+    ClientToProxyConnection clientConn = getClientConnection();
+    if (clientConn != null) {
+      clientConn.serverDisconnected(this);
+    }
   }
 
   @Override
@@ -502,7 +654,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       if (!is(DISCONNECTED)) {
         LOG.info("Disconnecting open connection to server");
         disconnect();
-        clientConnection.serverConnectionFailed(this, getCurrentState(), cause);
+        getClientConnection().serverConnectionFailed(this, getCurrentState(), cause);
       }
     }
     // This can happen if we couldn't make the initial connection due
@@ -574,8 +726,43 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   /** Respond to the client with the given {@link HttpObject}. */
   private void respondWith(HttpObject httpObject) {
-    clientConnection.respond(
+    // Use the current client connection if set (for pooled connections),
+    // otherwise use the direct reference
+    ClientToProxyConnection targetClientConnection = getClientConnection();
+
+    if (targetClientConnection == null) {
+      LOG.warn("No client connection available to respond to");
+      return;
+    }
+
+    targetClientConnection.respond(
         this, currentFilters, currentHttpRequest, currentHttpResponse, httpObject);
+  }
+
+  /**
+   * Sets the client connection that is making the current request. Used for pooled connections to
+   * track which client to send the response to.
+   */
+  void setCurrentClientConnectionForRequest(ClientToProxyConnection clientConnection) {
+    this.currentClientConnectionForRequest = clientConnection;
+  }
+
+  private void markResponseComplete() {
+    this.currentClientConnectionForRequest = null;
+    this.currentHttpResponse = null;
+    if (connectionPool != null) {
+      if (channel != null) {
+        PendingRequest nextPending = connectionPool.peekPendingRequest(channel);
+        if (nextPending != null) {
+          this.currentHttpRequest = nextPending.getRequest();
+          return;
+        }
+      }
+      this.currentHttpRequest = null;
+      connectionPool.releaseConnection(this);
+    } else {
+      this.currentHttpRequest = null;
+    }
   }
 
   /**
@@ -598,7 +785,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * information to the MitmManager when handling CONNECTs.
    */
   private void initializeConnectionFlow() {
-    connectionFlow = new ConnectionFlow(clientConnection, this, connectLock).then(ConnectChannel);
+    connectionFlow =
+        new ConnectionFlow(getClientConnection(), this, connectLock).then(ConnectChannel);
 
     if (hasUpstreamChainedProxy()) {
       if (chainedProxy.requiresEncryption()) {
@@ -647,13 +835,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
 
         connectionFlow
-            .then(clientConnection.RespondCONNECTSuccessful)
+            .then(getClientConnection().RespondCONNECTSuccessful)
             .then(serverConnection.MitmEncryptClientChannel);
       } else {
         connectionFlow
             .then(serverConnection.StartTunneling)
-            .then(clientConnection.RespondCONNECTSuccessful)
-            .then(clientConnection.StartTunneling);
+            .then(getClientConnection().RespondCONNECTSuccessful)
+            .then(getClientConnection().StartTunneling);
       }
     }
   }
@@ -961,7 +1149,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               .addListener(
                   future -> {
                     if (future.isSuccess()) {
-                      clientConnection.setMitming(true);
+                      getClientConnection().setMitming(true);
                     }
                   });
         }
@@ -1174,7 +1362,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         LOG.error("Unable to record connectionSucceeded", e);
       }
     }
-    clientConnection.serverConnectionSucceeded(this, shouldForwardInitialRequest);
+    getClientConnection().serverConnectionSucceeded(this, shouldForwardInitialRequest);
 
     if (shouldForwardInitialRequest) {
       LOG.debug("Writing initial request: {}", initialRequest);
@@ -1269,7 +1457,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void bytesRead(int numberOfBytes) {
           FullFlowContext flowContext =
-              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
+              getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.bytesReceivedFromServer(flowContext, numberOfBytes);
           }
@@ -1281,7 +1469,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void responseRead(HttpResponse httpResponse) {
           FullFlowContext flowContext =
-              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
+              getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.responseReceivedFromServer(flowContext, httpResponse);
           }
@@ -1293,7 +1481,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void bytesWritten(int numberOfBytes) {
           FullFlowContext flowContext =
-              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
+              getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.bytesSentToServer(flowContext, numberOfBytes);
           }
@@ -1305,7 +1493,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void requestWriting(HttpRequest httpRequest) {
           FullFlowContext flowContext =
-              clientConnection.flowContextForServerConnection(ProxyToServerConnection.this);
+              getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           try {
             for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
               tracker.requestSentToServer(flowContext, httpRequest);
