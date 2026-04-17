@@ -430,7 +430,7 @@ Log4j2 supports Groovy scripts for dynamic filtering without compilation. This i
 
 **4. Rate Limiting for Specific Loggers:**
 ```xml
-<Logger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO">
+<Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="INFO">
     <BurstFilter level="INFO" rate="200" maxBurst="100"/>
 </Logger>
 ```
@@ -533,7 +533,7 @@ Activity logging in LittleProxy captures HTTP request/response details. This can
 1. **Monitor Log Files**: Check disk usage regularly
 2. **Rotate Logs**: Configure proper rotation policies
 3. **Archive Old Logs**: Implement log archiving strategy
-4. **Alert on Errors**: Set up monitoring for ERROR level logs
+4. **Alert on Errors**: Set up monitoring for ERROR-level logs
 
 ## Troubleshooting
 

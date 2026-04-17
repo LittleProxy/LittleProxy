@@ -16,6 +16,12 @@ if [[ "$1" == "--help" || "$1" == "-h" || "$1" == "help" ]]; then
     echo "  --log_config <file>         Log4j2 configuration file path"
     echo "  --activity_log_format <fmt>  Activity log format (CLF, JSON, etc.)"
     echo "  --async_logging_default     Use asynchronous logging with default config"
+    echo "  --activity_log_request_prefix_headers <csv>   Prefixes of request headers to log"
+    echo "  --activity_log_request_regex_headers <csv>    Regex patterns of request headers to log"
+    echo "  --activity_log_request_exclude_headers <csv>  Regex patterns of request headers to exclude"
+    echo "  --activity_log_response_prefix_headers <csv>  Prefixes of response headers to log"
+    echo "  --activity_log_response_regex_headers <csv>   Regex patterns of response headers to log"
+    echo "  --activity_log_response_exclude_headers <csv> Regex patterns of response headers to exclude"
     echo "  --help, -h, help            Show this help message"
     echo ""
     echo "Example:"
@@ -30,7 +36,8 @@ jar=`find $fullPath/target/littleproxy*-littleproxy-shade.jar`
 cp=`echo $jar | sed 's,./,'$fullPath'/,'`
 
 # Initialize Java arguments
-javaArgs="-server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m"
+# Build java argument array so glob patterns (e.g. regex headers) are not re-expanded by the shell
+javaArgs=(-server -XX:+HeapDumpOnOutOfMemoryError -Xmx800m)
 
 # Parse arguments to handle --async_logging_default flag and build proper argument list
 async_logging_default=false
@@ -71,7 +78,8 @@ elif [ "$async_logging_default" = true ] && [ "$log_config_set" = true ]; then
     echo "Warning: --async_logging_default flag ignored because custom --log_config is specified: $custom_log_config"
 fi
 
-javaArgs="$javaArgs -jar "$cp" ${remaining_args[@]}"
+javaArgs+=(-jar "$cp")
+javaArgs+=("${remaining_args[@]}")
 
-echo "Running using Java on path at `which java` with args $javaArgs"
-java $javaArgs || die "Java process exited abnormally"
+echo "Running using Java on path at `which java` with args ${javaArgs[*]}"
+java "${javaArgs[@]}" || die "Java process exited abnormally"
