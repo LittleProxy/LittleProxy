@@ -15,7 +15,8 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {}
+  public void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId) {}
 
   @Override
   public void bytesSentToServer(FullFlowContext flowContext, int numberOfBytes) {}
@@ -27,13 +28,15 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void bytesReceivedFromServer(FullFlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse) {}
+  public void responseReceivedFromServer(
+      FullFlowContext flowContext, HttpResponse httpResponse, String requestId) {}
 
   @Override
   public void bytesSentToClient(FlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {}
+  public void responseSentToClient(
+      FlowContext flowContext, HttpResponse httpResponse, String requestId) {}
 
   @Override
   public void clientConnected(FlowContext flowContext) {}
