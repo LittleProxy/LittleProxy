@@ -33,6 +33,7 @@
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.0.3</junit.version>
         <log4j.version>2.25.4</log4j.version>
+        <maxmind.db.version>3.1.1</maxmind.db.version>
         <mockito.version>5.23.0</mockito.version>
         <netty.version>4.2.12.Final</netty.version>
         <selenium.version>4.43.0</selenium.version>
@@ -258,6 +259,14 @@
             <version>${log4j.version}</version>
             <optional>true</optional>
         </dependency>
+
+        <dependency>
+            <groupId>com.maxmind.db</groupId>
+            <artifactId>maxmind-db</artifactId>
+            <version>${maxmind.db.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
@@ -269,7 +278,21 @@
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
             <version>${disruptor.version}</version>
-            <scope>optional</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Jackson for JSON configuration parsing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Jackson for JSON configuration parsing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- Optional DNS dependencies -->
@@ -614,6 +637,7 @@
                                 <extraArtifact>org.apache.logging.log4j:log4j-core:${log4j.version}</extraArtifact>
                                 <extraArtifact>org.apache.logging.log4j:log4j-slf4j2-impl:${log4j.version}</extraArtifact>
                                 <extraArtifact>com.lmax:disruptor:${disruptor.version}</extraArtifact>
+                                <extraArtifact>com.fasterxml.jackson.core:jackson-databind:${jackson.bom.version}</extraArtifact>
                             </extraArtifacts>
                             <filters>
                                 <filter>
