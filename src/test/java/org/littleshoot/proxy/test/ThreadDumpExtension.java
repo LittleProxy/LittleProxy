@@ -29,19 +29,49 @@ public class ThreadDumpExtension
   private static final int INITIAL_DELAY_MS = 8000;
   private static final int DELAY_MS = 1000;
 
+  /**
+   * Checks if thread dump is enabled for the given context.
+   *
+   * <p>Thread dump is enabled if:
+   *
+   * <ul>
+   *   <li>The test class has {@link EnableThreadDump} annotation, OR
+   *   <li>The test method has {@link EnableThreadDump} annotation
+   * </ul>
+   */
+  private boolean isThreadDumpEnabled(ExtensionContext context) {
+    return context
+            .getTestClass()
+            .map(clazz -> clazz.isAnnotationPresent(EnableThreadDump.class))
+            .orElse(false)
+        || context
+            .getTestMethod()
+            .map(method -> method.isAnnotationPresent(EnableThreadDump.class))
+            .orElse(false);
+  }
+
   @Override
   public void beforeAll(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     getLogger(context.getDisplayName()).info("Starting tests ({})", memory());
   }
 
   @Override
   public void afterAll(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     getLogger(context.getDisplayName())
         .info("Finished tests - {} ({})", verdict(context), memory());
   }
 
   @Override
   public void beforeEach(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     Logger log = logger(context);
     log.info("starting {} ({})...", context.getDisplayName(), memory());
     ScheduledExecutorService executor = newScheduledThreadPool(1);
@@ -72,13 +102,20 @@ public class ThreadDumpExtension
 
   @Override
   public void afterEach(ExtensionContext context) {
+    if (!isThreadDumpEnabled(context)) {
+      return;
+    }
     logger(context)
         .info("finished {} - {} ({})", context.getDisplayName(), verdict(context), memory());
     String originalThreadName = context.getStore(NAMESPACE).get("originalThreadName", String.class);
-    Thread.currentThread().setName(originalThreadName);
+    if (originalThreadName != null) {
+      Thread.currentThread().setName(originalThreadName);
+    }
     ScheduledExecutorService executor =
         (ScheduledExecutorService) context.getStore(NAMESPACE).remove("executor");
-    executor.shutdown();
+    if (executor != null) {
+      executor.shutdown();
+    }
   }
 
   private static Logger logger(ExtensionContext context) {
