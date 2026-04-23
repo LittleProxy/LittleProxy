@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="logPath">target/log.txt</Property>
+        <Property name="pattern">%-6r %d{ISO8601} %-5p [%t] %c{2} (%F:%L).%M() - %m%n</Property>
+    </Properties>
+    <Appenders>
+        <Console name="stdout" target="SYSTEM_OUT">
+            <PatternLayout pattern="${pattern}"/>
+        </Console>
+        <RollingFile name="RollingTextFile" fileName="${logPath}" filePattern="${logPath}.%i">
+            <PatternLayout pattern="${pattern}"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.eclipse.jetty" level="off" />
+        <Logger name="org.littleshoot.proxy" level="info" />
+        <Logger name="io.netty" level="debug" />
+        <Logger name="org.littleshoot.proxy.websockets.WebSocketClientServerTest" level="debug" />
+        <Root level="info">
+            <AppenderRef ref="stdout"/>
+            <AppenderRef ref="RollingTextFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
