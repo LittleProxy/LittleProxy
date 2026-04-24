@@ -21,7 +21,7 @@
         <assertj.version>3.27.7</assertj.version>
         <commons.cli.version>1.11.0</commons.cli.version>
         <commons.exec.version>1.6.0</commons.exec.version>
-        <commons.io.version>2.21.0</commons.io.version>
+        <commons.io.version>2.22.0</commons.io.version>
         <commons.lang3.version>3.20.0</commons.lang3.version>
         <disruptor.version>4.0.0</disruptor.version>
         <dnsjava.version>3.6.4</dnsjava.version>
