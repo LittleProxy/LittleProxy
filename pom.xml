@@ -269,7 +269,7 @@
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
             <version>${disruptor.version}</version>
-            <scope>optional</scope>
+            <optional>true</optional>
         </dependency>
 
         <!-- Optional DNS dependencies -->
