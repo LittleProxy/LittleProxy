@@ -604,7 +604,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private void initializeConnectionFlow() {
     connectionFlow = new ConnectionFlow(clientConnection, this, connectLock).then(ConnectChannel);
     if (proxyServer.isSendProxyProtocol()) {
-      connectionFlow.then(SendProxyProtocolHeader);
+      if (hasUpstreamChainedProxy()
+          && (chainedProxyType == ChainedProxyType.SOCKS4
+              || chainedProxyType == ChainedProxyType.SOCKS5)) {
+        LOG.warn(
+            "PROXY protocol is not compatible with SOCKS upstream proxies ({}). Skipping PROXY header.",
+            chainedProxyType);
+      } else {
+        connectionFlow.then(SendProxyProtocolHeader);
+      }
     }
     if (hasUpstreamChainedProxy()) {
       if (chainedProxy.requiresEncryption()) {
