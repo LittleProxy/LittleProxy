@@ -47,7 +47,7 @@ class RealChainedProxyAuthenticationTest {
 
       // Initialize the LOG field to avoid NPE in logging calls
       // LOG field is in the parent ProxyConnection class
-      java.lang.reflect.Field logField = ProxyConnection.class.getDeclaredField("LOG");
+      java.lang.reflect.Field logField = ProxyConnection.class.getDeclaredField("logger");
       logField.setAccessible(true);
       logField.set(clientToProxyConnection, new ProxyConnectionLogger(clientToProxyConnection));
     } catch (Exception e) {

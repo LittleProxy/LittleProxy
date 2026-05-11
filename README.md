@@ -48,6 +48,9 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
+- `server_connection_pool_type` : pool implementation used by the shared server connection pool (`CONCURRENT_MAP`, `COMMONS_POOL2`, `STORMPOT`) (default : `CONCURRENT_MAP`)
+- `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`)
+- `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`)
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
 - `address` : string value to set the proxy server address (default : `0.0.0.0:8080`)
 - `port` : integer value to set the proxy server port (default : `8080`)
@@ -81,8 +84,11 @@ connect_timeout=30
 max_initial_line_length=8192
 max_header_size=16384
 max_chunk_size=16384
+server_connection_pool_type=CONCURRENT_MAP
+max_total_connections=200
+max_connections_per_host=10
 name=LittleProxy
-address=12.45.666.789:8080
+address=192.168.1.100:8080
 port=8080
 nic=eth0
 proxy_alias=myproxy
@@ -346,6 +352,59 @@ HttpProxyServer server =
                 .withPort(8080)
                 .start();
 ```
+
+### Shared server connection pool configuration
+
+LittleProxy supports pluggable shared server connection pools. This allows multiple client
+connections to reuse upstream connections and helps prevent connection explosion under load.
+
+```java
+HttpProxyServer server =
+        DefaultHttpProxyServer.bootstrap()
+                .withPort(8080)
+                .withSharedServerConnectionPool(true)
+                .withServerConnectionPoolType(ServerConnectionPoolType.COMMONS_POOL2)
+                .withMaxConnections(500)
+                .withMaxConnectionsPerHost(50)
+                .withPoolIdleTimeout(Duration.ofSeconds(30))
+                .start();
+```
+
+Available pool types:
+
+- `CONCURRENT_MAP`: lightweight default implementation
+- `COMMONS_POOL2`: Apache Commons Pool 2 keyed pooling
+- `STORMPOT`: Stormpot-based lifecycle-managed pooling
+
+#### Pool metrics
+
+Each server connection pool implementation exposes runtime metrics through `PoolMetrics`
+(`totalConnections`, `activeConnections`, `idleConnections`, `borrowCount`, `returnCount`,
+`evictionCount`, `validationFailureCount`).
+
+Implementation details:
+
+- `CONCURRENT_MAP`
+  - `totalConnections`: current number of tracked pooled server connections
+  - `activeConnections`: `totalConnections - idleConnections`
+  - `idleConnections`: connections currently waiting in the available queue
+  - `borrowCount` / `returnCount`: incremented on successful borrow/return
+  - `evictionCount`: incremented when idle-timeout eviction removes connections
+  - `validationFailureCount`: incremented when validation rejects a pooled connection
+- `COMMONS_POOL2`
+  - `totalConnections`, `activeConnections`, `idleConnections` are mapped from Commons Pool stats
+  - `borrowCount` / `returnCount`: tracked by LittleProxy on borrow/return calls
+  - `evictionCount` / `validationFailureCount`: currently not surfaced from Commons Pool internals
+    and may remain `0`
+- `STORMPOT`
+  - `totalConnections`: current number of claimed/tracked connections
+  - `activeConnections`: currently reported as `totalConnections`
+  - `idleConnections`: currently reported as `0` (Stormpot does not expose a direct idle count here)
+  - `borrowCount` / `returnCount`: tracked by LittleProxy on claim/release calls
+  - `evictionCount` / `validationFailureCount`: currently not surfaced and may remain `0`
+
+These metrics are useful for capacity tuning, behavior validation during load tests, and
+troubleshooting connection reuse.
 
 To intercept and manipulate HTTPS traffic, LittleProxy uses a man-in-the-middle (MITM) manager. LittleProxy's default
 implementation (`SelfSignedMitmManager`) has a fairly limited feature set. For greater control over certificate impersonation,

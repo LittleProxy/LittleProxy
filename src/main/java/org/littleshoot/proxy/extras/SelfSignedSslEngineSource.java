@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * that are generated lazily if the given key store file doesn't yet exist.
  */
 public class SelfSignedSslEngineSource implements SslEngineSource {
-  private static final Logger LOG = LoggerFactory.getLogger(SelfSignedSslEngineSource.class);
+  private static final Logger logger = LoggerFactory.getLogger(SelfSignedSslEngineSource.class);
 
   private static final String PROTOCOL = "TLS";
 
@@ -119,7 +119,7 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
         "-keystore",
         keyStoreLocalAbsoluteFile.getPath());
 
-    LOG.info("Generated LittleProxy keystore in {}", keyStoreLocalAbsoluteFile);
+    logger.info("Generated LittleProxy keystore in {}", keyStoreLocalAbsoluteFile);
 
     Path certificateFile = Paths.get(keyStoreLocalAbsoluteFile.getParent(), certificateFileName);
     nativeCall(
@@ -133,7 +133,7 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
         password,
         "-file",
         certificateFile.toString());
-    LOG.info("Generated LittleProxy certificate in {}", certificateFile);
+    logger.info("Generated LittleProxy certificate in {}", certificateFile);
   }
 
   private void initializeSSLContext() {
@@ -186,13 +186,13 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
     try (InputStream is = url.openStream()) {
       keyStore.load(is, password.toCharArray());
     }
-    LOG.debug("Loaded LittleProxy keystore from {}", url);
+    logger.debug("Loaded LittleProxy keystore from {}", url);
     return keyStore;
   }
 
   private void nativeCall(final String... commands) {
     long start = nanoTime();
-    LOG.info("Running '{}'", asList(commands));
+    logger.info("Running '{}'", asList(commands));
     final ProcessBuilder pb = new ProcessBuilder(commands);
     // Merge stderr into stdout so we only need to read one stream
     pb.redirectErrorStream(true);
@@ -204,16 +204,16 @@ public class SelfSignedSslEngineSource implements SslEngineSource {
       }
       int exitCode = process.waitFor();
       String dataAsString = new String(data, UTF_8);
-      LOG.info(
+      logger.info(
           "Completed native call '{}' in {} ms (exit: {})\nResponse: '{}'",
           asList(commands),
           duration(start),
           exitCode,
           dataAsString);
     } catch (IOException e) {
-      LOG.error("Error running commands {} after {} ms", asList(commands), duration(start), e);
+      logger.error("Error running commands {} after {} ms", asList(commands), duration(start), e);
     } catch (InterruptedException e) {
-      LOG.error("Error running commands {} after {} ms", asList(commands), duration(start), e);
+      logger.error("Error running commands {} after {} ms", asList(commands), duration(start), e);
       Thread.currentThread().interrupt();
     }
   }

@@ -148,10 +148,10 @@ class ProxyConnectionLogger {
   /** Dispatcher for a LocationAwareLogger. */
   private class LocationAwareLoggerDispatch implements LogDispatch {
 
-    private final LocationAwareLogger log;
+    private final LocationAwareLogger logger;
 
-    public LocationAwareLoggerDispatch(LocationAwareLogger log) {
-      this.log = log;
+    public LocationAwareLoggerDispatch(LocationAwareLogger logger) {
+      this.logger = logger;
     }
 
     @Override
@@ -160,7 +160,7 @@ class ProxyConnectionLogger {
       if (params != null && params.length > 0) {
         formattedMessage = MessageFormatter.arrayFormat(formattedMessage, params).getMessage();
       }
-      log.log(null, fqcn, level, formattedMessage, null, t);
+      logger.log(null, fqcn, level, formattedMessage, null, t);
     }
   }
 }

@@ -42,11 +42,11 @@ public class ThreadDumpExtension
 
   @Override
   public void beforeEach(ExtensionContext context) {
-    Logger log = logger(context);
-    log.info("starting {} ({})...", context.getDisplayName(), memory());
+    Logger logger = logger(context);
+    logger.info("starting {} ({})...", context.getDisplayName(), memory());
     ScheduledExecutorService executor = newScheduledThreadPool(1);
     executor.scheduleWithFixedDelay(
-        () -> takeThreadDump(log), initialDelayMs(context), DELAY_MS, MILLISECONDS);
+        () -> takeThreadDump(logger), initialDelayMs(context), DELAY_MS, MILLISECONDS);
 
     context.getStore(NAMESPACE).put("executor", executor);
 

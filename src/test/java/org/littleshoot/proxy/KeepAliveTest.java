@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 @NullMarked
 @Timeout(20)
 public final class KeepAliveTest {
-  private static final Logger log = LoggerFactory.getLogger(KeepAliveTest.class);
+  private static final Logger logger = LoggerFactory.getLogger(KeepAliveTest.class);
   @Nullable private HttpProxyServer proxyServer;
   private WireMockServer mockServer;
   private int mockServerPort;
@@ -35,7 +35,7 @@ public final class KeepAliveTest {
     mockServer = new WireMockServer(options().dynamicPort());
     mockServer.start();
     mockServerPort = mockServer.port();
-    log.info("Mock server port: {} (started: {})", mockServerPort, mockServer.isRunning());
+    logger.info("Mock server port: {} (started: {})", mockServerPort, mockServer.isRunning());
   }
 
   @AfterEach
@@ -70,7 +70,7 @@ public final class KeepAliveTest {
                 aResponse().withStatus(200).withBody("success").withHeader("Content-Length", "7")));
 
     proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
-    log.info("Started proxy server {}", proxyServer.getListenAddress());
+    logger.info("Started proxy server {}", proxyServer.getListenAddress());
     socket = SocketClientUtil.getSocketToProxyServer(proxyServer);
 
     // construct the basic request: METHOD + URI + HTTP version + CRLF (to indicate
@@ -86,13 +86,14 @@ public final class KeepAliveTest {
 
     // send the same request twice over the same connection
     for (int i = 1; i <= 2; i++) {
-      log.debug("#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
+      logger.debug(
+          "#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
       SocketClientUtil.writeStringToSocket(successfulGet, socket);
 
       // wait a bit to allow the proxy server to respond
       Thread.sleep(750);
 
-      log.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
+      logger.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
       String response = SocketClientUtil.readStringFromSocket(socket);
 
       assertThat(response)
@@ -122,7 +123,7 @@ public final class KeepAliveTest {
                 aResponse().withStatus(200).withBody("success").withHeader("Connection", "close")));
 
     proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
-    log.info("Started proxy server {}", proxyServer.getListenAddress());
+    logger.info("Started proxy server {}", proxyServer.getListenAddress());
     socket = SocketClientUtil.getSocketToProxyServer(proxyServer);
 
     // construct the basic request: METHOD + URI + HTTP version + CRLF (to indicate
@@ -138,13 +139,14 @@ public final class KeepAliveTest {
 
     // send the same request twice over the same connection
     for (int i = 1; i <= 2; i++) {
-      log.debug("#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
+      logger.debug(
+          "#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
       SocketClientUtil.writeStringToSocket(successfulGet, socket);
 
       // wait a bit to allow the proxy server to respond
       Thread.sleep(750);
 
-      log.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
+      logger.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
       String response = SocketClientUtil.readStringFromSocket(socket);
 
       assertThat(response)
@@ -180,20 +182,21 @@ public final class KeepAliveTest {
                 aResponse().withStatus(200).withBody("success").withHeader("Content-Length", "7")));
 
     proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
-    log.info("Started proxy server {}", proxyServer.getListenAddress());
+    logger.info("Started proxy server {}", proxyServer.getListenAddress());
     socket = SocketClientUtil.getSocketToProxyServer(proxyServer);
 
     String badGatewayGet = "GET http://localhost:0/success HTTP/1.1\r\n" + "\r\n";
 
     // send the same request twice over the same connection
     for (int i = 1; i <= 2; i++) {
-      log.debug("#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), badGatewayGet);
+      logger.debug(
+          "#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), badGatewayGet);
       SocketClientUtil.writeStringToSocket(badGatewayGet, socket);
 
       // wait a bit to allow the proxy server to respond
       Thread.sleep(1500);
 
-      log.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
+      logger.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
       String response = SocketClientUtil.readStringFromSocket(socket);
 
       assertThat(response)
@@ -222,7 +225,7 @@ public final class KeepAliveTest {
             .withIdleConnectionTimeout(Duration.ofSeconds(2))
             .withPort(0)
             .start();
-    log.info("Started proxy server {}", proxyServer.getListenAddress());
+    logger.info("Started proxy server {}", proxyServer.getListenAddress());
     socket = SocketClientUtil.getSocketToProxyServer(proxyServer);
 
     String successfulGet =
@@ -236,10 +239,11 @@ public final class KeepAliveTest {
 
     // send the same request twice over the same connection
     for (int i = 1; i <= 2; i++) {
-      log.debug("#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
+      logger.debug(
+          "#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
       SocketClientUtil.writeStringToSocket(successfulGet, socket);
 
-      log.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
+      logger.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
       String response = SocketClientUtil.readStringFromSocket(socket);
 
       // match the whole response to make sure that it's not repeated
@@ -296,7 +300,7 @@ public final class KeepAliveTest {
 
     proxyServer =
         DefaultHttpProxyServer.bootstrap().withPort(0).withFiltersSource(filtersSource).start();
-    log.info("Started proxy server {}", proxyServer.getListenAddress());
+    logger.info("Started proxy server {}", proxyServer.getListenAddress());
     socket = SocketClientUtil.getSocketToProxyServer(proxyServer);
 
     String successfulGet =
@@ -310,13 +314,14 @@ public final class KeepAliveTest {
 
     // send the same request twice over the same connection
     for (int i = 1; i <= 2; i++) {
-      log.debug("#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
+      logger.debug(
+          "#{} Sending to socket {} packet '{}'...", i, socket.getLocalPort(), successfulGet);
       SocketClientUtil.writeStringToSocket(successfulGet, socket);
 
       // wait a bit to allow the proxy server to respond
       Thread.sleep(750);
 
-      log.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
+      logger.debug("#{} Reading from socket {}...", i, socket.getLocalPort());
       String response = SocketClientUtil.readStringFromSocket(socket);
 
       assertThat(response)
@@ -369,7 +374,7 @@ public final class KeepAliveTest {
 
     proxyServer =
         DefaultHttpProxyServer.bootstrap().withPort(0).withFiltersSource(filtersSource).start();
-    log.info("Started proxy server {}", proxyServer.getListenAddress());
+    logger.info("Started proxy server {}", proxyServer.getListenAddress());
     socket = SocketClientUtil.getSocketToProxyServer(proxyServer);
 
     String successfulGet =
@@ -383,13 +388,13 @@ public final class KeepAliveTest {
 
     // only send this request once, since we expect the short circuit response to
     // close the connection
-    log.debug("Sending to socket {} packet '{}'...", socket.getLocalPort(), successfulGet);
+    logger.debug("Sending to socket {} packet '{}'...", socket.getLocalPort(), successfulGet);
     SocketClientUtil.writeStringToSocket(successfulGet, socket);
 
     // wait a bit to allow the proxy server to respond
     Thread.sleep(750);
 
-    log.debug("Reading from socket {}...", socket.getLocalPort());
+    logger.debug("Reading from socket {}...", socket.getLocalPort());
     String response = SocketClientUtil.readStringFromSocket(socket);
 
     assertThat(response)

@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  * #unregisterProxyServer(HttpProxyServer, boolean)}.
  */
 public class ServerGroup {
-  private static final Logger log = LoggerFactory.getLogger(ServerGroup.class);
+  private static final Logger logger = LoggerFactory.getLogger(ServerGroup.class);
 
   /**
    * The default number of threads to accept incoming requests from clients. (Requests are serviced
@@ -146,7 +146,7 @@ public class ServerGroup {
     if (protocolThreadPools.get(protocol) == null) {
       synchronized (THREAD_POOL_INIT_LOCK) {
         if (protocolThreadPools.get(protocol) == null) {
-          log.debug(
+          logger.debug(
               "Initializing thread pools for {} with {} acceptor threads, {} incoming worker threads, and {} outgoing worker threads",
               protocol,
               incomingAcceptorThreads,
@@ -203,17 +203,17 @@ public class ServerGroup {
     synchronized (SERVER_REGISTRATION_LOCK) {
       boolean wasRegistered = registeredServers.remove(proxyServer);
       if (!wasRegistered) {
-        log.warn(
+        logger.warn(
             "Attempted to unregister proxy server from ServerGroup that it was not registered with. Was the proxy unregistered twice?");
       }
 
       if (registeredServers.isEmpty() && autoStop) {
-        log.debug(
+        logger.debug(
             "Proxy server unregistered from ServerGroup. No proxy servers remain registered, so shutting down ServerGroup.");
 
         shutdown(graceful);
       } else {
-        log.debug(
+        logger.debug(
             "Proxy server unregistered from ServerGroup. Not shutting down ServerGroup ({} proxy servers remain registered).",
             registeredServers.size());
       }
@@ -228,12 +228,12 @@ public class ServerGroup {
    */
   public void shutdown(boolean graceful) {
     if (!stopped.compareAndSet(false, true)) {
-      log.info("Shutdown requested, but ServerGroup is already stopped. Doing nothing.");
+      logger.info("Shutdown requested, but ServerGroup is already stopped. Doing nothing.");
 
       return;
     }
 
-    log.info(
+    logger.info(
         "Shutting down server group event loops {}", graceful ? "(graceful)" : "(non-graceful)");
 
     // loop through all event loops managed by this server group. this includes acceptor and worker
@@ -260,12 +260,12 @@ public class ServerGroup {
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
 
-          log.warn("Interrupted while shutting down event loop");
+          logger.warn("Interrupted while shutting down event loop");
         }
       }
     }
 
-    log.debug("Done shutting down server group");
+    logger.debug("Done shutting down server group");
   }
 
   /**

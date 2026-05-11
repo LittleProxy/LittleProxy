@@ -63,7 +63,7 @@ public class ProxyUtils {
           HttpHeaderNames.TRANSFER_ENCODING.toString(), */
           HttpHeaderNames.UPGRADE.toString());
 
-  private static final Logger LOG = LoggerFactory.getLogger(ProxyUtils.class);
+  private static final Logger logger = LoggerFactory.getLogger(ProxyUtils.class);
 
   // Schemes are case-insensitive:
   // https://tools.ietf.org/html/rfc3986#section-3.1

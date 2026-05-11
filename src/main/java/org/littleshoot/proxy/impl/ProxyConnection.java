@@ -53,7 +53,7 @@ import org.littleshoot.proxy.HttpFilters;
  */
 @NullMarked
 abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboundHandler<Object> {
-  protected final ProxyConnectionLogger LOG = new ProxyConnectionLogger(this);
+  protected final ProxyConnectionLogger logger = new ProxyConnectionLogger(this);
 
   protected final DefaultHttpProxyServer proxyServer;
   protected final boolean runsAsSslClient;
@@ -99,7 +99,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   /** Read is invoked automatically by Netty as messages arrive at the socket. */
   protected void read(Object msg) {
-    LOG.debug("Reading: {}", msg);
+    logger.debug("Reading: {}", msg);
 
     lastReadTime = System.currentTimeMillis();
 
@@ -142,7 +142,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
           // response from a filter. The client may have sent some chunked HttpContent
           // associated with the request
           // after the short-circuit response was sent. We can safely drop them.
-          LOG.debug(
+          logger.debug(
               "Dropping message because HTTP object was not an HttpMessage. HTTP object may be orphaned content from a short-circuited response. Message: {}",
               httpObject);
         }
@@ -165,24 +165,25 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
         }
         break;
       case CONNECTING:
-        LOG.warn(
+        logger.warn(
             "Attempted to read from connection that's in the process of connecting.  This shouldn't happen.");
         break;
       case NEGOTIATING_CONNECT:
-        LOG.debug(
+        logger.debug(
             "Attempted to read from connection that's in the process of negotiating an HTTP CONNECT.  This is probably the LastHttpContent of a chunked CONNECT.");
         break;
       case AWAITING_CONNECT_OK:
-        LOG.warn("AWAITING_CONNECT_OK should have been handled by ProxyToServerConnection.read()");
+        logger.warn(
+            "AWAITING_CONNECT_OK should have been handled by ProxyToServerConnection.read()");
         break;
       case HANDSHAKING:
-        LOG.warn(
+        logger.warn(
             "Attempted to read from connection that's in the process of handshaking.  This shouldn't happen.",
             channel);
         break;
       case DISCONNECT_REQUESTED:
       case DISCONNECTED:
-        LOG.info("Ignoring message since the connection is closed or about to close");
+        logger.info("Ignoring message since the connection is closed or about to close");
         break;
     }
     become(nextState);
@@ -208,7 +209,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   /** This method is called by users of the ProxyConnection to send stuff out over the socket. */
   ChannelFuture write(Object msg) {
     if (msg instanceof ReferenceCounted) {
-      LOG.debug("Retaining reference counted message");
+      logger.debug("Retaining reference counted message");
       ((ReferenceCounted) msg).retain();
     }
 
@@ -216,7 +217,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   }
 
   ChannelFuture doWrite(Object msg) {
-    LOG.debug("Writing: {}", msg);
+    logger.debug("Writing: {}", msg);
 
     try {
       if (msg instanceof HttpObject) {
@@ -225,7 +226,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
         return writeRaw((ByteBuf) msg);
       }
     } finally {
-      LOG.debug("Wrote: {}", msg);
+      logger.debug("Wrote: {}", msg);
     }
   }
 
@@ -233,7 +234,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   protected ChannelFuture writeHttp(HttpObject httpObject) {
     if (ProxyUtils.isLastChunk(httpObject)) {
       channel.write(httpObject);
-      LOG.debug("Writing an empty buffer to signal the end of our chunked transfer");
+      logger.debug("Writing an empty buffer to signal the end of our chunked transfer");
       return writeToChannel(Unpooled.EMPTY_BUFFER);
     } else {
       return writeToChannel(httpObject);
@@ -251,7 +252,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
         .addListener(
             l -> {
               if (!l.isSuccess()) {
-                LOG.debug("writeToChannel failed sending message {}", msg, l.cause());
+                logger.debug("writeToChannel failed sending message {}", msg, l.cause());
               }
             });
   }
@@ -268,13 +269,13 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    * established.
    */
   protected void connected() {
-    LOG.debug("Connected");
+    logger.debug("Connected");
   }
 
   /** This method is called as soon as the underlying {@link Channel} becomes disconnected. */
   protected void disconnected() {
     become(DISCONNECTED);
-    LOG.debug("Disconnected");
+    logger.debug("Disconnected");
   }
 
   /** This method is called when the underlying {@link Channel} times out due to an idle timeout. */
@@ -332,7 +333,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    */
   protected Future<Channel> encrypt(
       ChannelPipeline pipeline, SSLEngine sslEngine, boolean authenticateClients) {
-    LOG.debug("Enabling encryption with SSLEngine: {}", sslEngine);
+    logger.debug("Enabling encryption with SSLEngine: {}", sslEngine);
     this.sslEngine = sslEngine;
     sslEngine.setUseClientMode(runsAsSslClient);
     sslEngine.setNeedClientAuth(authenticateClients);
@@ -382,12 +383,12 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   /** Callback that's invoked if this connection becomes saturated. */
   protected void becameSaturated() {
-    LOG.debug("Became saturated");
+    logger.debug("Became saturated");
   }
 
   /** Callback that's invoked when this connection becomes writeable again. */
   protected void becameWritable() {
-    LOG.debug("Became writeable");
+    logger.debug("Became writeable");
   }
 
   /**
@@ -479,13 +480,13 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   /** Call this to stop reading. */
   protected void stopReading() {
-    LOG.debug("Stopped reading");
+    logger.debug("Stopped reading");
     channel.config().setAutoRead(false);
   }
 
   /** Call this to resume reading. */
   protected void resumeReading() {
-    LOG.debug("Resumed reading");
+    logger.debug("Resumed reading");
     channel.config().setAutoRead(true);
   }
 
@@ -503,7 +504,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   }
 
   ProxyConnectionLogger getLOG() {
-    return LOG;
+    return logger;
   }
 
   /*
@@ -554,7 +555,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   @Override
   public final void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
-    LOG.debug("Writability changed. Is writable: {}", channel.isWritable());
+    logger.debug("Writability changed. Is writable: {}", channel.isWritable());
     try {
       if (channel.isWritable()) {
         becameWritable();
@@ -581,7 +582,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   public final void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
     try {
       if (evt instanceof IdleStateEvent) {
-        LOG.debug("Got idle");
+        logger.debug("Got idle");
         timedOut();
       }
     } finally {
@@ -604,7 +605,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
           bytesRead(((ByteBuf) msg).readableBytes());
         }
       } catch (Throwable t) {
-        LOG.warn("Unable to record bytesRead", t);
+        logger.warn("Unable to record bytesRead", t);
       } finally {
         super.channelRead(ctx, msg);
       }
@@ -623,7 +624,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
           requestRead((HttpRequest) msg);
         }
       } catch (Throwable t) {
-        LOG.warn("Unable to record bytesRead", t);
+        logger.warn("Unable to record bytesRead", t);
       } finally {
         super.channelRead(ctx, msg);
       }
@@ -642,7 +643,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
           responseRead((HttpResponse) msg);
         }
       } catch (Throwable t) {
-        LOG.warn("Unable to record bytesRead", t);
+        logger.warn("Unable to record bytesRead", t);
       } finally {
         super.channelRead(ctx, msg);
       }
@@ -662,7 +663,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
           bytesWritten(((ByteBuf) msg).readableBytes());
         }
       } catch (Throwable t) {
-        LOG.warn("Unable to record bytesRead", t);
+        logger.warn("Unable to record bytesRead", t);
       } finally {
         super.write(ctx, msg, promise);
       }
@@ -718,7 +719,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
           responseWritten(((HttpResponse) msg));
         }
       } catch (Throwable t) {
-        LOG.warn("Error while invoking responseWritten callback", t);
+        logger.warn("Error while invoking responseWritten callback", t);
       } finally {
         super.write(ctx, msg, promise);
       }
