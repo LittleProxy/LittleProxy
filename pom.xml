@@ -24,7 +24,7 @@
         <commons.io.version>2.22.0</commons.io.version>
         <commons.lang3.version>3.20.0</commons.lang3.version>
         <disruptor.version>4.0.0</disruptor.version>
-        <dnsjava.version>3.6.4</dnsjava.version>
+        <dnsjava.version>3.6.5</dnsjava.version>
         <dnssec4j.version>0.1.6</dnssec4j.version>
         <error_prone.version>2.42.0</error_prone.version>
         <guava.version>33.6.0-jre</guava.version>
