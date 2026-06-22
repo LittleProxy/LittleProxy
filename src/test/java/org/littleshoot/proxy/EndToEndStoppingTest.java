@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 import org.openqa.selenium.Proxy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
  * end. Made into a unit test from isopov and nasis's contributions at: <a
  * href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
  */
+@EnableThreadDump
 public final class EndToEndStoppingTest {
   private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
 

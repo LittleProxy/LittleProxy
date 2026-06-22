@@ -16,10 +16,12 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 
 @Tag("slow-test")
 @Timeout(25)
 @Execution(ExecutionMode.SAME_THREAD)
+@EnableThreadDump
 public final class ThrottlingTest {
   private static final int LARGE_DATA_SIZE = 200000;
   private static final long THROTTLED_READ_BYTES_PER_SECOND = 25000L;

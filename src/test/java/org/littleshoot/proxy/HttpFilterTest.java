@@ -31,8 +31,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 import org.littleshoot.proxy.test.HttpClientUtil;
 
+@EnableThreadDump
 public final class HttpFilterTest {
   private Server webServer;
   private HttpProxyServer proxyServer;

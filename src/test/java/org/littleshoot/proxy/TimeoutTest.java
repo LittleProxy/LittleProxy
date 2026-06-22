@@ -18,8 +18,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 import org.littleshoot.proxy.test.SocketClientUtil;
 
+@EnableThreadDump
 public final class TimeoutTest {
 
   private static final String UNUSED_URI_FOR_BAD_GATEWAY = "http://1.2.3.6:53540";
