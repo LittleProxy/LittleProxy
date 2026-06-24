@@ -56,7 +56,9 @@ public class SocketClientUtil {
     OutputStream out = socket.getOutputStream();
     try {
       for (int i = 0; i < 500; ++i) {
-        out.write(0);
+        // CR (0x0D) is skipped by Netty's HttpRequestDecoder in both strict and lenient modes;
+        // null bytes (0x00) trigger InvalidLineSeparatorException in strict mode (Netty ≥4.2.15).
+        out.write('\r');
         out.flush();
       }
     } catch (SocketException e) {
