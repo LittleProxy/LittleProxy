@@ -258,7 +258,7 @@ public abstract class AbstractProxyTest {
 
               @Override
               public void requestReceivedFromClient(
-                  FlowContext flowContext, HttpRequest httpRequest) {
+                  FlowContext flowContext, HttpRequest httpRequest, String requestId) {
                 requestsReceivedFromClient.incrementAndGet();
               }
 
@@ -281,7 +281,8 @@ public abstract class AbstractProxyTest {
               @Override
               public void responseReceivedFromServer(
                   FullFlowContext flowContext,
-                  io.netty.handler.codec.http.HttpResponse httpResponse) {
+                  io.netty.handler.codec.http.HttpResponse httpResponse,
+                  String requestId) {
                 responsesReceivedFromServer.incrementAndGet();
               }
 
@@ -292,7 +293,9 @@ public abstract class AbstractProxyTest {
 
               @Override
               public void responseSentToClient(
-                  FlowContext flowContext, io.netty.handler.codec.http.HttpResponse httpResponse) {
+                  FlowContext flowContext,
+                  io.netty.handler.codec.http.HttpResponse httpResponse,
+                  String requestId) {
                 responsesSentToClient.incrementAndGet();
               }
 

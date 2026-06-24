@@ -37,7 +37,7 @@ public class ThrottledInputStream extends InputStream {
   private long bytesRead;
   private long totalSleepTime;
 
-  private static final long SLEEP_DURATION_MS = 50;
+  private static final long SLEEP_HTTP_REQUEST_PROCESSING_TIME_MS = 50;
 
   public ThrottledInputStream(InputStream rawStream) {
     this(rawStream, Long.MAX_VALUE);
@@ -85,8 +85,8 @@ public class ThrottledInputStream extends InputStream {
   private void throttle() throws IOException {
     if (getBytesPerSec() > maxBytesPerSec) {
       try {
-        Thread.sleep(SLEEP_DURATION_MS);
-        totalSleepTime += SLEEP_DURATION_MS;
+        Thread.sleep(SLEEP_HTTP_REQUEST_PROCESSING_TIME_MS);
+        totalSleepTime += SLEEP_HTTP_REQUEST_PROCESSING_TIME_MS;
       } catch (InterruptedException e) {
         throw new IOException("Thread aborted", e);
       }
