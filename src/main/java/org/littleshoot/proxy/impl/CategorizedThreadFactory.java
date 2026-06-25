@@ -2,6 +2,7 @@ package org.littleshoot.proxy.impl;
 
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,10 +37,10 @@ public class CategorizedThreadFactory implements ThreadFactory {
   }
 
   @Override
-  public Thread newThread(Runnable r) {
+  public Thread newThread(@NonNull Runnable runnable) {
     Thread t =
         new Thread(
-            r,
+            runnable,
             name
                 + "-"
                 + uniqueServerGroupId
