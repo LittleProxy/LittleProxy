@@ -15,7 +15,7 @@ import org.littleshoot.proxy.impl.ClientToProxyConnection;
 public class FlowContext {
   private final InetSocketAddress clientAddress;
   private final SSLSession clientSslSession;
-  private final long connectionId;
+  private final String connectionId;
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
 
   public FlowContext(ClientToProxyConnection clientConnection) {
@@ -66,16 +66,25 @@ public class FlowContext {
     return Map.copyOf(timingData);
   }
 
+  /**
+   * Gets the flow ID for this context.
+   *
+   * @return the flow ID, or null if not set
+   */
+  public String getFlowId() {
+    return connectionId;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof FlowContext)) return false;
     FlowContext that = (FlowContext) o;
-    return connectionId == that.connectionId;
+    return connectionId.equals(that.connectionId);
   }
 
   @Override
   public int hashCode() {
-    return Long.hashCode(connectionId);
+    return Objects.hashCode(connectionId);
   }
 }

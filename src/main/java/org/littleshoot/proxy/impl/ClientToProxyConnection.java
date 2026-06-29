@@ -12,6 +12,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_PROXY_AUTHENTI
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.NEGOTIATING_CONNECT;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -1549,7 +1550,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         protected void bytesRead(int numberOfBytes) {
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.bytesReceivedFromClient(flowContext, numberOfBytes);
+            try {
+              tracker.bytesReceivedFromClient(flowContext, numberOfBytes);
+            } catch (Exception e) {
+              LOG.error("Unable to bytesReceivedFromClient", e);
+            }
           }
         }
       };
@@ -1558,9 +1563,17 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new RequestReadMonitor() {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
+          String requestId = UlidCreator.getMonotonicUlid().toString();
+          if (ctx != null && ctx.channel() != null) {
+            ctx.channel().attr(REQUEST_ID_KEY).set(requestId);
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.requestReceivedFromClient(flowContext, httpRequest);
+            try {
+              tracker.requestReceivedFromClient(flowContext, httpRequest, requestId);
+            } catch (Exception e) {
+              LOG.error("Unable to requestReceivedFromClient", e);
+            }
           }
         }
       };
@@ -1571,7 +1584,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         protected void bytesWritten(int numberOfBytes) {
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.bytesSentToClient(flowContext, numberOfBytes);
+            try {
+              tracker.bytesSentToClient(flowContext, numberOfBytes);
+            } catch (Exception e) {
+              LOG.error("Unable to bytesSentToClient", e);
+            }
           }
         }
       };
@@ -1580,45 +1597,53 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new ResponseWrittenMonitor() {
         @Override
         protected void responseWritten(HttpResponse httpResponse) {
+          String requestId = null;
+          if (ctx != null && ctx.channel() != null) {
+            requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseSentToClient(flowContext, httpResponse);
+            try {
+              tracker.responseSentToClient(flowContext, httpResponse, requestId);
+            } catch (Exception e) {
+              LOG.error("Unable to write response", e);
+            }
           }
         }
       };
 
   private void recordClientConnected() {
-    try {
-      InetSocketAddress clientAddress = getClientAddress();
-      clientDetails.setClientAddress(clientAddress);
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    InetSocketAddress clientAddress = getClientAddress();
+    clientDetails.setClientAddress(clientAddress);
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.clientConnected(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientConnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientConnected", e);
     }
   }
 
   private void recordClientSSLHandshakeStarted() {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.clientSSLHandshakeStarted(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientSSLHandshakeStarted", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientSSLHandshakeStarted", e);
     }
   }
 
   private void recordClientSSLHandshakeSucceeded() {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.clientSSLHandshakeSucceeded(flowContext, clientSslSession);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientSSLHandshakeSucceeded", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientSSLHandshakeSucceeded", e);
     }
   }
 
@@ -1633,47 +1658,50 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
   }
 
-  private void recordConnectionSaturated() {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-        tracker.connectionSaturated(flowContext);
-      }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionSaturated", e);
-    }
-  }
-
   private void recordConnectionWritable() {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionWritable(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionWritable", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionWritable", e);
     }
   }
 
   private void recordConnectionTimedOut() {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionTimedOut(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionTimedOut", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionTimedOut", e);
+    }
+  }
+
+  private void recordConnectionSaturated() {
+
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
+        tracker.connectionSaturated(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionSaturated", e);
+      }
     }
   }
 
   private void recordConnectionExceptionCaught(Throwable cause) {
-    try {
-      FlowContext flowContext = flowContext();
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+
+    FlowContext flowContext = flowContext();
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.connectionExceptionCaught(flowContext, cause);
+      } catch (Exception e) {
+        LOG.error("Unable to recordConnectionExceptionCaught", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordConnectionExceptionCaught", e);
     }
   }
 
@@ -1682,6 +1710,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     return ofNullable(channel).map(c -> (InetSocketAddress) c.remoteAddress()).orElse(null);
   }
 
+  /**
+   * Returns either a {@link FlowContext} if there is not yet a server connection, or a {@link
+   * FullFlowContext} if there is one.
+   *
+   * @return the most specific flow context available
+   */
   FlowContext flowContext() {
     FlowContext cached = clientFlowContext;
     if (currentServerConnection != null && !(cached instanceof FullFlowContext)) {
