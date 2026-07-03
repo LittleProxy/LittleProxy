@@ -32,7 +32,7 @@
         <jackson.bom.version>2.22.0</jackson.bom.version>
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.1.1</junit.version>
-        <log4j.version>2.26.0</log4j.version>
+        <log4j.version>2.26.1</log4j.version>
         <mockito.version>5.23.0</mockito.version>
         <netty.version>4.2.15.Final</netty.version>
         <selenium.version>4.45.0</selenium.version>
