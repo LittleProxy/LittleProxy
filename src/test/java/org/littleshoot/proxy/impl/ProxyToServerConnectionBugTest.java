@@ -12,8 +12,6 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,9 +80,7 @@ class ProxyToServerConnectionBugTest {
             mockFilters,
             null,
             mockTrafficHandler);
-    Field poolField = ProxyToServerConnection.class.getDeclaredField("connectionPool");
-    poolField.setAccessible(true);
-    poolField.set(conn, pool);
+    conn.connectionPool = pool;
     return conn;
   }
 
@@ -100,10 +96,7 @@ class ProxyToServerConnectionBugTest {
     assertThat(conn).isNotNull();
 
     conn.setCurrentClientConnectionForRequest(mockClientConnection);
-
-    Method releaseMethod = ProxyToServerConnection.class.getDeclaredMethod("releaseToPool");
-    releaseMethod.setAccessible(true);
-    releaseMethod.invoke(conn);
+    conn.releaseToPool();
 
     verify(mockPool).releaseConnection(conn);
   }
@@ -114,9 +107,7 @@ class ProxyToServerConnectionBugTest {
     ProxyToServerConnection conn = createConnection(Collections.emptyList());
     assertThat(conn).isNotNull();
 
-    Method releaseMethod = ProxyToServerConnection.class.getDeclaredMethod("releaseToPool");
-    releaseMethod.setAccessible(true);
-    releaseMethod.invoke(conn);
+    conn.releaseToPool();
   }
 
   // ============================================================
@@ -186,6 +177,8 @@ class ProxyToServerConnectionBugTest {
         .as(
             "clientConnected should fire before requestReceivedFromClient for non-PROXY connections")
         .containsSequence("clientConnected", "requestReceivedFromClient");
+
+    channel.finish();
   }
 
   // ============================================================
@@ -298,23 +291,12 @@ class ProxyToServerConnectionBugTest {
     when(mockClientConnection.getHaProxyMessage()).thenReturn(null);
     when(mockClientConnection.getClientAddress()).thenReturn(ipv6ClientAddr);
 
-    Field remoteAddrField = ProxyToServerConnection.class.getDeclaredField("remoteAddress");
-    remoteAddrField.setAccessible(true);
-    remoteAddrField.set(conn, ipv6RemoteAddr);
+    conn.setRemoteAddress(ipv6RemoteAddr);
 
     EmbeddedChannel channel = new EmbeddedChannel(new HAProxyMessageEncoder());
-    Field channelField = ProxyConnection.class.getDeclaredField("channel");
-    channelField.setAccessible(true);
-    channelField.set(conn, channel);
+    conn.channel = channel;
 
-    Field sendHeaderField =
-        ProxyToServerConnection.class.getDeclaredField("SendProxyProtocolHeader");
-    sendHeaderField.setAccessible(true);
-    Object flowStep = sendHeaderField.get(conn);
-
-    Method executeMethod = flowStep.getClass().getDeclaredMethod("execute");
-    executeMethod.setAccessible(true);
-    executeMethod.invoke(flowStep);
+    conn.SendProxyProtocolHeader.execute();
 
     ByteBuf out = channel.readOutbound();
     assertThat(out).as("PROXY protocol header should be written to the channel").isNotNull();

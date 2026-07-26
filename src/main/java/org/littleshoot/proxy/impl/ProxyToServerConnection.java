@@ -119,7 +119,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static final String SOCKS_DECODER_NAME = "socksDecoder";
   private static final String MAIN_HANDLER_NAME = "handler";
   private final ClientToProxyConnection clientConnection;
-  private final ServerConnectionPool connectionPool;
+  ServerConnectionPool connectionPool;
   private final ProxyToServerConnection serverConnection = this;
   private volatile TransportProtocol transportProtocol;
   private volatile ChainedProxyType chainedProxyType;
@@ -787,6 +787,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentClientConnectionForRequest = clientConnection;
   }
 
+  void setRemoteAddress(InetSocketAddress remoteAddress) {
+    this.remoteAddress = remoteAddress;
+  }
+
   void releaseToPool() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
@@ -1098,7 +1102,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     return chainedProxy.newSslEngine();
   }
 
-  private final ConnectionFlowStep<HttpResponse> SendProxyProtocolHeader =
+  final ConnectionFlowStep<HttpResponse> SendProxyProtocolHeader =
       new ConnectionFlowStep<>(this, CONNECTING) {
         @Override
         protected Future<?> execute() {
