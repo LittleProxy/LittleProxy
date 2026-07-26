@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Locale.ROOT;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CHUNK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CONNECT_OK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
@@ -1371,16 +1372,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // Check for patterns that indicate the server doesn't speak SSL
     String message = cause.getMessage();
     if (message != null) {
-      // "Remote host terminated the handshake" - server doesn't support SSL
-      // "end of file" - server closed connection unexpectedly
-      // "connection reset" - server doesn't speak SSL
-      // "not an SSL/TLS record" - server sent HTTP response to SSL handshake
-      if (message.contains("Remote host terminated")
-          || message.contains("end of file")
-          || message.contains("connection reset")
-          || message.contains("not an SSL")) {
-        return true;
-      }
+      message = message.toLowerCase(ROOT);
+      return message.contains("remote host terminated") // server doesn't support SSL
+          || message.contains("end of file") // server closed connection unexpectedly
+          || message.contains("connection reset") // server doesn't speak SSL
+          || message.contains("not an ssl"); // server sent HTTP response to SSL handshake
     }
 
     return false;
