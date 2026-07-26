@@ -258,8 +258,7 @@ public class RequestPatternFilter extends AbstractFilter {
     
     private Result filterLogEvent(org.apache.logging.log4j.Level level, org.apache.logging.log4j.Marker marker, 
                                   Object msg, Object... params) {
-        if (msg instanceof String) {
-            String message = (String) msg;
+        if (msg instanceof String message) {
             for (String pattern : excludedPatterns) {
                 if (message.contains(pattern)) {
                     return Result.DENY;
