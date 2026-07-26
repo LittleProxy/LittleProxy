@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.eclipse.jetty.server.Server;
-import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Integration test to reproduce issue #77: https://github.com/LittleProxy/LittleProxy/issues/77
+ * Integration test to reproduce <a
+ * href="https://github.com/LittleProxy/LittleProxy/issues/77">issue #77</a>
  *
  * <p>Issue: CONNECT Response Not Returned to HttpFilters
  *
@@ -32,19 +33,18 @@ import org.slf4j.LoggerFactory;
  * This is because when isConnecting() is true (during CONNECT tunnel establishment), the response
  * goes to connectionFlow.read() instead of being passed to the filters.
  */
-public class ConnectResponseFiltersTest {
+@NullMarked
+class ConnectResponseFiltersTest {
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
   private static final Logger logger = LoggerFactory.getLogger(ConnectResponseFiltersTest.class);
-  private Server webServer;
-  private HttpProxyServer proxyServer;
-  private int webServerPort;
+  private @Nullable Server webServer;
+  private @Nullable HttpProxyServer proxyServer;
   private int httpsWebServerPort;
 
   @BeforeEach
   void setUp() throws Exception {
     // Start web server with both HTTP and HTTPS enabled
     webServer = TestUtils.startWebServer(true, DEFAULT_JKS_KEYSTORE_PATH);
-    webServerPort = TestUtils.findLocalHttpPort(webServer);
     httpsWebServerPort = TestUtils.findLocalHttpsPort(webServer);
   }
 
@@ -82,15 +82,13 @@ public class ConnectResponseFiltersTest {
 
     HttpFiltersSource filtersSource =
         new HttpFiltersSourceAdapter() {
-          @NonNull
           @Override
-          public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
+          public HttpFilters filterRequest(HttpRequest originalRequest) {
             return new HttpFiltersAdapter(originalRequest) {
               @Nullable
               @Override
-              public HttpResponse proxyToServerRequest(@NonNull HttpObject httpObject) {
-                if (httpObject instanceof HttpRequest) {
-                  HttpRequest request = (HttpRequest) httpObject;
+              public HttpResponse proxyToServerRequest(HttpObject httpObject) {
+                if (httpObject instanceof HttpRequest request) {
                   if (HttpMethod.CONNECT.equals(request.method())) {
                     connectRequestSeen.set(true);
                   }
@@ -98,11 +96,9 @@ public class ConnectResponseFiltersTest {
                 return null;
               }
 
-              @Nullable
               @Override
-              public HttpObject serverToProxyResponse(@NonNull HttpObject httpObject) {
-                if (httpObject instanceof HttpResponse) {
-                  HttpResponse response = (HttpResponse) httpObject;
+              public HttpObject serverToProxyResponse(HttpObject httpObject) {
+                if (httpObject instanceof HttpResponse response) {
                   // Check if this is a 200 response (CONNECT responses have 200 status)
                   if (response.status().code() == 200) {
                     connectResponseCount.incrementAndGet();
@@ -177,25 +173,21 @@ public class ConnectResponseFiltersTest {
 
     HttpFiltersSource filtersSource =
         new HttpFiltersSourceAdapter() {
-          @NonNull
           @Override
-          public HttpFilters filterRequest(@NonNull HttpRequest originalRequest) {
+          public HttpFilters filterRequest(HttpRequest originalRequest) {
             return new HttpFiltersAdapter(originalRequest) {
               @Nullable
               @Override
-              public HttpResponse proxyToServerRequest(@NonNull HttpObject httpObject) {
-                if (httpObject instanceof HttpRequest) {
-                  HttpRequest request = (HttpRequest) httpObject;
+              public HttpResponse proxyToServerRequest(HttpObject httpObject) {
+                if (httpObject instanceof HttpRequest request) {
                   filterCalls.append("proxyToServerRequest:").append(request.method()).append(",");
                 }
                 return null;
               }
 
-              @Nullable
               @Override
-              public HttpObject serverToProxyResponse(@NonNull HttpObject httpObject) {
-                if (httpObject instanceof HttpResponse) {
-                  HttpResponse response = (HttpResponse) httpObject;
+              public HttpObject serverToProxyResponse(HttpObject httpObject) {
+                if (httpObject instanceof HttpResponse response) {
                   filterCalls
                       .append("serverToProxyResponse:")
                       .append(response.status().code())

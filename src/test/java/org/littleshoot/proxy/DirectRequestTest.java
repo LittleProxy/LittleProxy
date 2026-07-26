@@ -119,8 +119,7 @@ public final class DirectRequestTest {
                       @Nullable
                       @Override
                       public HttpResponse clientToProxyRequest(HttpObject httpObject) {
-                        if (httpObject instanceof HttpRequest) {
-                          HttpRequest request = (HttpRequest) httpObject;
+                        if (httpObject instanceof HttpRequest request) {
                           String viaHeader = request.headers().get(HttpHeaderNames.VIA);
                           if (viaHeader != null
                               && viaHeader.contains("testAllowRequestToOriginServerWithOverride")) {
