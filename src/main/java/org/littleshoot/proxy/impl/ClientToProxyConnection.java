@@ -180,7 +180,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   ConnectionState readHTTPInitial(HttpRequest httpRequest) {
     LOG.debug("Received raw request: {}", httpRequest);
 
-    // Earliest point to report connected for connections with no PROXY header (guarded; no-op if already fired).
+    // Earliest point to report connected for connections with no PROXY header (guarded; no-op if
+    // already fired).
     recordClientConnected();
 
     // if we cannot parse the request, immediately return a 400 and close the connection, since we
@@ -556,7 +557,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected void connected() {
     super.connected();
     become(AWAITING_INITIAL);
-    // recordClientConnected() is deferred, not called here: with PROXY protocol it must wait for the
+    // recordClientConnected() is deferred, not called here: with PROXY protocol it must wait for
+    // the
     // header so it reports the real client address (readHAProxyMessage); otherwise it fires on the
     // first request (readHTTPInitial). The header isn't available yet at channel-active time.
   }
@@ -1622,7 +1624,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
     try {
       FlowContext flowContext = flowContext();
-      // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real client IP, not the TCP peer.
+      // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real
+      // client IP, not the TCP peer.
       clientDetails.setClientAddress(flowContext.getClientAddress());
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         tracker.clientConnected(flowContext);
