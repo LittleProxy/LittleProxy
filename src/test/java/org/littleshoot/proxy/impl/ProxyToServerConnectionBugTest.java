@@ -326,8 +326,8 @@ class ProxyToServerConnectionBugTest {
     out.release();
     channel.finish();
 
-    // BUG: always uses TCP4 even for IPv6 addresses
     assertThat(header)
+        .as("IPv6 addresses should produce a TCP6 PROXY protocol header")
         .startsWith("PROXY TCP6 2001:db8:0:0:0:0:0:1 2001:db8:0:0:0:0:0:2 12345 443\r\n");
   }
 }
