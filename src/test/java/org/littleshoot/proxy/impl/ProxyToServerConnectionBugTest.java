@@ -130,8 +130,7 @@ class ProxyToServerConnectionBugTest {
   @DisplayName(
       "clientConnected should fire before requestReceivedFromClient when request arrives without PROXY header")
   void clientConnectedShouldFireBeforeRequestReceived() throws Exception {
-    DefaultHttpProxyServer mockServer = mock();
-    when(mockServer.getFiltersSource())
+    when(mockProxyServer.getFiltersSource())
         .thenReturn(
             new org.littleshoot.proxy.HttpFiltersSource() {
               @Override
@@ -151,16 +150,13 @@ class ProxyToServerConnectionBugTest {
                 return null;
               }
             });
-    when(mockServer.getMaxInitialLineLength()).thenReturn(8192);
-    when(mockServer.getMaxHeaderSize()).thenReturn(16384);
-    when(mockServer.getMaxChunkSize()).thenReturn(16384);
-    when(mockServer.getIdleConnectionTimeout()).thenReturn(0);
-    when(mockServer.isAcceptProxyProtocol()).thenReturn(false);
-    when(mockServer.getProxyAlias()).thenReturn("test-proxy");
-    when(mockServer.getServerResolver()).thenReturn(mockHostResolver);
-    when(mockServer.isAllowRequestsToOriginServer()).thenReturn(true);
-    when(mockHostResolver.resolve(any(), anyInt()))
-        .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
+    when(mockProxyServer.getMaxInitialLineLength()).thenReturn(8192);
+    when(mockProxyServer.getMaxHeaderSize()).thenReturn(16384);
+    when(mockProxyServer.getMaxChunkSize()).thenReturn(16384);
+    when(mockProxyServer.getIdleConnectionTimeout()).thenReturn(0);
+    when(mockProxyServer.isAcceptProxyProtocol()).thenReturn(false);
+    when(mockProxyServer.getProxyAlias()).thenReturn("test-proxy");
+    when(mockProxyServer.isAllowRequestsToOriginServer()).thenReturn(true);
 
     List<String> eventOrder = new ArrayList<>();
     ActivityTracker tracker =
@@ -175,12 +171,12 @@ class ProxyToServerConnectionBugTest {
             eventOrder.add("requestReceivedFromClient");
           }
         };
-    when(mockServer.getActivityTrackers()).thenReturn(Collections.singletonList(tracker));
+    when(mockProxyServer.getActivityTrackers()).thenReturn(Collections.singletonList(tracker));
 
     EmbeddedChannel channel = new EmbeddedChannel();
     ClientToProxyConnection clientConn =
         new ClientToProxyConnection(
-            mockServer, null, false, channel.pipeline(), mockTrafficHandler);
+            mockProxyServer, null, false, channel.pipeline(), mockTrafficHandler);
 
     DefaultHttpRequest request =
         new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://example.com/");
