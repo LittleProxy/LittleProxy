@@ -787,6 +787,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentClientConnectionForRequest = clientConnection;
   }
 
+  void releaseToPool() {
+    this.currentClientConnectionForRequest = null;
+    this.currentHttpResponse = null;
+    if (connectionPool != null) {
+      this.currentHttpRequest = null;
+      connectionPool.releaseConnection(this);
+    }
+  }
+
   private void markResponseComplete() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
@@ -1106,11 +1115,27 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               LOG.warn("Cannot send PROXY protocol header: addresses not available");
               return channel.newSucceededFuture();
             }
+            java.net.InetAddress clientInet = clientAddr.getAddress();
+            java.net.InetAddress serverInet = remoteAddress.getAddress();
+            boolean clientIsV6 = clientInet instanceof java.net.Inet6Address;
+            boolean serverIsV6 = serverInet instanceof java.net.Inet6Address;
+            HAProxyProxiedProtocol protocol;
+            if (clientIsV6 && serverIsV6) {
+              protocol = HAProxyProxiedProtocol.TCP6;
+            } else if (!clientIsV6 && !serverIsV6) {
+              protocol = HAProxyProxiedProtocol.TCP4;
+            } else {
+              LOG.warn(
+                  "Cannot send PROXY protocol header: mixed address families (client={}, server={})",
+                  clientInet.getClass().getSimpleName(),
+                  serverInet.getClass().getSimpleName());
+              return channel.newSucceededFuture();
+            }
             proxyProtocolMessage =
                 new ProxyProtocolMessage(
                     HAProxyProtocolVersion.V1,
                     HAProxyCommand.PROXY,
-                    HAProxyProxiedProtocol.TCP4,
+                    protocol,
                     clientAddr.getAddress().getHostAddress(),
                     remoteAddress.getAddress().getHostAddress(),
                     clientAddr.getPort(),
@@ -1857,7 +1882,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       };
 
   void recordServerConnected() {
-    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    ClientToProxyConnection clientConn = getClientConnection();
+    FullFlowContext flowContext = clientConn.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.serverConnected(flowContext, remoteAddress);
@@ -1868,7 +1894,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   void recordServerDisconnected() {
-    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    ClientToProxyConnection clientConn = getClientConnection();
+    FullFlowContext flowContext = clientConn.flowContextForServerConnection(this);
     try {
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
         try {
@@ -1878,12 +1905,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
       }
     } finally {
-      clientConnection.clearFlowContextForServerConnection(this);
+      clientConn.clearFlowContextForServerConnection(this);
     }
   }
 
   void recordConnectionSaturated() {
-    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    ClientToProxyConnection clientConn = getClientConnection();
+    FullFlowContext flowContext = clientConn.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.connectionSaturated(flowContext);
@@ -1894,7 +1922,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   void recordConnectionWritable() {
-    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    ClientToProxyConnection clientConn = getClientConnection();
+    FullFlowContext flowContext = clientConn.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.connectionWritable(flowContext);
@@ -1905,7 +1934,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   void recordConnectionTimedOut() {
-    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    ClientToProxyConnection clientConn = getClientConnection();
+    FullFlowContext flowContext = clientConn.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.connectionTimedOut(flowContext);
@@ -1916,7 +1946,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   void recordConnectionExceptionCaught(Throwable cause) {
-    FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
+    ClientToProxyConnection clientConn = getClientConnection();
+    FullFlowContext flowContext = clientConn.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
         tracker.connectionExceptionCaught(flowContext, cause);

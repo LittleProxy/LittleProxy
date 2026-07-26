@@ -395,6 +395,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
           "Responding to client with short-circuit response from filter: {}",
           proxyToServerFilterResponse);
 
+      if (usePool && currentServerConnection != null) {
+        currentServerConnection.setCurrentClientConnectionForRequest(null);
+        currentServerConnection.releaseToPool();
+      }
+
       boolean keepAlive = respondWithShortCircuitResponse(proxyToServerFilterResponse);
       if (keepAlive) {
         return AWAITING_INITIAL;
@@ -1650,6 +1655,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new RequestReadMonitor() {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
+          recordClientConnected();
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.requestReceivedFromClient(flowContext, httpRequest);

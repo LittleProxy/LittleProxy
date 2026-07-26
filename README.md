@@ -48,9 +48,9 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
-- `server_connection_pool_type` : pool implementation used by the shared server connection pool (`CONCURRENT_MAP`, `COMMONS_POOL2`, `STORMPOT`) (default : `CONCURRENT_MAP`)
-- `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`)
-- `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`)
+- `server_connection_pool_type` : pool implementation used by the shared server connection pool (`CONCURRENT_MAP`, `COMMONS_POOL2`, `STORMPOT`) (default : `CONCURRENT_MAP`) -- only effective when `use_shared_server_connection_pool=true`
+- `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`) -- only effective when `use_shared_server_connection_pool=true`
+- `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`) -- only effective when `use_shared_server_connection_pool=true`
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
 - `address` : string value to set the proxy server address (default : `0.0.0.0:8080`)
 - `port` : integer value to set the proxy server port (default : `8080`)

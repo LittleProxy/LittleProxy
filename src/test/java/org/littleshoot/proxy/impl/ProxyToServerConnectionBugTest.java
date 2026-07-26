@@ -1,0 +1,333 @@
+package org.littleshoot.proxy.impl;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.littleshoot.proxy.ActivityTracker;
+import org.littleshoot.proxy.ActivityTrackerAdapter;
+import org.littleshoot.proxy.FlowContext;
+import org.littleshoot.proxy.FullFlowContext;
+import org.littleshoot.proxy.HostResolver;
+import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.extras.HAProxyMessageEncoder;
+import org.littleshoot.proxy.extras.ProxyProtocolMessage;
+
+class ProxyToServerConnectionBugTest {
+
+  private DefaultHttpProxyServer mockProxyServer;
+  private ClientToProxyConnection mockClientConnection;
+  private HttpFilters mockFilters;
+  private GlobalTrafficShapingHandler mockTrafficHandler;
+  private HostResolver mockHostResolver;
+  private FlowContext mockClientFlowContext;
+  private FullFlowContext mockFlowContext;
+
+  @BeforeEach
+  void setup() throws Exception {
+    mockProxyServer = mock();
+    mockClientConnection = mock();
+    mockFilters = mock();
+    mockTrafficHandler = mock();
+    mockHostResolver = mock();
+
+    when(mockProxyServer.getServerResolver()).thenReturn(mockHostResolver);
+    when(mockHostResolver.resolve(any(), anyInt()))
+        .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
+
+    mockClientFlowContext = mock();
+    when(mockClientConnection.flowContext()).thenReturn(mockClientFlowContext);
+    mockFlowContext = mock();
+    when(mockClientConnection.flowContextForServerConnection(any(ProxyToServerConnection.class)))
+        .thenReturn(mockFlowContext);
+  }
+
+  private ProxyToServerConnection createConnection(List<ActivityTracker> trackers)
+      throws Exception {
+    when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
+    return ProxyToServerConnection.create(
+        mockProxyServer,
+        mockClientConnection,
+        "localhost:8080",
+        mockFilters,
+        null,
+        mockTrafficHandler);
+  }
+
+  private ProxyToServerConnection createConnectionWithPool(
+      ServerConnectionPool pool, List<ActivityTracker> trackers) throws Exception {
+    when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
+    ProxyToServerConnection conn =
+        ProxyToServerConnection.create(
+            mockProxyServer,
+            mockClientConnection,
+            "localhost:8080",
+            mockFilters,
+            null,
+            mockTrafficHandler);
+    Field poolField = ProxyToServerConnection.class.getDeclaredField("connectionPool");
+    poolField.setAccessible(true);
+    poolField.set(conn, pool);
+    return conn;
+  }
+
+  // ============================================================
+  // Bug 1: releaseToPool() must exist and release back to pool
+  // ============================================================
+
+  @Test
+  @DisplayName("releaseToPool should exist and call pool.releaseConnection")
+  void releaseToPoolShouldReleaseBackToPool() throws Exception {
+    ServerConnectionPool mockPool = mock();
+    ProxyToServerConnection conn = createConnectionWithPool(mockPool, Collections.emptyList());
+    assertThat(conn).isNotNull();
+
+    conn.setCurrentClientConnectionForRequest(mockClientConnection);
+
+    Method releaseMethod = ProxyToServerConnection.class.getDeclaredMethod("releaseToPool");
+    releaseMethod.setAccessible(true);
+    releaseMethod.invoke(conn);
+
+    verify(mockPool).releaseConnection(conn);
+  }
+
+  @Test
+  @DisplayName("releaseToPool should be no-op when no pool is set")
+  void releaseToPoolShouldBeNoopWithoutPool() throws Exception {
+    ProxyToServerConnection conn = createConnection(Collections.emptyList());
+    assertThat(conn).isNotNull();
+
+    Method releaseMethod = ProxyToServerConnection.class.getDeclaredMethod("releaseToPool");
+    releaseMethod.setAccessible(true);
+    releaseMethod.invoke(conn);
+  }
+
+  // ============================================================
+  // Bug 2: clientConnected should fire before requestReceivedFromClient
+  //
+  // Tests the Netty pipeline ordering by creating a real
+  // ClientToProxyConnection with EmbeddedChannel and sending an HTTP request.
+  // ============================================================
+
+  @Test
+  @DisplayName(
+      "clientConnected should fire before requestReceivedFromClient when request arrives without PROXY header")
+  void clientConnectedShouldFireBeforeRequestReceived() throws Exception {
+    DefaultHttpProxyServer mockServer = mock();
+    when(mockServer.getFiltersSource())
+        .thenReturn(
+            new org.littleshoot.proxy.HttpFiltersSource() {
+              @Override
+              public int getMaximumRequestBufferSizeInBytes() {
+                return 0;
+              }
+
+              @Override
+              public int getMaximumResponseBufferSizeInBytes() {
+                return 0;
+              }
+
+              @Override
+              public org.littleshoot.proxy.HttpFilters filterRequest(
+                  io.netty.handler.codec.http.HttpRequest httpRequest,
+                  io.netty.channel.ChannelHandlerContext ctx) {
+                return null;
+              }
+            });
+    when(mockServer.getMaxInitialLineLength()).thenReturn(8192);
+    when(mockServer.getMaxHeaderSize()).thenReturn(16384);
+    when(mockServer.getMaxChunkSize()).thenReturn(16384);
+    when(mockServer.getIdleConnectionTimeout()).thenReturn(0);
+    when(mockServer.isAcceptProxyProtocol()).thenReturn(false);
+    when(mockServer.getProxyAlias()).thenReturn("test-proxy");
+    when(mockServer.getServerResolver()).thenReturn(mockHostResolver);
+    when(mockServer.isAllowRequestsToOriginServer()).thenReturn(true);
+    when(mockHostResolver.resolve(any(), anyInt()))
+        .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
+
+    List<String> eventOrder = new ArrayList<>();
+    ActivityTracker tracker =
+        new ActivityTrackerAdapter() {
+          @Override
+          public void clientConnected(FlowContext flowContext) {
+            eventOrder.add("clientConnected");
+          }
+
+          @Override
+          public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
+            eventOrder.add("requestReceivedFromClient");
+          }
+        };
+    when(mockServer.getActivityTrackers()).thenReturn(Collections.singletonList(tracker));
+
+    EmbeddedChannel channel = new EmbeddedChannel();
+    ClientToProxyConnection clientConn =
+        new ClientToProxyConnection(
+            mockServer, null, false, channel.pipeline(), mockTrafficHandler);
+
+    DefaultHttpRequest request =
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://example.com/");
+    channel.writeInbound(request);
+
+    assertThat(eventOrder)
+        .as(
+            "clientConnected should fire before requestReceivedFromClient for non-PROXY connections")
+        .containsSequence("clientConnected", "requestReceivedFromClient");
+  }
+
+  // ============================================================
+  // Bug 3: recordServerConnected/disconnected should use getClientConnection()
+  // ============================================================
+
+  @Test
+  @DisplayName(
+      "recordServerConnected should use getClientConnection() flowContext, not constructor client")
+  void recordServerConnectedShouldUseCurrentClient() throws Exception {
+    ClientToProxyConnection mockClient2 = mock();
+    FullFlowContext mockFlowContext2Full = mock();
+    when(mockClient2.flowContextForServerConnection(any(ProxyToServerConnection.class)))
+        .thenReturn(mockFlowContext2Full);
+
+    ActivityTracker tracker = mock(ActivityTracker.class);
+    ProxyToServerConnection conn =
+        createConnectionWithPool(mock(), Collections.singletonList(tracker));
+    assertThat(conn).isNotNull();
+
+    conn.setCurrentClientConnectionForRequest(mockClient2);
+    conn.recordServerConnected();
+
+    verify(tracker).serverConnected(eq(mockFlowContext2Full), any(InetSocketAddress.class));
+  }
+
+  @Test
+  @DisplayName(
+      "recordServerDisconnected should use getClientConnection() and clear via the correct client")
+  void recordServerDisconnectedShouldUseCurrentClient() throws Exception {
+    ClientToProxyConnection mockClient2 = mock();
+    FullFlowContext mockFlowContext2Full = mock();
+    when(mockClient2.flowContextForServerConnection(any(ProxyToServerConnection.class)))
+        .thenReturn(mockFlowContext2Full);
+
+    ActivityTracker tracker = mock(ActivityTracker.class);
+    ProxyToServerConnection conn =
+        createConnectionWithPool(mock(), Collections.singletonList(tracker));
+    assertThat(conn).isNotNull();
+
+    conn.setCurrentClientConnectionForRequest(mockClient2);
+    conn.recordServerDisconnected();
+
+    verify(tracker).serverDisconnected(eq(mockFlowContext2Full), any(InetSocketAddress.class));
+    verify(mockClient2).clearFlowContextForServerConnection(conn);
+  }
+
+  // ============================================================
+  // Bug 4: SendProxyProtocolHeader always uses TCP4
+  //
+  // Tests that HAProxyMessageEncoder correctly encodes TCP6 headers,
+  // and that SendProxyProtocolHeader selects the right protocol.
+  // ============================================================
+
+  @Test
+  @DisplayName("HAProxyMessageEncoder should produce valid PROXY TCP4 header for IPv4 addresses")
+  void encoderShouldProduceValidTcp4Header() throws Exception {
+    ProxyProtocolMessage msg =
+        new ProxyProtocolMessage(
+            io.netty.handler.codec.haproxy.HAProxyProtocolVersion.V1,
+            io.netty.handler.codec.haproxy.HAProxyCommand.PROXY,
+            HAProxyProxiedProtocol.TCP4,
+            "192.168.1.1",
+            "10.0.0.1",
+            12345,
+            443);
+
+    EmbeddedChannel ch = new EmbeddedChannel(new HAProxyMessageEncoder());
+    ch.writeOutbound(msg);
+    ByteBuf out = ch.readOutbound();
+    String header = out.toString(io.netty.util.CharsetUtil.US_ASCII);
+    out.release();
+    ch.finish();
+
+    assertThat(header).startsWith("PROXY TCP4 192.168.1.1 10.0.0.1 12345 443\r\n");
+  }
+
+  @Test
+  @DisplayName("HAProxyMessageEncoder should produce valid PROXY TCP6 header for IPv6 addresses")
+  void encoderShouldProduceValidTcp6Header() throws Exception {
+    ProxyProtocolMessage msg =
+        new ProxyProtocolMessage(
+            io.netty.handler.codec.haproxy.HAProxyProtocolVersion.V1,
+            io.netty.handler.codec.haproxy.HAProxyCommand.PROXY,
+            HAProxyProxiedProtocol.TCP6,
+            "2001:db8::1",
+            "2001:db8::2",
+            12345,
+            443);
+
+    EmbeddedChannel ch = new EmbeddedChannel(new HAProxyMessageEncoder());
+    ch.writeOutbound(msg);
+    ByteBuf out = ch.readOutbound();
+    String header = out.toString(io.netty.util.CharsetUtil.US_ASCII);
+    out.release();
+    ch.finish();
+
+    assertThat(header).startsWith("PROXY TCP6 2001:db8::1 2001:db8::2 12345 443\r\n");
+  }
+
+  @Test
+  @DisplayName("SendProxyProtocolHeader should select TCP6 when both client and server are IPv6")
+  void sendProxyProtocolHeaderShouldSelectTcp6ForIpv6() throws Exception {
+    ServerConnectionPool mockPool = mock();
+    ProxyToServerConnection conn = createConnectionWithPool(mockPool, Collections.emptyList());
+    assertThat(conn).isNotNull();
+
+    InetSocketAddress ipv6ClientAddr = new InetSocketAddress("2001:db8::1", 12345);
+    InetSocketAddress ipv6RemoteAddr = new InetSocketAddress("2001:db8::2", 443);
+    when(mockClientConnection.getHaProxyMessage()).thenReturn(null);
+    when(mockClientConnection.getClientAddress()).thenReturn(ipv6ClientAddr);
+
+    Field remoteAddrField = ProxyToServerConnection.class.getDeclaredField("remoteAddress");
+    remoteAddrField.setAccessible(true);
+    remoteAddrField.set(conn, ipv6RemoteAddr);
+
+    EmbeddedChannel channel = new EmbeddedChannel(new HAProxyMessageEncoder());
+    Field channelField = ProxyConnection.class.getDeclaredField("channel");
+    channelField.setAccessible(true);
+    channelField.set(conn, channel);
+
+    Field sendHeaderField =
+        ProxyToServerConnection.class.getDeclaredField("SendProxyProtocolHeader");
+    sendHeaderField.setAccessible(true);
+    Object flowStep = sendHeaderField.get(conn);
+
+    Method executeMethod = flowStep.getClass().getDeclaredMethod("execute");
+    executeMethod.setAccessible(true);
+    executeMethod.invoke(flowStep);
+
+    ByteBuf out = channel.readOutbound();
+    assertThat(out).as("PROXY protocol header should be written to the channel").isNotNull();
+    String header = out.toString(io.netty.util.CharsetUtil.US_ASCII);
+    out.release();
+    channel.finish();
+
+    // BUG: always uses TCP4 even for IPv6 addresses
+    assertThat(header)
+        .startsWith("PROXY TCP6 2001:db8:0:0:0:0:0:1 2001:db8:0:0:0:0:0:2 12345 443\r\n");
+  }
+}
