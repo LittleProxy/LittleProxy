@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.extras.TestMitmManager;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
@@ -75,6 +76,7 @@ class Issue71NonSslConnectTest {
    * request to the proxy, but the target websocket server doesn't use SSL.
    */
   @Test
+  @Tag("slow-test")
   void testConnectRequestToNonSslServerInMitmMode() throws Exception {
     // Set up MITM proxy
     proxyServer =
