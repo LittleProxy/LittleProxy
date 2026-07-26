@@ -508,7 +508,7 @@
                     </configuration>
                     <executions>
                         <execution>
-                            <id>compile-tests-with-java17</id>
+                            <id>default-testCompile</id>
                             <phase>test-compile</phase>
                             <goals>
                                 <goal>testCompile</goal>
