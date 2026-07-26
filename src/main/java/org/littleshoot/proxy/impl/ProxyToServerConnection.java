@@ -5,6 +5,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CONNECT_OK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
 import static org.littleshoot.proxy.impl.ConnectionState.CONNECTING;
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECTED;
+import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.HANDSHAKING;
 
 import com.google.common.net.HostAndPort;
@@ -20,7 +21,10 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.haproxy.HAProxyCommand;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
+import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
+import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMessage;
@@ -72,6 +76,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLProtocolException;
 import javax.net.ssl.SSLSession;
@@ -89,6 +94,7 @@ import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.UnknownTransportProtocolException;
 import org.littleshoot.proxy.extras.HAProxyMessageEncoder;
+import org.littleshoot.proxy.extras.ProxyProtocolMessage;
 
 /**
  * Represents a connection from our proxy to a server on the web. ProxyConnections are reused fairly
@@ -246,8 +252,34 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void read(Object msg) {
     if (isConnecting()) {
-      LOG.debug("In the middle of connecting, forwarding message to connection flow: {}", msg);
-      connectionFlow.read(msg);
+      // When in the middle of connecting (e.g., during CONNECT tunnel establishment),
+      // we need to pass the CONNECT response through the HttpFilters before handling
+      // it in the connection flow. This fixes issue #77:
+      // https://github.com/LittleProxy/LittleProxy/issues/77
+      if (msg instanceof HttpObject) {
+        HttpObject httpObject = (HttpObject) msg;
+        currentFilters.serverToProxyResponseReceiving();
+
+        HttpObject filteredHttpObject = currentFilters.serverToProxyResponse(httpObject);
+        if (filteredHttpObject == null) {
+          LOG.debug("Filter returned null, forcing disconnect");
+          become(DISCONNECT_REQUESTED);
+          return;
+        }
+
+        currentFilters.serverToProxyResponseReceived();
+
+        // Pass the filtered message to the connection flow
+        LOG.debug(
+            "In the middle of connecting, forwarding filtered message to connection flow: {}",
+            filteredHttpObject);
+        connectionFlow.read(filteredHttpObject);
+      } else {
+        // Raw data (e.g., for tunneling) - pass directly to connection flow
+        LOG.debug(
+            "In the middle of connecting, forwarding raw message to connection flow: {}", msg);
+        connectionFlow.read(msg);
+      }
     } else {
       // Check if we need to perform TLS detection in MITM mode
       checkAndPerformTlsDetection(msg);
@@ -608,9 +640,41 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private void initializeConnectionFlow() {
     connectionFlow = new ConnectionFlow(clientConnection, this, connectLock).then(ConnectChannel);
 
-    if (hasUpstreamChainedProxy()) {
+    boolean sendProxyProtocol = proxyServer.isSendProxyProtocol();
+    boolean chained = hasUpstreamChainedProxy();
+    boolean chainedSocks =
+        chained
+            && (chainedProxyType == ChainedProxyType.SOCKS4
+                || chainedProxyType == ChainedProxyType.SOCKS5);
+    boolean chainedHttp = chained && chainedProxyType == ChainedProxyType.HTTP;
+    boolean isConnect = ProxyUtils.isCONNECT(initialRequest);
+
+    // Where to write the PROXY header so it reaches the final server:
+    //  - Direct: first, right after connecting (peer is the final server).
+    //  - HTTP CONNECT chain: tunnelled after the CONNECT handshake (see the CONNECT block below);
+    //    the intermediate sees a plain CONNECT.
+    //  - SOCKS chain: skipped (warning).
+    //  - Non-CONNECT HTTP chain: skipped (warning) - no tunnel to the final server.
+    boolean sendProxyHeaderFirst = sendProxyProtocol && !chained;
+    boolean tunnelProxyHeaderThroughConnect = sendProxyProtocol && chainedHttp && isConnect;
+
+    if (sendProxyProtocol && chainedSocks) {
+      LOG.warn(
+          "PROXY protocol is not compatible with SOCKS upstream proxies ({}). Skipping PROXY header.",
+          chainedProxyType);
+    } else if (sendProxyProtocol && chainedHttp && !isConnect) {
+      LOG.warn(
+          "PROXY protocol cannot be forwarded through a non-CONNECT HTTP chained proxy. "
+              + "Skipping PROXY header.");
+    }
+
+    if (sendProxyHeaderFirst) {
+      connectionFlow.then(SendProxyProtocolHeader);
+    }
+
+    if (chained) {
       if (chainedProxy.requiresEncryption()) {
-        connectionFlow.then(serverConnection.EncryptChannel(chainedProxy.newSslEngine()));
+        connectionFlow.then(serverConnection.EncryptChannel(newChainedProxySslEngine()));
       }
       switch (chainedProxyType) {
         case SOCKS4:
@@ -624,11 +688,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     }
 
-    if (ProxyUtils.isCONNECT(initialRequest)) {
+    if (isConnect) {
       // If we're chaining to an upstream HTTP proxy, forward the CONNECT request.
       // Do not chain the CONNECT request for SOCKS proxies.
-      if (hasUpstreamChainedProxy() && (chainedProxyType == ChainedProxyType.HTTP)) {
+      if (chainedHttp) {
         connectionFlow.then(serverConnection.HTTPCONNECTWithChainedProxy);
+      }
+
+      // Write the PROXY header into the established tunnel (first bytes to the final server),
+      // before
+      // StartTunneling/EncryptChannel remove the HAProxyMessageEncoder.
+      if (tunnelProxyHeaderThroughConnect) {
+        connectionFlow.then(SendProxyProtocolHeader);
       }
 
       MitmManager mitmManager = proxyServer.getMitmManager();
@@ -817,6 +888,49 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           }
         });
   }
+
+  SSLEngine newChainedProxySslEngine() {
+    if (remoteAddress != null) {
+      SSLEngine peerAwareSslEngine =
+          chainedProxy.newSslEngine(remoteAddress.getHostString(), remoteAddress.getPort());
+      if (peerAwareSslEngine != null) {
+        return peerAwareSslEngine;
+      }
+    }
+
+    return chainedProxy.newSslEngine();
+  }
+
+  private final ConnectionFlowStep<HttpResponse> SendProxyProtocolHeader =
+      new ConnectionFlowStep<>(this, CONNECTING) {
+        @Override
+        protected Future<?> execute() {
+          HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
+          ProxyProtocolMessage proxyProtocolMessage;
+          if (haProxyMessage != null) {
+            proxyProtocolMessage = new ProxyProtocolMessage(haProxyMessage);
+          } else {
+            InetSocketAddress clientAddr = clientConnection.getClientAddress();
+            if (clientAddr == null
+                || clientAddr.getAddress() == null
+                || remoteAddress == null
+                || remoteAddress.getAddress() == null) {
+              LOG.warn("Cannot send PROXY protocol header: addresses not available");
+              return channel.newSucceededFuture();
+            }
+            proxyProtocolMessage =
+                new ProxyProtocolMessage(
+                    HAProxyProtocolVersion.V1,
+                    HAProxyCommand.PROXY,
+                    HAProxyProxiedProtocol.TCP4,
+                    clientAddr.getAddress().getHostAddress(),
+                    remoteAddress.getAddress().getHostAddress(),
+                    clientAddr.getPort(),
+                    remoteAddress.getPort());
+          }
+          return writeToChannel(proxyProtocolMessage);
+        }
+      };
 
   private void addFirstOrReplaceHandler(String name, ChannelHandler handler) {
     if (channel.pipeline().context(name) != null) {
@@ -1554,7 +1668,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
       };
 
-  private void recordServerConnected() {
+  void recordServerConnected() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1565,7 +1679,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordServerDisconnected() {
+  void recordServerDisconnected() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     try {
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
@@ -1580,7 +1694,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionSaturated() {
+  void recordConnectionSaturated() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1591,7 +1705,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionWritable() {
+  void recordConnectionWritable() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1602,7 +1716,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionTimedOut() {
+  void recordConnectionTimedOut() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1613,7 +1727,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionExceptionCaught(Throwable cause) {
+  void recordConnectionExceptionCaught(Throwable cause) {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {

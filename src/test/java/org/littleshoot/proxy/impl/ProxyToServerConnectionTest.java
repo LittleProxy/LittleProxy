@@ -5,20 +5,25 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
+import javax.net.ssl.SSLEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
+import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyManager;
+import org.littleshoot.proxy.ChainedProxyType;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.TransportProtocol;
 
 class ProxyToServerConnectionTest {
 
@@ -95,13 +100,6 @@ class ProxyToServerConnectionTest {
     verify(mockClientConnection).clearFlowContextForServerConnection(connection);
   }
 
-  private void invokeRecordMethod(ProxyToServerConnection connection, String methodName)
-      throws Exception {
-    Method method = ProxyToServerConnection.class.getDeclaredMethod(methodName);
-    method.setAccessible(true);
-    method.invoke(connection);
-  }
-
   @Test
   @DisplayName("serverConnected should notify all trackers even if one throws")
   void serverConnectedShouldNotifyAllTrackersEvenIfOneThrows() throws Exception {
@@ -115,7 +113,7 @@ class ProxyToServerConnectionTest {
         createConnection(Arrays.asList(throwingTracker, succeedingTracker));
     assertThat(connection).isNotNull();
 
-    invokeRecordMethod(connection, "recordServerConnected");
+    connection.recordServerConnected();
 
     verify(throwingTracker).serverConnected(any(), any());
     verify(succeedingTracker).serverConnected(any(), any());
@@ -135,7 +133,7 @@ class ProxyToServerConnectionTest {
         createConnection(Arrays.asList(throwingTracker, succeedingTracker));
     assertThat(connection).isNotNull();
 
-    invokeRecordMethod(connection, "recordServerDisconnected");
+    connection.recordServerDisconnected();
 
     verify(throwingTracker).serverDisconnected(any(), any());
     verify(succeedingTracker).serverDisconnected(any(), any());
@@ -155,7 +153,7 @@ class ProxyToServerConnectionTest {
         createConnection(Arrays.asList(throwingTracker, succeedingTracker));
     assertThat(connection).isNotNull();
 
-    invokeRecordMethod(connection, "recordConnectionSaturated");
+    connection.recordConnectionSaturated();
 
     verify(throwingTracker).connectionSaturated(any());
     verify(succeedingTracker).connectionSaturated(any());
@@ -172,7 +170,7 @@ class ProxyToServerConnectionTest {
         createConnection(Arrays.asList(throwingTracker, succeedingTracker));
     assertThat(connection).isNotNull();
 
-    invokeRecordMethod(connection, "recordConnectionWritable");
+    connection.recordConnectionWritable();
 
     verify(throwingTracker).connectionWritable(any());
     verify(succeedingTracker).connectionWritable(any());
@@ -189,10 +187,39 @@ class ProxyToServerConnectionTest {
         createConnection(Arrays.asList(throwingTracker, succeedingTracker));
     assertThat(connection).isNotNull();
 
-    invokeRecordMethod(connection, "recordConnectionTimedOut");
+    connection.recordConnectionTimedOut();
 
     verify(throwingTracker).connectionTimedOut(any());
     verify(succeedingTracker).connectionTimedOut(any());
+  }
+
+  @Test
+  @DisplayName("encrypted chained proxies should prefer peer-aware SSL engines")
+  void encryptedChainedProxiesShouldPreferPeerAwareSslEngines() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    SSLEngine peerAwareEngine = mock();
+    when(chainedProxy.newSslEngine("127.0.0.1", 9443)).thenReturn(peerAwareEngine);
+    ProxyToServerConnection connection = createConnectionWithChainedProxy(chainedProxy);
+
+    assertThat(connection.newChainedProxySslEngine()).isSameAs(peerAwareEngine);
+
+    verify(chainedProxy).newSslEngine("127.0.0.1", 9443);
+    verify(chainedProxy, never()).newSslEngine();
+  }
+
+  @Test
+  @DisplayName("encrypted chained proxies should fall back to legacy SSL engines")
+  void encryptedChainedProxiesShouldFallBackToLegacySslEngines() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    SSLEngine legacyEngine = mock();
+    when(chainedProxy.newSslEngine("127.0.0.1", 9443)).thenReturn(null);
+    when(chainedProxy.newSslEngine()).thenReturn(legacyEngine);
+    ProxyToServerConnection connection = createConnectionWithChainedProxy(chainedProxy);
+
+    assertThat(connection.newChainedProxySslEngine()).isSameAs(legacyEngine);
+
+    verify(chainedProxy).newSslEngine("127.0.0.1", 9443);
+    verify(chainedProxy).newSslEngine();
   }
 
   @Test
@@ -208,13 +235,29 @@ class ProxyToServerConnectionTest {
         createConnection(Arrays.asList(throwingTracker, succeedingTracker));
     assertThat(connection).isNotNull();
 
-    Method method =
-        ProxyToServerConnection.class.getDeclaredMethod(
-            "recordConnectionExceptionCaught", Throwable.class);
-    method.setAccessible(true);
-    method.invoke(connection, new RuntimeException("Test cause"));
+    connection.recordConnectionExceptionCaught(new RuntimeException("Test cause"));
 
     verify(throwingTracker).connectionExceptionCaught(any(), any());
     verify(succeedingTracker).connectionExceptionCaught(any(), any());
+  }
+
+  private ProxyToServerConnection createConnectionWithChainedProxy(ChainedProxy chainedProxy)
+      throws UnknownHostException {
+    ChainedProxyManager chainedProxyManager = mock();
+    when(mockProxyServer.getChainProxyManager()).thenReturn(chainedProxyManager);
+    doAnswer(
+            invocation -> {
+              invocation.<Queue<ChainedProxy>>getArgument(1).add(chainedProxy);
+              return null;
+            })
+        .when(chainedProxyManager)
+        .lookupChainedProxies(any(), any(), any());
+
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress())
+        .thenReturn(new InetSocketAddress("127.0.0.1", 9443));
+
+    return createConnection(Collections.emptyList());
   }
 }

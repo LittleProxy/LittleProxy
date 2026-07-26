@@ -14,3 +14,4 @@ lib/
 LittleProxy.pro
 /bin
 performance/site/
+.claude/settings.local.json

@@ -1,5 +1,12 @@
 # Release Notes
 
+- 2.8.0 (27.06.2026, https://github.com/LittleProxy/LittleProxy/milestone/51?closed=1)
+  - Fix unsupported `com.lmax.disruptor` scope (#744) by Alexey Venderov
+  - Bump selenium from 4.41.0 to 4.45.0
+  - Bump jackson from 2.21.2 to 2.22.0
+  - Bump netty from 4.2.12.Final to 4.2.15.Final (#761)
+  - Bump dnsjava from 3.6.4 to 3.6.5 (#754)
+
 - 2.7.0 (06.04.2026, https://github.com/LittleProxy/LittleProxy/milestone/50?closed=1)
   - fix WebSocket proxying by Andrei Solntsev
   - add WebSocket frame observation hook by Andrei Solntsev
