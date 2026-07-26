@@ -49,6 +49,7 @@ For diagrams and the full lifecycle of CONNECT/MITM/filter callbacks, see `Littl
 
 ## Testing Notes
 
+- Always use SLF4J (`org.slf4j.Logger`/`LoggerFactory`) for logging, not log4j directly — this is the logging API used throughout the codebase.
 - Tests are JUnit Jupiter + AssertJ + Mockito; Jetty and WireMock are used as real backends (do not mock them away).
 - Long-running or timing-sensitive tests are marked `@Tag("slow-test")` and excluded from the default/smoke profile.
 - Integration tests start real proxy instances on ephemeral ports; prefer extending `AbstractProxyTest` / `BaseProxyTest` / `BaseChainedProxyTest` rather than duplicating setup.
