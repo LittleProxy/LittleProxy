@@ -15,6 +15,7 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.*;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 import org.littleshoot.proxy.test.SocketClientUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 @Tag("slow-test")
 @NullMarked
 @Timeout(20)
+@EnableThreadDump
 public final class KeepAliveTest {
   private static final Logger log = LoggerFactory.getLogger(KeepAliveTest.class);
   @Nullable private HttpProxyServer proxyServer;

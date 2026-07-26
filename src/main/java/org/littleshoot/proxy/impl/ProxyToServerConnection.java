@@ -5,6 +5,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CONNECT_OK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
 import static org.littleshoot.proxy.impl.ConnectionState.CONNECTING;
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECTED;
+import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.HANDSHAKING;
 
 import com.google.common.net.HostAndPort;
@@ -20,7 +21,10 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.haproxy.HAProxyCommand;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
+import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
+import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMessage;
@@ -72,6 +76,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLProtocolException;
 import javax.net.ssl.SSLSession;
@@ -89,6 +94,7 @@ import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.UnknownTransportProtocolException;
 import org.littleshoot.proxy.extras.HAProxyMessageEncoder;
+import org.littleshoot.proxy.extras.ProxyProtocolMessage;
 
 /**
  * Represents a connection from our proxy to a server on the web. ProxyConnections are reused fairly
@@ -141,6 +147,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * issue (see {@link #connectionFailed(Throwable)}).
    */
   private volatile boolean disableSni;
+
+  /**
+   * Flag to skip SSL when connecting to server. This is set to true when retrying after SSL
+   * handshake fails with a non-SSL server (see {@link #connectionFailed(Throwable)}).
+   */
+  private volatile boolean disableSslForNonTls;
 
   /**
    * While we're in the process of connecting, it's possible that we'll receive a new message to
@@ -354,9 +366,37 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void read(Object msg) {
     if (isConnecting()) {
-      LOG.debug("In the middle of connecting, forwarding message to connection flow: {}", msg);
-      connectionFlow.read(msg);
+      // When in the middle of connecting (e.g., during CONNECT tunnel establishment),
+      // we need to pass the CONNECT response through the HttpFilters before handling
+      // it in the connection flow. This fixes issue #77:
+      // https://github.com/LittleProxy/LittleProxy/issues/77
+      if (msg instanceof HttpObject) {
+        HttpObject httpObject = (HttpObject) msg;
+        currentFilters.serverToProxyResponseReceiving();
+
+        HttpObject filteredHttpObject = currentFilters.serverToProxyResponse(httpObject);
+        if (filteredHttpObject == null) {
+          LOG.debug("Filter returned null, forcing disconnect");
+          become(DISCONNECT_REQUESTED);
+          return;
+        }
+
+        currentFilters.serverToProxyResponseReceived();
+
+        // Pass the filtered message to the connection flow
+        LOG.debug(
+            "In the middle of connecting, forwarding filtered message to connection flow: {}",
+            filteredHttpObject);
+        connectionFlow.read(filteredHttpObject);
+      } else {
+        // Raw data (e.g., for tunneling) - pass directly to connection flow
+        LOG.debug(
+            "In the middle of connecting, forwarding raw message to connection flow: {}", msg);
+        connectionFlow.read(msg);
+      }
     } else {
+      // Check if we need to perform TLS detection in MITM mode
+      checkAndPerformTlsDetection(msg);
       super.read(msg);
     }
   }
@@ -788,9 +828,41 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     connectionFlow =
         new ConnectionFlow(getClientConnection(), this, connectLock).then(ConnectChannel);
 
-    if (hasUpstreamChainedProxy()) {
+    boolean sendProxyProtocol = proxyServer.isSendProxyProtocol();
+    boolean chained = hasUpstreamChainedProxy();
+    boolean chainedSocks =
+        chained
+            && (chainedProxyType == ChainedProxyType.SOCKS4
+                || chainedProxyType == ChainedProxyType.SOCKS5);
+    boolean chainedHttp = chained && chainedProxyType == ChainedProxyType.HTTP;
+    boolean isConnect = ProxyUtils.isCONNECT(initialRequest);
+
+    // Where to write the PROXY header so it reaches the final server:
+    //  - Direct: first, right after connecting (peer is the final server).
+    //  - HTTP CONNECT chain: tunnelled after the CONNECT handshake (see the CONNECT block below);
+    //    the intermediate sees a plain CONNECT.
+    //  - SOCKS chain: skipped (warning).
+    //  - Non-CONNECT HTTP chain: skipped (warning) - no tunnel to the final server.
+    boolean sendProxyHeaderFirst = sendProxyProtocol && !chained;
+    boolean tunnelProxyHeaderThroughConnect = sendProxyProtocol && chainedHttp && isConnect;
+
+    if (sendProxyProtocol && chainedSocks) {
+      LOG.warn(
+          "PROXY protocol is not compatible with SOCKS upstream proxies ({}). Skipping PROXY header.",
+          chainedProxyType);
+    } else if (sendProxyProtocol && chainedHttp && !isConnect) {
+      LOG.warn(
+          "PROXY protocol cannot be forwarded through a non-CONNECT HTTP chained proxy. "
+              + "Skipping PROXY header.");
+    }
+
+    if (sendProxyHeaderFirst) {
+      connectionFlow.then(SendProxyProtocolHeader);
+    }
+
+    if (chained) {
       if (chainedProxy.requiresEncryption()) {
-        connectionFlow.then(serverConnection.EncryptChannel(chainedProxy.newSslEngine()));
+        connectionFlow.then(serverConnection.EncryptChannel(newChainedProxySslEngine()));
       }
       switch (chainedProxyType) {
         case SOCKS4:
@@ -804,11 +876,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     }
 
-    if (ProxyUtils.isCONNECT(initialRequest)) {
+    if (isConnect) {
       // If we're chaining to an upstream HTTP proxy, forward the CONNECT request.
       // Do not chain the CONNECT request for SOCKS proxies.
-      if (hasUpstreamChainedProxy() && (chainedProxyType == ChainedProxyType.HTTP)) {
+      if (chainedHttp) {
         connectionFlow.then(serverConnection.HTTPCONNECTWithChainedProxy);
+      }
+
+      // Write the PROXY header into the established tunnel (first bytes to the final server),
+      // before
+      // StartTunneling/EncryptChannel remove the HAProxyMessageEncoder.
+      if (tunnelProxyHeaderThroughConnect) {
+        connectionFlow.then(SendProxyProtocolHeader);
       }
 
       MitmManager mitmManager = proxyServer.getMitmManager();
@@ -820,18 +899,22 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         // which is the end server's address.
         HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
 
-        // SNI may be disabled for this request due to a previous failed attempt to connect to the
-        // server
-        // with SNI enabled.
-        if (disableSni) {
-          connectionFlow.then(
-              serverConnection.EncryptChannel(proxyServer.getMitmManager().serverSslEngine()));
-        } else {
-          connectionFlow.then(
-              serverConnection.EncryptChannel(
-                  proxyServer
-                      .getMitmManager()
-                      .serverSslEngine(parsedHostAndPort.getHost(), parsedHostAndPort.getPort())));
+        // Check if we should skip SSL (e.g., after a retry for non-SSL server)
+        if (!disableSslForNonTls) {
+          // SNI may be disabled for this request due to a previous failed attempt to connect to the
+          // server
+          // with SNI enabled.
+          if (disableSni) {
+            connectionFlow.then(
+                serverConnection.EncryptChannel(proxyServer.getMitmManager().serverSslEngine()));
+          } else {
+            connectionFlow.then(
+                serverConnection.EncryptChannel(
+                    proxyServer
+                        .getMitmManager()
+                        .serverSslEngine(
+                            parsedHostAndPort.getHost(), parsedHostAndPort.getPort())));
+          }
         }
 
         connectionFlow
@@ -845,6 +928,197 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     }
   }
+
+  /**
+   * A connection flow step that waits for the server's response to the CONNECT request. This is
+   * used in MITM mode when we don't want to add SSL to the server connection upfront - instead, we
+   * wait for the server's response and then inspect the first bytes from the client to detect TLS.
+   */
+  private final ConnectionFlowStep<HttpResponse> MitmWaitForServerConnectResponse =
+      new ConnectionFlowStep<>(this, ConnectionState.AWAITING_CONNECT_OK) {
+        @Override
+        boolean shouldSuppressInitialRequest() {
+          return true;
+        }
+
+        @Override
+        protected Future<?> execute() {
+          // This step just marks that we're waiting for the server's response
+          return channel.newSucceededFuture();
+        }
+
+        @Override
+        public void read(ConnectionFlow flow, Object msg) {
+          // Server responded to CONNECT - this step is complete
+          LOG.debug("Server responded to CONNECT in MITM mode: {}", msg);
+          flow.advance();
+        }
+      };
+
+  /**
+   * A connection flow step that waits for the first bytes from the client to determine if SSL/TLS
+   * is needed. This inspects the first byte to detect TLS handshake.
+   */
+  private final ConnectionFlowStep<HttpResponse> MitmDetectTlsAndEncrypt =
+      new ConnectionFlowStep<>(this, ConnectionState.NEGOTIATING_CONNECT) {
+        @Override
+        boolean shouldSuppressInitialRequest() {
+          return true;
+        }
+
+        @Override
+        protected Future<?> execute() {
+          // Don't complete yet - wait for first data from client in read()
+          return channel.newSucceededFuture();
+        }
+
+        @Override
+        public void read(ConnectionFlow flow, Object msg) {
+          // First data from client - inspect for TLS
+          if (msg instanceof ByteBuf) {
+            ByteBuf buf = (ByteBuf) msg;
+            if (buf.readableBytes() > 0) {
+              byte firstByte = buf.getByte(buf.readerIndex());
+              boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
+
+              LOG.debug(
+                  "Inspecting first byte from client: 0x{} - TLS handshake: {}",
+                  Integer.toHexString(firstByte & 0xFF),
+                  isTlsHandshake);
+
+              if (isTlsHandshake) {
+                // This is a TLS connection - encrypt both server and client connections
+                encryptForMitm();
+              }
+
+              tlsInspectionDone = true;
+              flow.advance();
+              return;
+            }
+          }
+          // If not a ByteBuf or no readable bytes, just advance
+          tlsInspectionDone = true;
+          flow.advance();
+        }
+      };
+
+  /** Flag to track whether we've inspected the first bytes for TLS detection in MITM mode. */
+  private volatile boolean tlsInspectionDone = false;
+
+  /**
+   * Checks if we need to perform TLS detection for MITM mode and does so if needed. This inspects
+   * the first bytes from the client to determine if SSL/TLS is needed.
+   */
+  private void checkAndPerformTlsDetection(Object msg) {
+    MitmManager mitmManager = proxyServer.getMitmManager();
+    boolean isMitmEnabled = currentFilters.proxyToServerAllowMitm() && mitmManager != null;
+
+    // Only do TLS detection once, and only when in MITM mode
+    if (isMitmEnabled && !tlsInspectionDone && msg instanceof ByteBuf) {
+      ByteBuf buf = (ByteBuf) msg;
+      if (buf.readableBytes() > 0) {
+        // Peek at the first byte to determine if this is a TLS handshake
+        // TLS handshake always starts with 0x16 (decimal 22)
+        byte firstByte = buf.getByte(buf.readerIndex());
+        boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
+
+        LOG.debug(
+            "Inspecting first byte from client: 0x{} - TLS handshake: {}",
+            Integer.toHexString(firstByte & 0xFF),
+            isTlsHandshake);
+
+        if (isTlsHandshake) {
+          // This is a TLS connection - encrypt both server and client connections
+          encryptForMitm();
+        }
+
+        tlsInspectionDone = true;
+      }
+    }
+  }
+
+  /** Encrypts both server and client connections for MITM. */
+  private void encryptForMitm() {
+    HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
+    int port = parsedHostAndPort.getPort();
+
+    // Encrypt the server connection (for MITM)
+    Future<?> serverEncryptFuture;
+    if (disableSni) {
+      serverEncryptFuture = encrypt(proxyServer.getMitmManager().serverSslEngine(), true);
+    } else {
+      serverEncryptFuture =
+          encrypt(
+              proxyServer.getMitmManager().serverSslEngine(parsedHostAndPort.getHost(), port),
+              true);
+    }
+
+    // Encrypt the client connection for MITM, but wait for server encryption first
+    serverEncryptFuture.addListener(
+        future -> {
+          if (future.isSuccess()) {
+            clientConnection
+                .encrypt(
+                    proxyServer
+                        .getMitmManager()
+                        .clientSslEngineFor(initialRequest, sslEngine.getSession()),
+                    false)
+                .addListener(
+                    clientFuture -> {
+                      if (clientFuture.isSuccess()) {
+                        clientConnection.setMitming(true);
+                      } else {
+                        LOG.warn("Failed to encrypt client connection for MITM");
+                      }
+                    });
+          } else {
+            LOG.warn("Failed to encrypt server connection for MITM");
+          }
+        });
+  }
+
+  SSLEngine newChainedProxySslEngine() {
+    if (remoteAddress != null) {
+      SSLEngine peerAwareSslEngine =
+          chainedProxy.newSslEngine(remoteAddress.getHostString(), remoteAddress.getPort());
+      if (peerAwareSslEngine != null) {
+        return peerAwareSslEngine;
+      }
+    }
+
+    return chainedProxy.newSslEngine();
+  }
+
+  private final ConnectionFlowStep<HttpResponse> SendProxyProtocolHeader =
+      new ConnectionFlowStep<>(this, CONNECTING) {
+        @Override
+        protected Future<?> execute() {
+          HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
+          ProxyProtocolMessage proxyProtocolMessage;
+          if (haProxyMessage != null) {
+            proxyProtocolMessage = new ProxyProtocolMessage(haProxyMessage);
+          } else {
+            InetSocketAddress clientAddr = clientConnection.getClientAddress();
+            if (clientAddr == null
+                || clientAddr.getAddress() == null
+                || remoteAddress == null
+                || remoteAddress.getAddress() == null) {
+              LOG.warn("Cannot send PROXY protocol header: addresses not available");
+              return channel.newSucceededFuture();
+            }
+            proxyProtocolMessage =
+                new ProxyProtocolMessage(
+                    HAProxyProtocolVersion.V1,
+                    HAProxyCommand.PROXY,
+                    HAProxyProxiedProtocol.TCP4,
+                    clientAddr.getAddress().getHostAddress(),
+                    remoteAddress.getAddress().getHostAddress(),
+                    clientAddr.getPort(),
+                    remoteAddress.getPort());
+          }
+          return writeToChannel(proxyProtocolMessage);
+        }
+      };
 
   private void addFirstOrReplaceHandler(String name, ChannelHandler handler) {
     if (channel.pipeline().context(name) != null) {
@@ -1169,7 +1443,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // sends back a valid certificate for the expected host. we can retry the connection without SNI
     // to allow the proxy
     // to connect to these misconfigured hosts. we should only retry the connection without SNI if
-    // the connection
+    // the
+    // connection
     // failure happened when SNI was enabled, to prevent never-ending connection attempts due to SNI
     // warnings.
     if (!disableSni && (cause instanceof SSLProtocolException)
@@ -1188,6 +1463,24 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
         return true;
       }
+    }
+
+    // If SSL handshake fails with a non-SSL server (like for websockets), retry without SSL.
+    // This handles the case described in https://github.com/LittleProxy/LittleProxy/issues/71
+    // where CONNECT requests to non-SSL servers (ws://) fail because the proxy tries to use SSL.
+    // We detect this by checking for specific error patterns that indicate the server doesn't speak
+    // SSL.
+    if (shouldRetryWithoutSsl(cause)) {
+      LOG.debug(
+          "SSL handshake failed with non-SSL server. Retrying connection without SSL. Cause: {}",
+          cause.getMessage());
+
+      // Set a flag to skip SSL in the next attempt
+      disableSslForNonTls = true;
+      resetConnectionForRetry();
+      connectAndWrite(initialRequest);
+
+      return true;
     }
 
     // the connection issue wasn't due to an unrecognized_name error, or the connection attempt
@@ -1239,6 +1532,53 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     setupConnectionParameters();
   }
 
+  /**
+   * Checks if we should retry the connection without SSL. This is used when SSL handshake fails
+   * because the server doesn't speak SSL (like for websockets on non-SSL ports).
+   *
+   * @param cause the cause of the connection failure
+   * @return true if we should retry without SSL
+   */
+  private boolean shouldRetryWithoutSsl(Throwable cause) {
+    if (cause == null) {
+      return false;
+    }
+
+    // Only retry if this is an SSL handshake failure
+    if (!(cause instanceof SSLHandshakeException)
+        && !(cause instanceof SSLProtocolException)
+        && !(cause instanceof javax.net.ssl.SSLException)) {
+      return false;
+    }
+
+    // Don't retry if we've already tried without SSL
+    if (disableSslForNonTls) {
+      return false;
+    }
+
+    // Check for patterns that indicate the server doesn't speak SSL
+    String message = cause.getMessage();
+    if (message != null) {
+      // "Remote host terminated the handshake" - server doesn't support SSL
+      // "end of file" - server closed connection unexpectedly
+      // "connection reset" - server doesn't speak SSL
+      // "not an SSL/TLS record" - server sent HTTP response to SSL handshake
+      if (message.contains("Remote host terminated")
+          || message.contains("end of file")
+          || message.contains("connection reset")
+          || message.contains("not an SSL")) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Set up our connection parameters based on server address and chained proxies.
+   *
+   * @throws UnknownHostException when unable to resolve the hostname to an IP address
+   */
   private void setupConnectionParameters() throws UnknownHostException {
     if (chainedProxy != null && chainedProxy != ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION) {
       transportProtocol = chainedProxy.getTransportProtocol();
@@ -1516,7 +1856,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
       };
 
-  private void recordServerConnected() {
+  void recordServerConnected() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1527,7 +1867,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordServerDisconnected() {
+  void recordServerDisconnected() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     try {
       for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
@@ -1542,7 +1882,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionSaturated() {
+  void recordConnectionSaturated() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1553,7 +1893,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionWritable() {
+  void recordConnectionWritable() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1564,7 +1904,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionTimedOut() {
+  void recordConnectionTimedOut() {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {
@@ -1575,7 +1915,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  private void recordConnectionExceptionCaught(Throwable cause) {
+  void recordConnectionExceptionCaught(Throwable cause) {
     FullFlowContext flowContext = clientConnection.flowContextForServerConnection(this);
     for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
       try {

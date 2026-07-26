@@ -8,6 +8,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
@@ -45,6 +46,13 @@ class ClientToProxyConnectionTest {
     logField.setAccessible(true);
     logField.set(mockConnection, mockLogger);
 
+    // The mock bypasses the constructor; set the guard to true so recordDisconnected's fallback
+    // recordClientConnected() is a no-op here.
+    Field clientConnectedRecordedField =
+        ClientToProxyConnection.class.getDeclaredField("clientConnectedRecorded");
+    clientConnectedRecordedField.setAccessible(true);
+    clientConnectedRecordedField.set(mockConnection, new AtomicBoolean(true));
+
     Method recordMethod =
         ClientToProxyConnection.class.getDeclaredMethod("recordClientDisconnected");
     recordMethod.setAccessible(true);
@@ -77,6 +85,13 @@ class ClientToProxyConnectionTest {
     Field logField = ProxyConnection.class.getDeclaredField("LOG");
     logField.setAccessible(true);
     logField.set(mockConnection, mockLogger);
+
+    // The mock bypasses the constructor; set the guard to true so recordDisconnected's fallback
+    // recordClientConnected() is a no-op here.
+    Field clientConnectedRecordedField =
+        ClientToProxyConnection.class.getDeclaredField("clientConnectedRecorded");
+    clientConnectedRecordedField.setAccessible(true);
+    clientConnectedRecordedField.set(mockConnection, new AtomicBoolean(true));
 
     Method recordMethod =
         ClientToProxyConnection.class.getDeclaredMethod("recordClientDisconnected");
