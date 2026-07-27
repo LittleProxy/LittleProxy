@@ -151,6 +151,10 @@ public final class EndToEndStoppingTest {
     log.info("OS: {} (is windows: {})", os, os.contains("win"));
     assumeThat(os.contains("win")).isFalse();
 
+    assumeThat(isChromeDriverAvailable())
+        .as("Chrome/chromedriver must be installed to run WebDriver tests")
+        .isTrue();
+
     HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
 
     try {
@@ -187,5 +191,23 @@ public final class EndToEndStoppingTest {
     } finally {
       driver.quit();
     }
+  }
+
+  private static boolean isChromeDriverAvailable() {
+    String[] commands = {"chromedriver", "google-chrome", "google-chrome-stable", "chrome"};
+    for (String cmd : commands) {
+      try {
+        Process p = new ProcessBuilder("which", cmd).redirectErrorStream(true).start();
+        int exitCode = p.waitFor();
+        if (exitCode == 0) {
+          log.info("Found browser/driver: {}", cmd);
+          return true;
+        }
+      } catch (Exception e) {
+        // ignore
+      }
+    }
+    log.warn("No Chrome/chromedriver found on PATH - WebDriver tests will be skipped");
+    return false;
   }
 }

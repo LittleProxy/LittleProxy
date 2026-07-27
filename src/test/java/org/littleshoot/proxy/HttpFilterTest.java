@@ -162,8 +162,7 @@ public final class HttpFilterTest {
               @Override
               public HttpResponse clientToProxyRequest(@NonNull HttpObject httpObject) {
                 fullHttpRequestsReceived.incrementAndGet();
-                if (httpObject instanceof HttpRequest) {
-                  HttpRequest httpRequest = (HttpRequest) httpObject;
+                if (httpObject instanceof HttpRequest httpRequest) {
                   if (httpRequest.uri().equals(url2)) {
                     return new DefaultFullHttpResponse(
                         HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
@@ -175,8 +174,7 @@ public final class HttpFilterTest {
               @Nullable
               @Override
               public HttpResponse proxyToServerRequest(@NonNull HttpObject httpObject) {
-                if (httpObject instanceof HttpRequest) {
-                  HttpRequest httpRequest = (HttpRequest) httpObject;
+                if (httpObject instanceof HttpRequest httpRequest) {
                   if ("/testing2".equals(httpRequest.uri())) {
                     return new DefaultFullHttpResponse(
                         HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);

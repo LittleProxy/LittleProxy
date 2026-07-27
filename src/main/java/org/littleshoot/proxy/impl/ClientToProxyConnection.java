@@ -458,6 +458,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Override
   protected void readHTTPChunk(HttpContent chunk) {
+    if (currentServerConnection == null) {
+      LOG.warn("Cannot forward HTTP chunk: no server connection");
+      return;
+    }
     currentFilters.clientToProxyRequest(chunk);
     currentFilters.proxyToServerRequest(chunk);
 
@@ -466,6 +470,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Override
   protected void readRaw(ByteBuf buf) {
+    if (currentServerConnection == null) {
+      LOG.warn("Cannot forward raw data: no server connection");
+      return;
+    }
     currentServerConnection.write(buf);
   }
 

@@ -25,13 +25,13 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Integration test for SOCKS5 proxy authentication (issue #57). Tests that upstream SOCKS5 proxy
@@ -46,8 +46,8 @@ class Socks5ChainedProxyAuthenticationTest {
   private static final String SOCKS_USERNAME = "testuser";
   private static final String SOCKS_PASSWORD = "testpass";
   private static final String DEFAULT_JKS_KEYSTORE_PATH = "target/littleproxy_keystore.jks";
-  private static final Logger LOGGER =
-      LogManager.getLogger(Socks5ChainedProxyAuthenticationTest.class);
+  private static final Logger log =
+      LoggerFactory.getLogger(Socks5ChainedProxyAuthenticationTest.class);
   private EventLoopGroup socksBossGroup;
   private EventLoopGroup socksWorkerGroup;
   private int socksPort;
@@ -115,34 +115,33 @@ class Socks5ChainedProxyAuthenticationTest {
     ChannelFuture channelFuture = bootstrap.bind(0).sync();
     socksServerChannel = channelFuture.channel();
     socksPort = ((InetSocketAddress) socksServerChannel.localAddress()).getPort();
-    LOGGER.info("SOCKS5 server with auth started on port {}", socksPort);
+    log.info("SOCKS5 server with auth started on port {}", socksPort);
   }
 
   private ChainedProxyManager chainedProxyManagerWithAuth() {
-    return (httpRequest, chainedProxies, clientDetails) -> {
-      chainedProxies.add(
-          new ChainedProxyAdapter() {
-            @Override
-            public InetSocketAddress getChainedProxyAddress() {
-              return new InetSocketAddress("127.0.0.1", socksPort);
-            }
+    return (httpRequest, chainedProxies, clientDetails) ->
+        chainedProxies.add(
+            new ChainedProxyAdapter() {
+              @Override
+              public InetSocketAddress getChainedProxyAddress() {
+                return new InetSocketAddress("127.0.0.1", socksPort);
+              }
 
-            @Override
-            public ChainedProxyType getChainedProxyType() {
-              return ChainedProxyType.SOCKS5;
-            }
+              @Override
+              public ChainedProxyType getChainedProxyType() {
+                return ChainedProxyType.SOCKS5;
+              }
 
-            @Override
-            public String getUsername() {
-              return SOCKS_USERNAME;
-            }
+              @Override
+              public String getUsername() {
+                return SOCKS_USERNAME;
+              }
 
-            @Override
-            public String getPassword() {
-              return SOCKS_PASSWORD;
-            }
-          });
-    };
+              @Override
+              public String getPassword() {
+                return SOCKS_PASSWORD;
+              }
+            });
   }
 
   /**
@@ -177,7 +176,7 @@ class Socks5ChainedProxyAuthenticationTest {
         EntityUtils.consumeQuietly(response.getEntity());
       } catch (Exception e) {
         // Expected - our test SOCKS server closes connection after auth
-        LOGGER.info("Request failed as expected: {}", e.getMessage());
+        log.info("Request failed as expected: {}", e.getMessage());
       }
     }
 
@@ -194,17 +193,17 @@ class Socks5ChainedProxyAuthenticationTest {
     // Verify we received a CONNECT request after successful auth
     assertThat(connectRequests.get()).as("CONNECT requests").isGreaterThanOrEqualTo(1);
 
-    LOGGER.info("=== TEST PASSED ===");
-    LOGGER.info("SOCKS5 authentication flow works correctly!");
-    LOGGER.info("Authentication attempts: {}", authAttempts.get());
-    LOGGER.info("Authentication successes: {}", authSuccesses.get());
-    LOGGER.info("CONNECT requests: {}", connectRequests.get());
+    log.info("=== TEST PASSED ===");
+    log.info("SOCKS5 authentication flow works correctly!");
+    log.info("Authentication attempts: {}", authAttempts.get());
+    log.info("Authentication successes: {}", authSuccesses.get());
+    log.info("CONNECT requests: {}", connectRequests.get());
   }
 
   /** Custom SOCKS5 server initializer that supports username/password authentication. */
   private class Socks5AuthServerInitializer extends ChannelInitializer<Channel> {
     @Override
-    protected void initChannel(Channel ch) throws Exception {
+    protected void initChannel(Channel ch) {
       // Use SocksPortUnificationServerHandler to detect SOCKS protocol version automatically
       ch.pipeline().addLast(new io.netty.handler.codec.socksx.SocksPortUnificationServerHandler());
       ch.pipeline().addLast(new Socks5AuthServerHandler());
@@ -218,14 +217,11 @@ class Socks5ChainedProxyAuthenticationTest {
   private class Socks5AuthServerHandler extends SimpleChannelInboundHandler<SocksMessage> {
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, SocksMessage socksRequest)
-        throws Exception {
-      LOGGER.info("SOCKS: Received {}", socksRequest.getClass().getSimpleName());
+    protected void channelRead0(ChannelHandlerContext ctx, SocksMessage socksRequest) {
+      log.info("SOCKS: Received {}", socksRequest.getClass().getSimpleName());
 
-      if (socksRequest instanceof io.netty.handler.codec.socksx.v5.Socks5InitialRequest) {
-        io.netty.handler.codec.socksx.v5.Socks5InitialRequest request =
-            (io.netty.handler.codec.socksx.v5.Socks5InitialRequest) socksRequest;
-        LOGGER.info("SOCKS: Client supported auth methods: {}", request.authMethods());
+      if (socksRequest instanceof io.netty.handler.codec.socksx.v5.Socks5InitialRequest request) {
+        log.info("SOCKS: Client supported auth methods: {}", request.authMethods());
 
         // Verify client supports both NO_AUTH and PASSWORD
         assertThat(request.authMethods()).contains(Socks5AuthMethod.NO_AUTH);
@@ -234,14 +230,13 @@ class Socks5ChainedProxyAuthenticationTest {
         // Require password authentication
         ctx.pipeline().addFirst(new Socks5PasswordAuthRequestDecoder());
         ctx.writeAndFlush(new DefaultSocks5InitialResponse(Socks5AuthMethod.PASSWORD));
-        LOGGER.info("SOCKS: Sent auth method response - requiring PASSWORD");
+        log.info("SOCKS: Sent auth method response - requiring PASSWORD");
 
-      } else if (socksRequest instanceof Socks5PasswordAuthRequest) {
-        Socks5PasswordAuthRequest authRequest = (Socks5PasswordAuthRequest) socksRequest;
+      } else if (socksRequest instanceof Socks5PasswordAuthRequest authRequest) {
         String username = authRequest.username();
         String password = authRequest.password();
 
-        LOGGER.info("SOCKS: Received password auth - username:'{}'", username);
+        log.info("SOCKS: Received password auth - username:'{}'", username);
 
         authAttempts.incrementAndGet();
 
@@ -253,11 +248,10 @@ class Socks5ChainedProxyAuthenticationTest {
         ctx.pipeline().addFirst(new Socks5CommandRequestDecoder());
         ctx.writeAndFlush(new DefaultSocks5PasswordAuthResponse(Socks5PasswordAuthStatus.SUCCESS));
         authSuccesses.incrementAndGet();
-        LOGGER.info("SOCKS: Authentication SUCCESS!");
+        log.info("SOCKS: Authentication SUCCESS!");
 
-      } else if (socksRequest instanceof Socks5CommandRequest) {
-        Socks5CommandRequest request = (Socks5CommandRequest) socksRequest;
-        LOGGER.info("SOCKS: CONNECT request to '{}:{}'", request.dstAddr(), request.dstPort());
+      } else if (socksRequest instanceof Socks5CommandRequest request) {
+        log.info("SOCKS: CONNECT request to '{}:{}'", request.dstAddr(), request.dstPort());
 
         connectRequests.incrementAndGet();
 
@@ -266,7 +260,7 @@ class Socks5ChainedProxyAuthenticationTest {
 
         // Close connection (test mode)
         ctx.close();
-        LOGGER.info("SOCKS: Closed connection (test mode)");
+        log.info("SOCKS: Closed connection (test mode)");
       }
     }
 
@@ -277,7 +271,7 @@ class Socks5ChainedProxyAuthenticationTest {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-      LOGGER.info("SOCKS: Exception - {}", cause.getMessage());
+      log.info("SOCKS: Exception - {}", cause.getMessage());
       ctx.close();
     }
   }
