@@ -1,6 +1,5 @@
 # Release Notes
 
-
 - 2.8.0 (under construction, https://github.com/LittleProxy/LittleProxy/milestone/50)
   - Major Activity Tracking & Logging Enhancements (#689) by Charles Lescot
     - **ULID-based Flow IDs**: Globally unique, sortable identifiers (e.g., 01KGNMFEFZ84ZAR511NTRAFW13) replacing sequential flow IDs for better distributed tracing
@@ -28,7 +27,16 @@
     - LogEntryFormatter.format() signature changed (removed durationMs parameter, use FlowContext timing map)
     - Duration field names updated (e.g., duration_ms → http_request_processing_time_ms)
     - Custom implementations must update to new API signatures
-
+  - Fix unsupported `com.lmax.disruptor` scope (#744) by Alexey Venderov
+  - Fix bugs in MITM non-SSL CONNECT handling identified in PR #717 review
+  - Fix order of handlers in ClientToProxyConnection to support proxy protocol decoding for inbound requests
+  - Fix KeepAliveTest regression caused by Netty 4.2.15 strict HTTP line parsing
+  - Bump netty from 4.2.12.Final to 4.2.16.Final
+  - Bump selenium from 4.41.0 to 4.46.0
+  - Bump jackson from 2.21.2 to 2.22.1
+  - Bump dnsjava from 3.6.4 to 3.6.5 (#754)
+  - Bump log4j from 2.26.0 to 2.26.1
+  - Bump junit from 6.0.3 to 6.1.2
 
 - 2.7.0 (06.04.2026, https://github.com/LittleProxy/LittleProxy/milestone/50?closed=1)
   - fix WebSocket proxying by Andrei Solntsev

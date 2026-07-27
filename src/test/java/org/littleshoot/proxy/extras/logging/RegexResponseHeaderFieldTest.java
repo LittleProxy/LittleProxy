@@ -219,7 +219,7 @@ class RegexResponseHeaderFieldTest {
 
   @Test
   void testExtractMatchingHeadersCaseSensitive() {
-    RegexResponseHeaderField field = new RegexResponseHeaderField("X-Custom-.*");
+    RegexResponseHeaderField field = new RegexResponseHeaderField(Pattern.compile("X-Custom-.*"));
 
     when(headers.names()).thenReturn(Set.of("X-Custom-Header", "x-custom-header"));
     when(headers.getAll("X-Custom-Header")).thenReturn(List.of("value1"));

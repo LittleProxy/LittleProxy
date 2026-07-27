@@ -40,7 +40,7 @@ abstract class BaseChainedSocksProxyTest extends BaseProxyTest {
     }
   }
 
-  private void initializeSocksServer() throws Exception {
+  protected void initializeSocksServer() throws Exception {
     socksBossGroup = new NioEventLoopGroup(1);
     socksWorkerGroup = new NioEventLoopGroup();
 
@@ -55,7 +55,7 @@ abstract class BaseChainedSocksProxyTest extends BaseProxyTest {
     socksPort = ((InetSocketAddress) channelFuture.channel().localAddress()).getPort();
   }
 
-  private ChainedProxyManager chainedProxyManager() {
+  protected ChainedProxyManager chainedProxyManager() {
     return (httpRequest, chainedProxies, details) ->
         chainedProxies.add(
             new ChainedProxyAdapter() {

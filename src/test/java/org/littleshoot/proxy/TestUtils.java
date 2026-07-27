@@ -307,8 +307,7 @@ public class TestUtils {
 
     OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
 
-    if (osMxBean instanceof UnixOperatingSystemMXBean) {
-      UnixOperatingSystemMXBean unixOsMxBean = (UnixOperatingSystemMXBean) osMxBean;
+    if (osMxBean instanceof UnixOperatingSystemMXBean unixOsMxBean) {
       return unixOsMxBean.getOpenFileDescriptorCount();
     } else {
       throw new UnsupportedOperationException(

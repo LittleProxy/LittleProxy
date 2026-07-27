@@ -191,8 +191,7 @@ public class WebSocketClient {
 
     @Override
     public void channelRead0(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-      if (msg instanceof TextWebSocketFrame) {
-        final TextWebSocketFrame textFrame = (TextWebSocketFrame) msg;
+      if (msg instanceof TextWebSocketFrame textFrame) {
         receivedMessages.offer(textFrame.text());
       }
       super.channelRead0(ctx, msg);
