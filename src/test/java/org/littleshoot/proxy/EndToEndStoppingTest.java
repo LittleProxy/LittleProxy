@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.test.EnableThreadDump;
 import org.openqa.selenium.Proxy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
  * end. Made into a unit test from isopov and nasis's contributions at: <a
  * href="https://github.com/adamfisk/LittleProxy/issues/36">...</a>
  */
+@EnableThreadDump
 public final class EndToEndStoppingTest {
   private static final Logger log = LoggerFactory.getLogger(EndToEndStoppingTest.class);
 
@@ -149,6 +151,10 @@ public final class EndToEndStoppingTest {
     log.info("OS: {} (is windows: {})", os, os.contains("win"));
     assumeThat(os.contains("win")).isFalse();
 
+    assumeThat(isChromeDriverAvailable())
+        .as("Chrome/chromedriver must be installed to run WebDriver tests")
+        .isTrue();
+
     HttpProxyServer proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
 
     try {
@@ -185,5 +191,23 @@ public final class EndToEndStoppingTest {
     } finally {
       driver.quit();
     }
+  }
+
+  private static boolean isChromeDriverAvailable() {
+    String[] commands = {"chromedriver", "google-chrome", "google-chrome-stable", "chrome"};
+    for (String cmd : commands) {
+      try {
+        Process p = new ProcessBuilder("which", cmd).redirectErrorStream(true).start();
+        int exitCode = p.waitFor();
+        if (exitCode == 0) {
+          log.info("Found browser/driver: {}", cmd);
+          return true;
+        }
+      } catch (Exception e) {
+        // ignore
+      }
+    }
+    log.warn("No Chrome/chromedriver found on PATH - WebDriver tests will be skipped");
+    return false;
   }
 }

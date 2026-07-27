@@ -56,14 +56,14 @@ You can embed LittleProxy in your own projects through Maven with the following 
     <dependency>
         <groupId>io.github.littleproxy</groupId>
         <artifactId>littleproxy</artifactId>
-        <version>2.7.0</version>
+        <version>2.8.0</version>
     </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation "io.github.littleproxy:littleproxy:2.7.0"
+implementation "io.github.littleproxy:littleproxy:2.8.0"
 ```
 
 ## Basic Usage
