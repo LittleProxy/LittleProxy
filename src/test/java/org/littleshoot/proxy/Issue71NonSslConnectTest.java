@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.extras.TestMitmManager;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
@@ -75,6 +76,7 @@ class Issue71NonSslConnectTest {
    * request to the proxy, but the target websocket server doesn't use SSL.
    */
   @Test
+  @Tag("slow-test")
   void testConnectRequestToNonSslServerInMitmMode() throws Exception {
     // Set up MITM proxy
     proxyServer =
@@ -141,10 +143,56 @@ class Issue71NonSslConnectTest {
                 + "Got 502 Bad Gateway because the SSL handshake failed with a non-SSL server.");
       }
 
-      // If we get here, the fix is in place
+      // If we get here, the CONNECT was successful
       assertThat(responseStr)
           .as("Should receive successful CONNECT response (200)")
           .contains("200");
+
+      // Now send a plain HTTP request through the tunnel to verify end-to-end data flow.
+      // This exposes Bug 1 (NPE in MitmEncryptClientChannel when disableSslForNonTls=true)
+      // and Bug 2 (client channel incorrectly encrypted for MITM while server is plain text).
+      String httpRequest =
+          "GET / HTTP/1.1\r\n" + "Host: 127.0.0.1:" + webServerPort + "\r\n" + "\r\n";
+      socket.getOutputStream().write(httpRequest.getBytes(StandardCharsets.US_ASCII));
+      socket.getOutputStream().flush();
+
+      StringBuilder tunnelResponse = new StringBuilder();
+      try {
+        while ((read = socket.getInputStream().read(buffer)) != -1) {
+          tunnelResponse.append(new String(buffer, 0, read, StandardCharsets.US_ASCII));
+          if (tunnelResponse.toString().contains("\r\n\r\n")) {
+            break;
+          }
+        }
+      } catch (IOException e) {
+        LOG.error("IOException reading tunneled response", e);
+        String exceptionMessage = e.getMessage();
+        if (exceptionMessage != null
+            && (exceptionMessage.toLowerCase().contains("ssl")
+                || exceptionMessage.toLowerCase().contains("handshake")
+                || exceptionMessage.toLowerCase().contains("connection reset"))) {
+          fail(
+              "Bug #71 still present: Tunnel data flow failed because proxy encrypted client channel "
+                  + "for MITM while server is plain text. Exception: "
+                  + e.getMessage());
+        }
+        throw e;
+      }
+
+      LOG.info("Tunneled HTTP response: {}", tunnelResponse);
+
+      String tunnelResponseStr = tunnelResponse.toString();
+      assertThat(tunnelResponseStr)
+          .as(
+              "Tunneled HTTP request should return a valid response from the non-SSL server, "
+                  + "not a 502 Bad Gateway or SSL error")
+          .doesNotContain("502")
+          .doesNotContain("Bad Gateway");
+
+      // Verify we got actual HTTP content from the upstream server
+      assertThat(tunnelResponseStr)
+          .as("Tunneled response should contain HTTP status line")
+          .contains("HTTP/");
     }
   }
 }

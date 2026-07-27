@@ -729,9 +729,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           }
         }
 
-        connectionFlow
-            .then(clientConnection.RespondCONNECTSuccessful)
-            .then(serverConnection.MitmEncryptClientChannel);
+        if (!disableSslForNonTls) {
+          connectionFlow
+              .then(clientConnection.RespondCONNECTSuccessful)
+              .then(serverConnection.MitmEncryptClientChannel);
+        } else {
+          // For non-SSL servers, just respond CONNECT successful.
+          // ClientToProxyConnection will call encryptForMitm() if client sends TLS.
+          connectionFlow.then(clientConnection.RespondCONNECTSuccessful);
+        }
       } else {
         connectionFlow
             .then(serverConnection.StartTunneling)
@@ -1371,14 +1377,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // Check for patterns that indicate the server doesn't speak SSL
     String message = cause.getMessage();
     if (message != null) {
+      String lowerMessage = message.toLowerCase(java.util.Locale.ROOT);
       // "Remote host terminated the handshake" - server doesn't support SSL
       // "end of file" - server closed connection unexpectedly
       // "connection reset" - server doesn't speak SSL
       // "not an SSL/TLS record" - server sent HTTP response to SSL handshake
-      if (message.contains("Remote host terminated")
-          || message.contains("end of file")
-          || message.contains("connection reset")
-          || message.contains("not an SSL")) {
+      if (lowerMessage.contains("remote host terminated")
+          || lowerMessage.contains("end of file")
+          || lowerMessage.contains("connection reset")
+          || lowerMessage.contains("not an ssl")) {
         return true;
       }
     }
