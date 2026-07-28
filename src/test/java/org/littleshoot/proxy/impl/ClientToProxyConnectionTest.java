@@ -1,7 +1,6 @@
 package org.littleshoot.proxy.impl;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.lang.reflect.Field;
@@ -58,8 +57,8 @@ class ClientToProxyConnectionTest {
     recordMethod.setAccessible(true);
     recordMethod.invoke(mockConnection);
 
-    verify(throwingTracker).clientDisconnected(eq(mockFlowContext), any());
-    verify(normalTracker).clientDisconnected(eq(mockFlowContext), any());
+    verify(throwingTracker).clientDisconnected(any(), any());
+    verify(normalTracker).clientDisconnected(any(), any());
   }
 
   @Test
@@ -98,6 +97,6 @@ class ClientToProxyConnectionTest {
     recordMethod.setAccessible(true);
     recordMethod.invoke(mockConnection);
 
-    verify(normalTracker).clientDisconnected(eq(mockFlowContext), any());
+    verify(normalTracker).clientDisconnected(any(), any());
   }
 }

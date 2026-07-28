@@ -1,25 +1,46 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# LittleProxy Agent Guidelines
 
 ## Project
 
-LittleProxy is a high-performance HTTP/HTTPS proxy library written on top of Netty. 
-It is consumed as an embedded library (`io.github.littleproxy:littleproxy`) and can also run as a standalone 
+LittleProxy is a high-performance HTTP/HTTPS proxy library written on top of Netty.
+It is consumed as an embedded library (`io.github.littleproxy:littleproxy`) and can also run as a standalone
 executable via the shaded jar (`Launcher` main class).
 
 The active fork is maintained at https://github.com/LittleProxy/LittleProxy.
 
 ## Build & Test Commands
 
-- Build & run all tests: `mvn test`
-- Package (produces the shaded runnable jar): `mvn clean package`
-- Skip tests while packaging: `mvn clean package -DskipTests`
-- Smoke tests only (fast subset, excludes `slow-test` tag): `mvn package -Psmoke-test`
-- Slow tests only (tagged `@Tag("slow-test")`): `mvn package -Pslow-tests`
-- Single test class: `mvn test -Dtest=MitmProxyTest`
-- Single test method: `mvn test -Dtest=MitmProxyTest#testProxyConnects`
-- Run the shaded jar locally: `./run.bash --server --config ./config/littleproxy.properties` (wraps `mvn package -Dmaven.test.skip=true` + `java -jar`)
+```bash
+# Compile
+mvn compile
+
+# Run all tests
+mvn test
+
+# Run a single test class
+mvn test -Dtest=ActivityLoggerTest
+
+# Run a single test method
+mvn test -Dtest=ActivityLoggerTest#testResponseSentToClient
+
+# Run smoke tests (excludes slow tests)
+mvn test -Psmoke-test
+
+# Run only slow tests
+mvn test -Pslow-tests
+
+# Package (produces the shaded runnable jar)
+mvn clean package
+
+# Skip tests while packaging
+mvn clean package -DskipTests
+
+# Clean build
+mvn clean compile
+
+# Run the shaded jar locally
+./run.bash --server --config ./config/littleproxy.properties
+```
 
 CI (`.github/workflows/main.yml`) runs `-Psmoke-test` then `-Pslow-tests` on Ubuntu/macOS/Windows with JDK 17.
 
@@ -29,6 +50,80 @@ CI (`.github/workflows/main.yml`) runs `-Psmoke-test` then `-Pslow-tests` on Ubu
 - Source is auto-formatted by **Spotless (google-java-format 1.28.0)** in the `compile` phase — it rewrites files on every build. Don't hand-align imports; just run the build.
 - **ErrorProne** runs during compilation with `-Xep:MissingSummary:OFF -Xep:JdkObsolete:OFF -Xep:ReferenceEquality:OFF -Xep:OperatorPrecedence:OFF`. Other checks are active.
 - `maven-enforcer-plugin` bans `junit:junit` and `org.hamcrest:hamcrest-core` — use JUnit Jupiter + AssertJ.
+
+## Code Style & Formatting
+
+This project uses **Spotless** with **Google Java Format**:
+
+```bash
+# Check formatting
+mvn spotless:check
+
+# Apply formatting
+mvn spotless:apply
+```
+
+### Formatting Rules
+- **Indent**: 2 spaces (no tabs)
+- **Line length**: 100 characters
+- **Braces**: K&R style (opening brace on same line)
+- **Imports**: Ordered and unused imports removed automatically
+
+### Import Order
+1. `java.*` imports
+2. `javax.*` imports
+3. Third-party libraries (alphabetically)
+4. `org.littleshoot.proxy.*` imports
+5. Static imports
+
+## Naming Conventions
+
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Classes | PascalCase | `ActivityLogger`, `FlowContext` |
+| Interfaces | PascalCase (no I-prefix) | `ActivityTracker`, `LogEntryFormatter` |
+| Methods | camelCase | `requestReceivedFromClient()`, `getTimingData()` |
+| Variables | camelCase | `flowContext`, `timedRequest` |
+| Constants | UPPER_SNAKE_CASE | `UTC`, `LOG` |
+| Enums | PascalCase | `LogFormat`, `StandardField` |
+| Packages | lowercase | `org.littleshoot.proxy.extras.logging` |
+
+## Type Guidelines
+
+- Use `var` for local variables when type is obvious
+- Prefer `final` for fields and parameters when possible
+- Use `Optional<T>` for nullable return values
+- Use primitive types over boxed types when possible
+- Use `Long` for timing values (milliseconds)
+
+## Error Handling
+
+- Use `LOG.error()` with context for unexpected errors
+- Use `LOG.warn()` for recoverable issues
+- Use `LOG.debug()` for diagnostic information
+- Always include `flowId` in log messages for correlation
+- Prefer early returns to reduce nesting
+- Use specific exception types over generic `Exception`
+
+## Javadoc
+
+- Required for public classes and methods
+- Use `@param`, `@return`, `@throws` tags
+- Include usage examples for complex methods
+- Keep first sentence concise (summary line)
+
+## Testing
+
+- Use JUnit 5 with AssertJ assertions
+- Test class naming: `ClassNameTest`
+- Test method naming: use descriptive names without the `test` prefix (JUnit 3 legacy). Since JUnit 4+, `@Test` annotations make naming conventions unnecessary. Examples: `filtering()`, `methodUnderTest_condition_expectedResult`, or `shouldFilterOnError`. Note: `#` is not a valid Java identifier — do not use it in method names
+- Use `@Tag("slow-test")` for long-running tests
+- Mock external dependencies with Mockito
+- Tests are JUnit Jupiter + AssertJ + Mockito; Jetty and WireMock are used as real backends (do not mock them away).
+- Long-running or timing-sensitive tests are marked `@Tag("slow-test")` and excluded from the default/smoke profile.
+- Integration tests start real proxy instances on ephemeral ports; prefer extending `AbstractProxyTest` / `BaseProxyTest` / `BaseChainedProxyTest` rather than duplicating setup.
+- Test resources include keystores and `log4j.xml` under `src/test/resources/`.
+- Always use SLF4J (`org.slf4j.Logger`/`LoggerFactory`) for logging, not log4j directly — this is the logging API used throughout the codebase.
 
 ## High-Level Architecture
 
@@ -47,13 +142,20 @@ The proxy is built around two mirror Netty channel handlers and a small state ma
 
 For diagrams and the full lifecycle of CONNECT/MITM/filter callbacks, see `LittleProxy_Request_Handling_Architecture.md`.
 
-## Testing Notes
+## Architecture Patterns
 
-- Always use SLF4J (`org.slf4j.Logger`/`LoggerFactory`) for logging, not log4j directly — this is the logging API used throughout the codebase.
-- Tests are JUnit Jupiter + AssertJ + Mockito; Jetty and WireMock are used as real backends (do not mock them away).
-- Long-running or timing-sensitive tests are marked `@Tag("slow-test")` and excluded from the default/smoke profile.
-- Integration tests start real proxy instances on ephemeral ports; prefer extending `AbstractProxyTest` / `BaseProxyTest` / `BaseChainedProxyTest` rather than duplicating setup.
-- Test resources include keystores and `log4j.xml` under `src/test/resources/`.
+- **Strategy Pattern**: For formatters (LogEntryFormatter)
+- **Builder Pattern**: For configuration (LogFieldConfiguration)
+- **Adapter Pattern**: ActivityTrackerAdapter for optional overrides
+- Store timing data in FlowContext, not as parameters
+- Use ConcurrentHashMap for thread-safe collections
+
+## Common Pitfalls
+
+- Don't use `System.out.println()` - use SLF4J Logger
+- Don't catch generic exceptions without logging
+- Don't forget to call `super()` in overridden lifecycle methods
+- Don't use blocking operations in Netty event loops
 
 ## Release
 
