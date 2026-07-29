@@ -279,13 +279,15 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // Use the shared connection pool if enabled (disabled by default for backwards compatibility)
     ServerConnectionPool pool = proxyServer.getServerConnectionPool();
     boolean usePool = pool != null;
+    boolean useSharedPool =
+        usePool
+            && !ProxyUtils.isCONNECT(httpRequest)
+            && !isTunneling()
+            && !isMitming()
+            && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest);
 
     boolean newConnectionRequired = false;
-    if (!usePool
-        || ProxyUtils.isCONNECT(httpRequest)
-        || isTunneling()
-        || isMitming()
-        || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+    if (!useSharedPool) {
       // For non-pooled mode, CONNECT, tunneling (WebSocket), or MITM, use dedicated connections
       LOG.debug(
           "Not using shared pool for: {} (pool enabled: {}, is CONNECT: {}, is Tunneling: {}, is MITM: {})",
@@ -306,11 +308,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     if (newConnectionRequired) {
       try {
         // Create dedicated connection for non-pooled/CONNECT/tunneling/MITM, or use pool
-        if (!usePool
-            || ProxyUtils.isCONNECT(httpRequest)
-            || isTunneling()
-            || isMitming()
-            || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+        if (!useSharedPool) {
           currentServerConnection =
               ProxyToServerConnection.create(
                   proxyServer,
@@ -352,11 +350,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
         // Remember the connection for tracking (for non-pooled connections or
         // CONNECT/tunneling/MITM)
-        if (!usePool
-            || ProxyUtils.isCONNECT(httpRequest)
-            || isTunneling()
-            || isMitming()
-            || ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)) {
+        if (!useSharedPool) {
           serverConnectionsByHostAndPort.put(
               serverHostAndPort, requireNonNull(currentServerConnection));
         }
@@ -1793,7 +1787,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Nullable
   public InetSocketAddress getClientAddress() {
-    return ofNullable(channel).map(c -> (InetSocketAddress) c.remoteAddress()).orElse(null);
+    return ofNullable(channel)
+        .map(c -> c.remoteAddress())
+        .filter(InetSocketAddress.class::isInstance)
+        .map(InetSocketAddress.class::cast)
+        .orElse(null);
   }
 
   FlowContext flowContext() {

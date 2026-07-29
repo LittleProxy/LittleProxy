@@ -516,6 +516,13 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   }
 
   @Override
+  public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+    this.ctx = ctx;
+    channel = ctx.channel();
+    super.handlerAdded(ctx);
+  }
+
+  @Override
   public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
     try {
       this.ctx = ctx;

@@ -141,6 +141,8 @@ class ProxyToServerConnectionBugTest {
                 return null;
               }
             });
+    when(mockProxyServer.getChainProxyManager())
+        .thenReturn(mock(org.littleshoot.proxy.ChainedProxyManager.class));
     when(mockProxyServer.getMaxInitialLineLength()).thenReturn(8192);
     when(mockProxyServer.getMaxHeaderSize()).thenReturn(16384);
     when(mockProxyServer.getMaxChunkSize()).thenReturn(16384);
