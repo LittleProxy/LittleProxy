@@ -292,6 +292,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   @Override
   public void closeAll() {
     stopEvictionTask();
+    evictionScheduler.shutdown();
     for (ConcurrentMap<ProxyToServerConnection, Boolean> connections :
         connectionsByHostAndPort.values()) {
       for (ProxyToServerConnection connection : connections.keySet()) {
