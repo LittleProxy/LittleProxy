@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.extras.TestMitmManager;
+import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.impl.PoolMetrics;
+import org.littleshoot.proxy.impl.ServerConnectionPool;
 
 /**
  * Integration tests for MITM with shared server connection pool. Tests that upstream TLS
@@ -47,5 +50,20 @@ public class MitmWithSharedPoolTest extends AbstractProxyTest {
           .as("Request from client %d should succeed", i)
           .isEqualTo(200);
     }
+  }
+
+  @Test
+  void testSharedPoolMetricsShowConnectionReuse() {
+    DefaultHttpProxyServer impl = (DefaultHttpProxyServer) proxyServer;
+    ServerConnectionPool pool = impl.getServerConnectionPool();
+
+    httpGetWithApacheClient(httpsWebHost, DEFAULT_RESOURCE, true, false);
+    PoolMetrics afterFirst = pool.getMetrics();
+    assertThat(afterFirst.getTotalConnections()).isGreaterThanOrEqualTo(1);
+    assertThat(afterFirst.getBorrowCount()).isGreaterThanOrEqualTo(1);
+
+    httpGetWithApacheClient(httpsWebHost, DEFAULT_RESOURCE, true, false);
+    PoolMetrics afterSecond = pool.getMetrics();
+    assertThat(afterSecond.getBorrowCount()).isGreaterThan(afterFirst.getBorrowCount());
   }
 }
