@@ -1,6 +1,9 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Objects.requireNonNull;
+
 import java.time.Duration;
+import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ServerConnectionPoolType;
 
 /** Configuration for the server connection pool. */
@@ -10,7 +13,7 @@ public class ServerConnectionPoolConfig {
   private int maxConnectionsPerHost =
       ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
-  private Duration idleTimeout;
+  @Nullable private Duration idleTimeout;
 
   public boolean isEnabled() {
     return enabled;
@@ -26,7 +29,7 @@ public class ServerConnectionPoolConfig {
   }
 
   public ServerConnectionPoolConfig setPoolType(ServerConnectionPoolType poolType) {
-    this.poolType = poolType != null ? poolType : ServerConnectionPoolType.CONCURRENT_MAP;
+    this.poolType = requireNonNull(poolType, "poolType must not be null");
     return this;
   }
 
@@ -35,8 +38,11 @@ public class ServerConnectionPoolConfig {
   }
 
   public ServerConnectionPoolConfig setMaxConnectionsPerHost(int maxConnectionsPerHost) {
-    this.maxConnectionsPerHost =
-        maxConnectionsPerHost > 0 ? maxConnectionsPerHost : this.maxConnectionsPerHost;
+    if (maxConnectionsPerHost <= 0) {
+      throw new IllegalArgumentException(
+          "maxConnectionsPerHost must be positive: " + maxConnectionsPerHost);
+    }
+    this.maxConnectionsPerHost = maxConnectionsPerHost;
     return this;
   }
 
@@ -45,15 +51,19 @@ public class ServerConnectionPoolConfig {
   }
 
   public ServerConnectionPoolConfig setMaxConnections(int maxConnections) {
-    this.maxConnections = maxConnections > 0 ? maxConnections : this.maxConnections;
+    if (maxConnections <= 0) {
+      throw new IllegalArgumentException("maxConnections must be positive: " + maxConnections);
+    }
+    this.maxConnections = maxConnections;
     return this;
   }
 
+  @Nullable
   public Duration getIdleTimeout() {
     return idleTimeout;
   }
 
-  public ServerConnectionPoolConfig setIdleTimeout(Duration idleTimeout) {
+  public ServerConnectionPoolConfig setIdleTimeout(@Nullable Duration idleTimeout) {
     this.idleTimeout = idleTimeout;
     return this;
   }
