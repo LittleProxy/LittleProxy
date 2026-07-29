@@ -75,6 +75,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       "use_shared_server_connection_pool";
   public static final String MAX_TOTAL_CONNECTIONS = "max_total_connections";
   public static final String MAX_CONNECTIONS_PER_HOST = "max_connections_per_host";
+  public static final String POOL_SHARED_MITM_CONNECTIONS = "pool_shared_mitm_connections";
   public static final String ALLOW_REQUESTS_TO_ORIGIN_SERVER = "allow_requests_to_origin_server";
   public static final String THROTTLE_WRITE_BYTES_PER_SECOND = "throttle_write_bytes_per_second";
   public static final String THROTTLE_READ_BYTES_PER_SECOND = "throttle_read_bytes_per_second";
@@ -413,6 +414,10 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         concurrentMapPool.setIdleTimeout(idleTimeout);
         return concurrentMapPool;
     }
+  }
+
+  public boolean isPoolSharedMitmConnections() {
+    return serverConnectionPoolConfig.isPoolSharedMitmConnections();
   }
 
   public boolean isAllowRequestsToOriginServer() {

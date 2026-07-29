@@ -269,4 +269,17 @@ public interface HttpProxyServerBootstrap {
    * @param idleTimeout the idle timeout duration, or null to disable idle eviction
    */
   HttpProxyServerBootstrap withPoolIdleTimeout(Duration idleTimeout);
+
+  /**
+   * When enabled, MITM connections will use the shared server connection pool. This allows upstream
+   * connections for MITM'd HTTPS traffic to be reused across different client connections.
+   *
+   * <p>Enabled only takes effect when {@link #withSharedServerConnectionPool(boolean)} is also
+   * enabled.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param poolSharedMitmConnections true to allow MITM connections to use the shared pool
+   */
+  HttpProxyServerBootstrap withPoolSharedMitmConnections(boolean poolSharedMitmConnections);
 }

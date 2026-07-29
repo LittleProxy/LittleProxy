@@ -14,6 +14,7 @@ public class ServerConnectionPoolConfig {
       ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
   @Nullable private Duration idleTimeout;
+  private boolean poolSharedMitmConnections = false;
 
   public boolean isEnabled() {
     return enabled;
@@ -65,6 +66,16 @@ public class ServerConnectionPoolConfig {
 
   public ServerConnectionPoolConfig setIdleTimeout(@Nullable Duration idleTimeout) {
     this.idleTimeout = idleTimeout;
+    return this;
+  }
+
+  public boolean isPoolSharedMitmConnections() {
+    return poolSharedMitmConnections;
+  }
+
+  public ServerConnectionPoolConfig setPoolSharedMitmConnections(
+      boolean poolSharedMitmConnections) {
+    this.poolSharedMitmConnections = poolSharedMitmConnections;
     return this;
   }
 }

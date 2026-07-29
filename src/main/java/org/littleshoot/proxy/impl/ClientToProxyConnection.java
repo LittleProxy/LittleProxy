@@ -279,12 +279,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // Use the shared connection pool if enabled (disabled by default for backwards compatibility)
     ServerConnectionPool pool = proxyServer.getServerConnectionPool();
     boolean usePool = pool != null;
+    boolean isConnect = ProxyUtils.isCONNECT(httpRequest);
+    boolean poolSharedMitm = usePool && proxyServer.isPoolSharedMitmConnections();
     boolean useSharedPool =
         usePool
-            && !ProxyUtils.isCONNECT(httpRequest)
             && !isTunneling()
+            && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)
             && !isMitming()
-            && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest);
+            && (poolSharedMitm || !isConnect);
 
     boolean newConnectionRequired = false;
     if (!useSharedPool) {
@@ -350,7 +352,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
         // Remember the connection for tracking (for non-pooled connections or
         // CONNECT/tunneling/MITM)
-        if (!useSharedPool) {
+        if (!useSharedPool || isConnect) {
           serverConnectionsByHostAndPort.put(
               serverHostAndPort, requireNonNull(currentServerConnection));
         }
@@ -371,13 +373,13 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
     // For pooled connections, set the current client connection before writing
     // This allows the server connection to know where to send the response
-    // Only set for pooled connections (not for CONNECT/tunneling/MITM/WebSocket)
+    // When poolSharedMitm is active, set for all requests (including CONNECT and MITM)
+    // so that reused connections route responses to the correct client
     if (usePool
-        && !ProxyUtils.isCONNECT(httpRequest)
         && !isTunneling()
-        && !isMitming()
         && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)
-        && currentServerConnection != null) {
+        && currentServerConnection != null
+        && (poolSharedMitm || (!ProxyUtils.isCONNECT(httpRequest) && !isMitming()))) {
       currentServerConnection.setCurrentClientConnectionForRequest(this);
     }
 
@@ -691,7 +693,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected void disconnected() {
     super.disconnected();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
-      serverConnection.disconnect();
+      // Release MITM connections managed by pool back to the pool; close all others
+      if (proxyServer.isPoolSharedMitmConnections() && serverConnection.isManagedByPool()) {
+        serverConnection.releaseToPool();
+      } else {
+        serverConnection.disconnect();
+      }
     }
     recordClientDisconnected();
   }

@@ -188,6 +188,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   /** Limits bandwidth when throttling is enabled. */
   private final GlobalTrafficShapingHandler trafficHandler;
 
+  /**
+   * When true, this connection is managed by the shared pool and has upstream TLS established
+   * (MITM). The connection should not be auto-released to pool after individual HTTP responses; it
+   * stays attached to the client's MITM session until the client disconnects.
+   */
+  private volatile boolean mitmPooled;
+
   /** Create a new ProxyToServerConnection. */
   @Nullable
   @CheckReturnValue
@@ -326,6 +333,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
     // Check if we're currently idle (not processing a request)
     return currentHttpRequest == null && currentHttpResponse == null;
+  }
+
+  public boolean isManagedByPool() {
+    return connectionPool != null;
+  }
+
+  void setMitmPooled(boolean mitmPooled) {
+    this.mitmPooled = mitmPooled;
   }
 
   /**
@@ -519,7 +534,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       ((ReferenceCounted) msg).retain();
     }
 
-    if (is(DISCONNECTED) && msg instanceof HttpRequest) {
+    boolean needsReuseFlow =
+        msg instanceof HttpRequest
+            && ProxyUtils.isCONNECT((HttpRequest) msg)
+            && !is(DISCONNECTED)
+            && connectionPool != null;
+
+    if ((is(DISCONNECTED) || needsReuseFlow) && msg instanceof HttpRequest) {
       LOG.debug("Currently disconnected, connect and then write the message");
       connectAndWrite((HttpRequest) msg);
       return getClientConnection().channel.newSucceededFuture();
@@ -814,7 +835,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
       }
       this.currentHttpRequest = null;
-      connectionPool.releaseConnection(this);
+      // MITM pooled connections stay attached to the client session and are not released
+      // to pool after individual HTTP responses. They are released when the client disconnects.
+      if (!mitmPooled) {
+        connectionPool.releaseConnection(this);
+      }
     } else {
       this.currentHttpRequest = null;
     }
@@ -840,8 +865,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * information to the MitmManager when handling CONNECTs.
    */
   private void initializeConnectionFlow() {
-    connectionFlow =
-        new ConnectionFlow(getClientConnection(), this, connectLock).then(ConnectChannel);
+    boolean isReused = channel != null && channel.isActive();
+
+    if (isReused) {
+      LOG.debug("Reusing existing connection for CONNECT, skipping TCP/TLS setup");
+      connectionFlow = new ConnectionFlow(getClientConnection(), this, connectLock);
+    } else {
+      connectionFlow =
+          new ConnectionFlow(getClientConnection(), this, connectLock).then(ConnectChannel);
+    }
 
     boolean sendProxyProtocol = proxyServer.isSendProxyProtocol();
     boolean chained = hasUpstreamChainedProxy();
@@ -871,11 +903,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               + "Skipping PROXY header.");
     }
 
-    if (sendProxyHeaderFirst) {
+    if (sendProxyHeaderFirst && !isReused) {
       connectionFlow.then(SendProxyProtocolHeader);
     }
 
-    if (chained) {
+    if (chained && !isReused) {
       if (chainedProxy.requiresEncryption()) {
         connectionFlow.then(serverConnection.EncryptChannel(newChainedProxySslEngine()));
       }
@@ -894,28 +926,32 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     if (isConnect) {
       // If we're chaining to an upstream HTTP proxy, forward the CONNECT request.
       // Do not chain the CONNECT request for SOCKS proxies.
-      if (chainedHttp) {
+      if (chainedHttp && !isReused) {
         connectionFlow.then(serverConnection.HTTPCONNECTWithChainedProxy);
       }
 
       // Write the PROXY header into the established tunnel (first bytes to the final server),
       // before
       // StartTunneling/EncryptChannel remove the HAProxyMessageEncoder.
-      if (tunnelProxyHeaderThroughConnect) {
+      if (tunnelProxyHeaderThroughConnect && !isReused) {
         connectionFlow.then(SendProxyProtocolHeader);
       }
 
       MitmManager mitmManager = proxyServer.getMitmManager();
       boolean isMitmEnabled = currentFilters.proxyToServerAllowMitm() && mitmManager != null;
 
+      if (isMitmEnabled && connectionPool != null) {
+        setMitmPooled(true);
+      }
+
       if (isMitmEnabled) {
         // When MITM is enabled and when chained proxy is set up, remoteAddress
-        // will be the chained proxy's address. So we use serverHostAndPort
+        // will be the chained proxy's address. So we use serverHostAndPoint
         // which is the end server's address.
         HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
 
         // Check if we should skip SSL (e.g., after a retry for non-SSL server)
-        if (!disableSslForNonTls) {
+        if (!disableSslForNonTls && !isReused) {
           // SNI may be disabled for this request due to a previous failed attempt to connect to the
           // server
           // with SNI enabled.
@@ -942,10 +978,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           connectionFlow.then(getClientConnection().RespondCONNECTSuccessful);
         }
       } else {
-        connectionFlow
-            .then(serverConnection.StartTunneling)
-            .then(getClientConnection().RespondCONNECTSuccessful)
-            .then(getClientConnection().StartTunneling);
+        if (isReused) {
+          connectionFlow.then(getClientConnection().RespondCONNECTSuccessful);
+        } else {
+          connectionFlow
+              .then(serverConnection.StartTunneling)
+              .then(getClientConnection().RespondCONNECTSuccessful)
+              .then(getClientConnection().StartTunneling);
+        }
       }
     }
   }

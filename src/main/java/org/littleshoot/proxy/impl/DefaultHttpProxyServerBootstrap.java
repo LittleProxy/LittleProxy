@@ -73,6 +73,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   private ServerConnectionPoolType serverConnectionPoolType =
       ServerConnectionPoolType.CONCURRENT_MAP;
   @Nullable private Duration poolIdleTimeout;
+  private boolean poolSharedMitmConnections = false;
 
   DefaultHttpProxyServerBootstrap() {}
 
@@ -192,6 +193,11 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
           ProxyUtils.extractInt(
               props, DefaultHttpProxyServer.MAX_TOTAL_CONNECTIONS, maxConnections);
     }
+    if (props.containsKey(DefaultHttpProxyServer.POOL_SHARED_MITM_CONNECTIONS)) {
+      poolSharedMitmConnections =
+          Boolean.parseBoolean(
+              props.getProperty(DefaultHttpProxyServer.POOL_SHARED_MITM_CONNECTIONS).trim());
+    }
     if (props.containsKey(DefaultHttpProxyServer.CLIENT_TO_PROXY_WORKER_THREADS)) {
       clientToProxyWorkerThreads =
           ProxyUtils.extractInt(props, DefaultHttpProxyServer.CLIENT_TO_PROXY_WORKER_THREADS, 0);
@@ -248,6 +254,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
     this.serverConnectionPoolType = poolConfig.getPoolType();
     this.maxConnections = poolConfig.getMaxConnections();
     this.poolIdleTimeout = poolConfig.getIdleTimeout();
+    this.poolSharedMitmConnections = poolConfig.isPoolSharedMitmConnections();
   }
 
   @Override
@@ -465,6 +472,12 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   }
 
   @Override
+  public HttpProxyServerBootstrap withPoolSharedMitmConnections(boolean poolSharedMitmConnections) {
+    this.poolSharedMitmConnections = poolSharedMitmConnections;
+    return this;
+  }
+
+  @Override
   public HttpProxyServer start() {
     return build().start();
   }
@@ -495,7 +508,8 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
             .setPoolType(serverConnectionPoolType)
             .setMaxConnectionsPerHost(maxConnectionsPerHost)
             .setMaxConnections(maxConnections)
-            .setIdleTimeout(poolIdleTimeout);
+            .setIdleTimeout(poolIdleTimeout)
+            .setPoolSharedMitmConnections(poolSharedMitmConnections);
 
     DefaultHttpProxyServerConfig serverConfig =
         new DefaultHttpProxyServerConfig()
