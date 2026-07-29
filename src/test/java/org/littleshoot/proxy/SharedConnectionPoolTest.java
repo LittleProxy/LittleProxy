@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.ConcurrentMapServerConnectionPool;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+import org.littleshoot.proxy.impl.PoolMetrics;
 import org.littleshoot.proxy.impl.ServerConnectionPool;
 
 /**
@@ -37,10 +38,16 @@ public class SharedConnectionPoolTest extends BaseProxyTest {
   void testMultipleRequestsToSameServerWithPoolEnabled() {
     // Make multiple requests to the same server - with pool enabled,
     // these should reuse connections
+    ServerConnectionPool pool = ((DefaultHttpProxyServer) proxyServer).getServerConnectionPool();
+    PoolMetrics before = pool.getMetrics();
     for (int i = 0; i < 5; i++) {
       ResponseInfo response = httpGetWithApacheClient(webHost, DEFAULT_RESOURCE, true, false);
       assertThat(response.getStatusCode()).as("Request %d should succeed", i).isEqualTo(200);
     }
+    PoolMetrics after = pool.getMetrics();
+    assertThat(after.getTotalConnections() - before.getTotalConnections())
+        .as("Should reuse a single connection across all 5 requests")
+        .isEqualTo(1);
   }
 
   @Test
@@ -61,12 +68,18 @@ public class SharedConnectionPoolTest extends BaseProxyTest {
   void testKeepAliveWithPoolEnabled() {
     // Test that keep-alive works with the pool enabled
     // This is important because the pool relies on connection reuse
+    ServerConnectionPool pool = ((DefaultHttpProxyServer) proxyServer).getServerConnectionPool();
+    PoolMetrics before = pool.getMetrics();
     ResponseInfo response1 = httpGetWithApacheClient(webHost, DEFAULT_RESOURCE, true, false);
     assertThat(response1.getStatusCode()).isEqualTo(200);
 
     // Make another request on the same connection
     ResponseInfo response2 = httpGetWithApacheClient(webHost, DEFAULT_RESOURCE, true, false);
     assertThat(response2.getStatusCode()).isEqualTo(200);
+    PoolMetrics after = pool.getMetrics();
+    assertThat(after.getTotalConnections() - before.getTotalConnections())
+        .as("Should reuse a single connection across both requests")
+        .isEqualTo(1);
   }
 
   @Test
