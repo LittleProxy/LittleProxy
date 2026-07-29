@@ -82,40 +82,44 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
         new ConnectionContext(
             serverHostAndPort, chainedProxy, clientConnection, initialFilters, initialHttpRequest);
     Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
-    synchronized (pool) {
-      contextForCurrentClaim.set(context);
-      try {
+    // Set context before the target-size adjustment because setTargetSize()
+    // may trigger an allocation that reads contextForCurrentClaim.
+    contextForCurrentClaim.set(context);
+    try {
+      // Synchronize only the target-size adjustment; pool.claim() is thread-safe
+      // and may block, so it must not be inside this lock.
+      synchronized (pool) {
         int target = pool.getTargetSize();
         if (target < maxConnectionsPerHost) {
           pool.setTargetSize(target + 1);
         }
-        int claimTimeoutMs = proxyServer.getConnectTimeout();
-        Timeout timeout =
-            new Timeout(claimTimeoutMs > 0 ? claimTimeoutMs : 40000, TimeUnit.MILLISECONDS);
-        StormpotPooledConnection pooled = pool.claim(timeout);
-        if (pooled == null) {
-          return null;
-        }
-        if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
-          validationFailureCount.incrementAndGet();
-          pooled.connection.disconnect();
-          pooled.release();
-          return null;
-        }
-        pooled.setLeased(true);
-        poolablesByConnection.put(pooled.connection, pooled);
-        borrowCount.incrementAndGet();
-        return pooled.connection;
-      } catch (PoolException e) {
-        LOG.warn("Failed to claim Stormpot connection for {}", poolKey, e);
-        return null;
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        LOG.warn("Interrupted while claiming Stormpot connection for {}", poolKey, e);
-        return null;
-      } finally {
-        contextForCurrentClaim.remove();
       }
+      int claimTimeoutMs = proxyServer.getConnectTimeout();
+      Timeout timeout =
+          new Timeout(claimTimeoutMs > 0 ? claimTimeoutMs : 40000, TimeUnit.MILLISECONDS);
+      StormpotPooledConnection pooled = pool.claim(timeout);
+      if (pooled == null) {
+        return null;
+      }
+      if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
+        validationFailureCount.incrementAndGet();
+        pooled.connection.disconnect();
+        pooled.release();
+        return null;
+      }
+      pooled.setLeased(true);
+      poolablesByConnection.put(pooled.connection, pooled);
+      borrowCount.incrementAndGet();
+      return pooled.connection;
+    } catch (PoolException e) {
+      LOG.warn("Failed to claim Stormpot connection for {}", poolKey, e);
+      return null;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Interrupted while claiming Stormpot connection for {}", poolKey, e);
+      return null;
+    } finally {
+      contextForCurrentClaim.remove();
     }
   }
 
