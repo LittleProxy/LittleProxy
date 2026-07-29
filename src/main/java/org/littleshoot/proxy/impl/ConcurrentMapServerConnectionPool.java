@@ -263,22 +263,25 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
         connectionsByHostAndPort.get(poolKey);
+    Queue<PooledConnection> available = availableConnectionsByHostAndPort.get(poolKey);
     if (connections != null) {
       if (connections.remove(connection) != null) {
         AtomicInteger count = connectionCountByHostAndPort.get(poolKey);
         if (count != null) {
           int newCount = count.decrementAndGet();
           if (newCount <= 0) {
-            connectionCountByHostAndPort.remove(poolKey);
-            connectionsByHostAndPort.remove(poolKey);
-            availableConnectionsByHostAndPort.remove(poolKey);
+            connectionCountByHostAndPort.remove(poolKey, count);
+            connectionsByHostAndPort.remove(poolKey, connections);
+            if (available != null) {
+              availableConnectionsByHostAndPort.remove(poolKey, available);
+            } else {
+              availableConnectionsByHostAndPort.remove(poolKey);
+            }
           }
         }
         totalConnectionsCreated.decrementAndGet();
       }
     }
-    Queue<PooledConnection> available =
-        (Queue<PooledConnection>) availableConnectionsByHostAndPort.get(poolKey);
     if (available != null) {
       available.removeIf(p -> p.connection == connection);
     }
