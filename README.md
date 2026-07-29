@@ -397,9 +397,9 @@ Implementation details:
   - `evictionCount` / `validationFailureCount`: currently not surfaced from Commons Pool internals
     and may remain `0`
 - `STORMPOT`
-  - `totalConnections`: current number of claimed/tracked connections
-  - `activeConnections`: currently reported as `totalConnections`
-  - `idleConnections`: currently reported as `0` (Stormpot does not expose a direct idle count here)
+  - `totalConnections`: current number of tracked pooled connections
+  - `idleConnections`: count of non-leased (available) connections in the pool
+  - `activeConnections`: `totalConnections - idleConnections`
   - `borrowCount` / `returnCount`: tracked by LittleProxy on claim/release calls
   - `evictionCount` / `validationFailureCount`: currently not surfaced and may remain `0`
 
