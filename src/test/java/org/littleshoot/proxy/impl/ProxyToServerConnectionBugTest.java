@@ -12,6 +12,8 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -225,6 +227,78 @@ class ProxyToServerConnectionBugTest {
 
     verify(tracker).serverDisconnected(eq(mockFlowContext2Full), any(InetSocketAddress.class));
     verify(mockClient2).clearFlowContextForServerConnection(conn);
+  }
+
+  // ============================================================
+  // Bug 5: markResponseComplete must dequeue and wire next pipelined request
+  // ============================================================
+
+  @Test
+  @DisplayName("markResponseComplete should dequeue pending request and keep connection in use")
+  void markResponseCompleteShouldDequeueAndWireNextPending() throws Exception {
+    ServerConnectionPool mockPool = mock();
+    ProxyToServerConnection conn = createConnectionWithPool(mockPool, Collections.emptyList());
+    EmbeddedChannel ch = new EmbeddedChannel();
+    conn.channel = ch;
+
+    HttpRequest pendingReq = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/next");
+    ClientToProxyConnection pendingClient = mock();
+    when(pendingClient.flowContext()).thenReturn(mock());
+    when(pendingClient.flowContextForServerConnection(any(ProxyToServerConnection.class)))
+        .thenReturn(mock());
+    HttpFilters pendingFilters = mock();
+    PendingRequest pending = new PendingRequest(pendingClient, pendingReq, pendingFilters);
+
+    when(mockPool.removePendingRequest(ch)).thenReturn(pending);
+
+    invokeMarkResponseComplete(conn);
+
+    assertThat(getField(conn, "currentHttpRequest")).isSameAs(pendingReq);
+    assertThat(getField(conn, "currentClientConnectionForRequest")).isSameAs(pendingClient);
+    assertThat(getField(conn, "currentFilters")).isSameAs(pendingFilters);
+    assertThat(getField(conn, "currentHttpResponse")).isNull();
+
+    verify(mockPool, never()).releaseConnection(conn);
+    verify(mockPool, never()).peekPendingRequest(any());
+  }
+
+  @Test
+  @DisplayName(
+      "markResponseComplete should release connection to pool when no pending requests remain")
+  void markResponseCompleteShouldReleaseToPoolWhenNoPending() throws Exception {
+    ServerConnectionPool mockPool = mock();
+    ProxyToServerConnection conn = createConnectionWithPool(mockPool, Collections.emptyList());
+    EmbeddedChannel ch = new EmbeddedChannel();
+    conn.channel = ch;
+
+    when(mockPool.removePendingRequest(ch)).thenReturn(null);
+
+    invokeMarkResponseComplete(conn);
+
+    assertThat(getField(conn, "currentHttpRequest")).isNull();
+    assertThat(getField(conn, "currentHttpResponse")).isNull();
+
+    verify(mockPool).releaseConnection(conn);
+  }
+
+  private static void invokeMarkResponseComplete(ProxyToServerConnection conn) throws Exception {
+    Method m = ProxyToServerConnection.class.getDeclaredMethod("markResponseComplete");
+    m.setAccessible(true);
+    m.invoke(conn);
+  }
+
+  private static Object getField(Object obj, String name) throws Exception {
+    Class<?> clazz = obj.getClass();
+    while (clazz != null) {
+      try {
+        Field f = clazz.getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(obj);
+      } catch (NoSuchFieldException e) {
+        clazz = clazz.getSuperclass();
+      }
+    }
+    throw new NoSuchFieldException(name + " in " + obj.getClass().getName());
   }
 
   // ============================================================

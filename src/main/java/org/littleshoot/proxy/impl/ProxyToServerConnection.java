@@ -805,9 +805,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentHttpResponse = null;
     if (connectionPool != null) {
       if (channel != null) {
-        PendingRequest nextPending = connectionPool.peekPendingRequest(channel);
+        PendingRequest nextPending = connectionPool.removePendingRequest(channel);
         if (nextPending != null) {
+          this.currentClientConnectionForRequest = nextPending.getClientConnection();
           this.currentHttpRequest = nextPending.getRequest();
+          this.currentFilters = nextPending.getFilters();
           return;
         }
       }
