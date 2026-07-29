@@ -1129,7 +1129,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     serverEncryptFuture.addListener(
         future -> {
           if (future.isSuccess()) {
-            clientConnection
+            ClientToProxyConnection targetClient = getClientConnection();
+            targetClient
                 .encrypt(
                     proxyServer
                         .getMitmManager()
@@ -1138,7 +1139,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                 .addListener(
                     clientFuture -> {
                       if (clientFuture.isSuccess()) {
-                        clientConnection.setMitming(true);
+                        targetClient.setMitming(true);
                       } else {
                         LOG.warn("Failed to encrypt client connection for MITM");
                       }

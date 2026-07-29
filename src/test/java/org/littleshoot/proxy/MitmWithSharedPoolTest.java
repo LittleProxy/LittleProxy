@@ -38,4 +38,14 @@ public class MitmWithSharedPoolTest extends AbstractProxyTest {
     ResponseInfo response = httpPostWithApacheClient(httpsWebHost, DEFAULT_RESOURCE, true);
     assertThat(response.getStatusCode()).isEqualTo(200);
   }
+
+  @Test
+  void testMitmGetRequestOverHTTPSFromDifferentClients() {
+    for (int i = 0; i < 3; i++) {
+      ResponseInfo response = httpGetWithApacheClient(httpsWebHost, DEFAULT_RESOURCE, true, false);
+      assertThat(response.getStatusCode())
+          .as("Request from client %d should succeed", i)
+          .isEqualTo(200);
+    }
+  }
 }

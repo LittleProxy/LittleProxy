@@ -50,4 +50,14 @@ public class MitmWithPerRequestPoolTest extends AbstractProxyTest {
       assertThat(response.getStatusCode()).as("Request %d should succeed", i).isEqualTo(200);
     }
   }
+
+  @Test
+  void testMultipleRequestsOverHTTPSFromDifferentClients() {
+    for (int i = 0; i < 3; i++) {
+      ResponseInfo response = httpGetWithApacheClient(httpsWebHost, DEFAULT_RESOURCE, true, false);
+      assertThat(response.getStatusCode())
+          .as("Request from client %d should succeed", i)
+          .isEqualTo(200);
+    }
+  }
 }

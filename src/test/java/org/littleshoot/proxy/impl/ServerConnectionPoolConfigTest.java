@@ -76,5 +76,49 @@ class ServerConnectionPoolConfigTest {
     assertThat(config.getMaxConnectionsPerHost()).isEqualTo(10);
     assertThat(config.getMaxConnections()).isEqualTo(200);
     assertThat(config.getIdleTimeout()).isNull();
+    assertThat(config.isPoolSharedMitmConnections()).isFalse();
+    assertThat(config.isPoolPerRequestInMitm()).isFalse();
+  }
+
+  @Test
+  void poolSharedMitmConnectionsDefaultsToFalse() {
+    assertThat(new ServerConnectionPoolConfig().isPoolSharedMitmConnections()).isFalse();
+  }
+
+  @Test
+  void poolSharedMitmConnectionsSetterAndGetter() {
+    assertThat(config.setPoolSharedMitmConnections(true)).isSameAs(config);
+    assertThat(config.isPoolSharedMitmConnections()).isTrue();
+    config.setPoolSharedMitmConnections(false);
+    assertThat(config.isPoolSharedMitmConnections()).isFalse();
+  }
+
+  @Test
+  void poolPerRequestInMitmDefaultsToFalse() {
+    assertThat(new ServerConnectionPoolConfig().isPoolPerRequestInMitm()).isFalse();
+  }
+
+  @Test
+  void poolPerRequestInMitmSetterAndGetter() {
+    assertThat(config.setPoolPerRequestInMitm(true)).isSameAs(config);
+    assertThat(config.isPoolPerRequestInMitm()).isTrue();
+    config.setPoolPerRequestInMitm(false);
+    assertThat(config.isPoolPerRequestInMitm()).isFalse();
+  }
+
+  @Test
+  void poolSharedMitmConnectionsRequiresEnabledPool() {
+    // poolSharedMitmConnections can be set regardless of enabled state;
+    // the actual behavior depends on the enabled flag at runtime.
+    config.setEnabled(false).setPoolSharedMitmConnections(true);
+    assertThat(config.isPoolSharedMitmConnections()).isTrue();
+  }
+
+  @Test
+  void poolPerRequestInMitmRequiresPoolSharedMitmConnections() {
+    // poolPerRequestInMitm requires poolSharedMitmConnections=true at runtime
+    // but the config itself doesn't enforce this invariant.
+    config.setPoolSharedMitmConnections(false).setPoolPerRequestInMitm(true);
+    assertThat(config.isPoolPerRequestInMitm()).isTrue();
   }
 }
