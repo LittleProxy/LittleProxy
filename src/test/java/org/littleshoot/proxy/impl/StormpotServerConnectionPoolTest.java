@@ -15,6 +15,7 @@ import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -52,6 +53,11 @@ class StormpotServerConnectionPoolTest {
         .thenReturn(mock());
 
     pool = new StormpotServerConnectionPool(mockProxyServer, mockTrafficHandler, 5, 50);
+  }
+
+  @AfterEach
+  void tearDown() {
+    pool.closeAll();
   }
 
   @Test

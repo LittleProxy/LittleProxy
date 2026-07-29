@@ -17,6 +17,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -51,6 +52,11 @@ class ConcurrentMapServerConnectionPoolTest {
         .thenReturn(mock());
 
     pool = new ConcurrentMapServerConnectionPool(mockProxyServer, mockTrafficHandler);
+  }
+
+  @AfterEach
+  void tearDown() {
+    pool.closeAll();
   }
 
   // -----------------------------------------------------------------------
