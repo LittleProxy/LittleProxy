@@ -369,14 +369,21 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
    * @return the shared pool, or null if the pool is disabled
    */
   @Nullable
-  public synchronized ServerConnectionPool getServerConnectionPool() {
+  public ServerConnectionPool getServerConnectionPool() {
     if (!useSharedServerConnectionPool) {
       return null;
     }
-    if (serverConnectionPool == null) {
-      serverConnectionPool = createServerConnectionPool();
+    ServerConnectionPool pool = serverConnectionPool;
+    if (pool == null) {
+      synchronized (this) {
+        pool = serverConnectionPool;
+        if (pool == null) {
+          pool = createServerConnectionPool();
+          serverConnectionPool = pool;
+        }
+      }
     }
-    return serverConnectionPool;
+    return pool;
   }
 
   private ServerConnectionPool createServerConnectionPool() {
