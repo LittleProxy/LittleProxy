@@ -53,6 +53,9 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   private final DefaultHttpProxyServer proxyServer;
   private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
 
+  private final ConcurrentMap<ProxyToServerConnection, String> connectionKeys =
+      new ConcurrentHashMap<>();
+
   private final java.util.concurrent.atomic.AtomicLong borrowCount =
       new java.util.concurrent.atomic.AtomicLong(0);
   private final java.util.concurrent.atomic.AtomicLong returnCount =
@@ -176,6 +179,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
           connectionCountByHostAndPort
               .computeIfAbsent(poolKey, k -> new AtomicInteger(0))
               .incrementAndGet();
+          connectionKeys.put(newConnection, poolKey);
           totalConnectionsCreated.incrementAndGet();
           borrowCount.incrementAndGet();
           return newConnection;
@@ -192,11 +196,10 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     if (connection == null) {
       return;
     }
-    String serverHostAndPort = connection.getServerHostAndPort();
-    ChainedProxy chainedProxy = connection.getChainedProxy();
-    InetSocketAddress chainedProxyAddress =
-        chainedProxy != null ? chainedProxy.getChainedProxyAddress() : null;
-    String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
+    String poolKey = connectionKeys.get(connection);
+    if (poolKey == null) {
+      return;
+    }
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
         connectionsByHostAndPort.get(poolKey);
     if (connections == null || !connections.containsKey(connection)) {
@@ -256,11 +259,10 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     if (connection == null) {
       return;
     }
-    String serverHostAndPort = connection.getServerHostAndPort();
-    ChainedProxy chainedProxy = connection.getChainedProxy();
-    InetSocketAddress chainedProxyAddress =
-        chainedProxy != null ? chainedProxy.getChainedProxyAddress() : null;
-    String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
+    String poolKey = connectionKeys.remove(connection);
+    if (poolKey == null) {
+      return;
+    }
     ConcurrentMap<ProxyToServerConnection, Boolean> connections =
         connectionsByHostAndPort.get(poolKey);
     Queue<PooledConnection> available = availableConnectionsByHostAndPort.get(poolKey);
@@ -299,6 +301,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     connectionsByHostAndPort.clear();
     availableConnectionsByHostAndPort.clear();
     connectionCountByHostAndPort.clear();
+    connectionKeys.clear();
     pendingRequestsByChannel.clear();
     totalConnectionsCreated.set(0);
   }
