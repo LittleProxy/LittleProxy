@@ -654,7 +654,7 @@ The following traffic types are never pooled and always use dedicated
 | Protocol | Reason |
 |---|---|
 | **WebSocket** (`Upgrade: websocket`) | After the HTTP upgrade handshake, the HTTP codecs are replaced with `WebSocketFramePipeHandler`. The connection becomes a raw frame pipe between client and server with no HTTP request/response lifecycle to trigger pool release. |
-| **Tunneling** (non-MITM CONNECT) | Once the CONNECT response is sent, the connection enters raw TCP tunneling mode. There are no HTTP request/response boundaries — all data flows bidirectionally until the tunnel closes, so the connection cannot be returned to the pool. |
+| **Tunneling** (non-MITM CONNECT, i.e. regular HTTPS) | Once the CONNECT response is sent, the connection enters raw TCP tunneling mode. There are no HTTP request/response boundaries — all data flows bidirectionally until the tunnel closes, so the connection cannot be returned to the pool. This is the default HTTPS proxy behavior (no intercept), and it is **never** pooled. Only MITM-intercepting HTTPS can be pooled (behind `poolSharedMitmConnections`). |
 | **Switching Protocols** (other `Upgrade` headers) | Same as WebSocket — HTTP codecs are removed and the connection switches to a different protocol, making pool return impossible. |
 
 The `useSharedPool` condition explicitly checks `!isTunneling()` and
