@@ -14,6 +14,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,7 +102,7 @@ class StormpotServerConnectionPoolTest {
               })
           .start();
     }
-    latch.await();
+    assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
 
     for (int i = 0; i < threadCount; i++) {
       assertThat(refs[i].get()).as("thread %d got a connection", i).isNotNull();

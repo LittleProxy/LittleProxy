@@ -3,6 +3,7 @@ package org.littleshoot.proxy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.impl.CommonsPoolServerConnectionPool;
@@ -96,7 +97,7 @@ class ServerConnectionPoolTypeTest {
                 })
             .start();
       }
-      latch.await();
+      assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
       ServerConnectionPool first = refs[0].get();
       for (int i = 1; i < threadCount; i++) {
         assertThat(refs[i].get()).isSameAs(first);
