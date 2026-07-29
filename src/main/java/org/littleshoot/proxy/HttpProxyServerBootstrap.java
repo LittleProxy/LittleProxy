@@ -282,4 +282,17 @@ public interface HttpProxyServerBootstrap {
    * @param poolSharedMitmConnections true to allow MITM connections to use the shared pool
    */
   HttpProxyServerBootstrap withPoolSharedMitmConnections(boolean poolSharedMitmConnections);
+
+  /**
+   * When enabled, each HTTP request through an MITM tunnel independently acquires and releases a
+   * server connection from the shared pool. This allows multiple clients' MITM requests to share
+   * upstream connections concurrently (one request at a time per connection).
+   *
+   * <p>Only takes effect when {@link #withPoolSharedMitmConnections(boolean)} is also enabled.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param poolPerRequestInMitm true to enable per-request pooling inside MITM tunnels
+   */
+  HttpProxyServerBootstrap withPoolPerRequestInMitm(boolean poolPerRequestInMitm);
 }

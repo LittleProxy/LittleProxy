@@ -76,6 +76,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   public static final String MAX_TOTAL_CONNECTIONS = "max_total_connections";
   public static final String MAX_CONNECTIONS_PER_HOST = "max_connections_per_host";
   public static final String POOL_SHARED_MITM_CONNECTIONS = "pool_shared_mitm_connections";
+  public static final String POOL_PER_REQUEST_IN_MITM = "pool_per_request_in_mitm";
   public static final String ALLOW_REQUESTS_TO_ORIGIN_SERVER = "allow_requests_to_origin_server";
   public static final String THROTTLE_WRITE_BYTES_PER_SECOND = "throttle_write_bytes_per_second";
   public static final String THROTTLE_READ_BYTES_PER_SECOND = "throttle_read_bytes_per_second";
@@ -420,6 +421,10 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     return serverConnectionPoolConfig.isPoolSharedMitmConnections();
   }
 
+  public boolean isPoolPerRequestInMitm() {
+    return serverConnectionPoolConfig.isPoolPerRequestInMitm();
+  }
+
   public boolean isAllowRequestsToOriginServer() {
     return allowRequestsToOriginServer;
   }
@@ -445,7 +450,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             .setPoolType(serverConnectionPoolType)
             .setMaxConnectionsPerHost(maxConnectionsPerHost)
             .setMaxConnections(maxConnections)
-            .setIdleTimeout(serverConnectionPoolConfig.getIdleTimeout());
+            .setIdleTimeout(serverConnectionPoolConfig.getIdleTimeout())
+            .setPoolSharedMitmConnections(serverConnectionPoolConfig.isPoolSharedMitmConnections())
+            .setPoolPerRequestInMitm(serverConnectionPoolConfig.isPoolPerRequestInMitm());
 
     DefaultHttpProxyServerConfig serverConfig =
         new DefaultHttpProxyServerConfig()

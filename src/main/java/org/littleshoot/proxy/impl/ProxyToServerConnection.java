@@ -195,6 +195,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   private volatile boolean mitmPooled;
 
+  /**
+   * When true, this connection should be released to the pool immediately after the connection flow
+   * completes. Used in per-request MITM mode (Phase 2) so the CONNECT-created connection is
+   * available for subsequent HTTP requests via pool.getOrCreateConnection().
+   */
+  private volatile boolean releaseToPoolOnConnectComplete;
+
   /** Create a new ProxyToServerConnection. */
   @Nullable
   @CheckReturnValue
@@ -941,7 +948,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       boolean isMitmEnabled = currentFilters.proxyToServerAllowMitm() && mitmManager != null;
 
       if (isMitmEnabled && connectionPool != null) {
-        setMitmPooled(true);
+        if (proxyServer.isPoolPerRequestInMitm()) {
+          releaseToPoolOnConnectComplete = true;
+        } else {
+          setMitmPooled(true);
+        }
       }
 
       if (isMitmEnabled) {
@@ -1491,7 +1502,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
         @Override
         protected Future<?> execute() {
-          return clientConnection
+          return getClientConnection()
               .encrypt(
                   proxyServer
                       .getMitmManager()
@@ -1796,6 +1807,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // the pipeline to generate FullHttpRequests), we need to manually release it to avoid a memory
     // leak.
     resetInitialRequest();
+
+    // Phase 2 per-request MITM: release the CONNECT-created connection to pool so subsequent
+    // HTTP requests can borrow it via pool.getOrCreateConnection().
+    if (releaseToPoolOnConnectComplete) {
+      releaseToPoolOnConnectComplete = false;
+      releaseToPool();
+    }
   }
 
   private void resetInitialRequest() {
