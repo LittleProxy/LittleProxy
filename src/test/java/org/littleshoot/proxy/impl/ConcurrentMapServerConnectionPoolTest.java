@@ -69,7 +69,7 @@ class ConcurrentMapServerConnectionPoolTest {
 
   /**
    * Registers a connection in the pool so it appears as a tracked, connected connection. After
-   * this, {@link #releaseConnection} can be called to add it to the available queue.
+   * this, the pool's {@code releaseConnection} can be called to add it to the available queue.
    */
   @SuppressWarnings("unchecked")
   private void registerInPool(ProxyToServerConnection conn, String poolKey) throws Exception {
