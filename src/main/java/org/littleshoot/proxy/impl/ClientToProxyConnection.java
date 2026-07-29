@@ -815,10 +815,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected synchronized void becameSaturated() {
     super.becameSaturated();
     recordConnectionSaturated();
+    ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
       synchronized (serverConnection) {
         if (isSaturated()) {
           serverConnection.stopReading();
+        }
+      }
+    }
+    if (current != null) {
+      synchronized (current) {
+        if (isSaturated()) {
+          current.stopReading();
         }
       }
     }
@@ -832,10 +840,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected synchronized void becameWritable() {
     super.becameWritable();
     recordConnectionWritable();
+    ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
       synchronized (serverConnection) {
         if (!isSaturated()) {
           serverConnection.resumeReading();
+        }
+      }
+    }
+    if (current != null) {
+      synchronized (current) {
+        if (!isSaturated()) {
+          current.resumeReading();
         }
       }
     }
@@ -855,11 +871,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    */
   protected synchronized void serverBecameWriteable(ProxyToServerConnection serverConnection) {
     boolean anyServersSaturated = false;
+    ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection otherServerConnection : serverConnectionsByHostAndPort.values()) {
       if (otherServerConnection.isSaturated()) {
         anyServersSaturated = true;
         break;
       }
+    }
+    if (!anyServersSaturated
+        && current != null
+        && current != serverConnection
+        && current.isSaturated()) {
+      anyServersSaturated = true;
     }
     if (!anyServersSaturated) {
       LOG.info("All server connections writeable, resuming reading");
