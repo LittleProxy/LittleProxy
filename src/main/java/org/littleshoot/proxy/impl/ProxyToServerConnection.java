@@ -119,7 +119,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static final String SOCKS_DECODER_NAME = "socksDecoder";
   private static final String MAIN_HANDLER_NAME = "handler";
   private final ClientToProxyConnection clientConnection;
-  ServerConnectionPool connectionPool;
+  @Nullable private final ServerConnectionPool connectionPool;
   private final ProxyToServerConnection serverConnection = this;
   private volatile TransportProtocol transportProtocol;
   private volatile ChainedProxyType chainedProxyType;

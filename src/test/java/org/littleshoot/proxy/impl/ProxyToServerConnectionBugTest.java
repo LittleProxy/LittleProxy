@@ -72,16 +72,15 @@ class ProxyToServerConnectionBugTest {
   private ProxyToServerConnection createConnectionWithPool(
       ServerConnectionPool pool, List<ActivityTracker> trackers) throws Exception {
     when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
-    ProxyToServerConnection conn =
-        ProxyToServerConnection.create(
-            mockProxyServer,
-            mockClientConnection,
-            "localhost:8080",
-            mockFilters,
-            null,
-            mockTrafficHandler);
-    conn.connectionPool = pool;
-    return conn;
+    return ProxyToServerConnection.createForPool(
+        mockProxyServer,
+        pool,
+        mockClientConnection,
+        "localhost:8080",
+        null,
+        mockFilters,
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+        mockTrafficHandler);
   }
 
   // ============================================================
