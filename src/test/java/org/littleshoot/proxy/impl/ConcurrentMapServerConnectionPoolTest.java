@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
@@ -124,6 +125,7 @@ class ConcurrentMapServerConnectionPoolTest {
   }
 
   @Test
+  @Tag("slow-test")
   void pendingRequestTimestampShouldBeRecent() {
     long before = System.currentTimeMillis();
     PendingRequest pendingRequest = new PendingRequest(null, null, null);
