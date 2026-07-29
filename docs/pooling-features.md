@@ -104,6 +104,13 @@ When `useSharedPool` is true, `pool.getOrCreateConnection(...)` is called instea
 creates a new one via `ProxyToServerConnection.createForPool(...)`, which attaches
 the `connectionPool` reference so the connection knows it is pool-managed.
 
+**Excluded from pooling:** Tunneling connections (non-MITM CONNECT, raw TCP tunnels)
+and WebSocket protocol upgrades are never pooled. Tunneling has no HTTP request/response
+boundary to trigger pool release — the connection stays dedicated for the tunnel's
+lifetime. WebSocket connections replace HTTP codecs with raw frame handlers after the
+upgrade handshake, so they cannot be returned to the pool. Both always use
+`serverConnectionsByHostAndPort` with dedicated `ProxyToServerConnection.create()`.
+
 On the response path, `markResponseComplete()` calls
 `connectionPool.releaseConnection(this)`, returning the connection to the available
 queue. HTTP pipelining is handled via `registerPendingRequest` /
@@ -328,7 +335,9 @@ boolean useSharedPool =
 
 A request reaches the pool when:
 - The pool is enabled (`usePool`)
-- It is not a WebSocket upgrade or tunneling request
+- It is not a WebSocket upgrade or tunneling request — these are **always excluded**
+  because tunneling has no request/response boundary and WebSocket replaces HTTP codecs
+  with raw frame handlers, making pool return impossible
 - **For CONNECT requests**: only if `poolSharedMitmConnections=true`
 - **For MITM requests (after CONNECT)**: always if `poolPerRequestInMitm=true`;
   otherwise the dedicated `serverConnectionsByHostAndPort` path is used
@@ -636,6 +645,21 @@ pool_per_request_in_mitm=true
 | `ServerConnectionPoolTypeTest` | 6 | Pool type selection across all three implementations |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |
+
+## Excluded Protocols
+
+The following traffic types are never pooled and always use dedicated
+`ProxyToServerConnection` instances tracked in `serverConnectionsByHostAndPort`:
+
+| Protocol | Reason |
+|---|---|
+| **WebSocket** (`Upgrade: websocket`) | After the HTTP upgrade handshake, the HTTP codecs are replaced with `WebSocketFramePipeHandler`. The connection becomes a raw frame pipe between client and server with no HTTP request/response lifecycle to trigger pool release. |
+| **Tunneling** (non-MITM CONNECT) | Once the CONNECT response is sent, the connection enters raw TCP tunneling mode. There are no HTTP request/response boundaries — all data flows bidirectionally until the tunnel closes, so the connection cannot be returned to the pool. |
+| **Switching Protocols** (other `Upgrade` headers) | Same as WebSocket — HTTP codecs are removed and the connection switches to a different protocol, making pool return impossible. |
+
+The `useSharedPool` condition explicitly checks `!isTunneling()` and
+`!ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)` before every request.
+No configuration flag can override these exclusions.
 
 ## Known Limitations
 
