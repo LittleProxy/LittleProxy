@@ -40,9 +40,8 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       poolablesByConnection = new ConcurrentHashMap<>();
   private final ConcurrentMap<Channel, Queue<PendingRequest>> pendingRequestsByChannel =
       new ConcurrentHashMap<>();
-  private final ConcurrentMap<String, ConnectionContext> creationContextByPoolKey =
-      new ConcurrentHashMap<>();
   private final Semaphore totalConnectionPermits;
+  private final ThreadLocal<ConnectionContext> contextForCurrentClaim = new ThreadLocal<>();
   @Nullable private volatile Duration idleTimeout;
   private volatile boolean connectionValidationEnabled = false;
 
@@ -82,35 +81,41 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     ConnectionContext context =
         new ConnectionContext(
             serverHostAndPort, chainedProxy, clientConnection, initialFilters, initialHttpRequest);
-    creationContextByPoolKey.put(poolKey, context);
-    try {
-      Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
-      int claimTimeoutMs = proxyServer.getConnectTimeout();
-      Timeout timeout =
-          new Timeout(claimTimeoutMs > 0 ? claimTimeoutMs : 40000, TimeUnit.MILLISECONDS);
-      StormpotPooledConnection pooled = pool.claim(timeout);
-      if (pooled == null) {
+    Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
+    synchronized (pool) {
+      contextForCurrentClaim.set(context);
+      try {
+        int target = pool.getTargetSize();
+        if (target < maxConnectionsPerHost) {
+          pool.setTargetSize(target + 1);
+        }
+        int claimTimeoutMs = proxyServer.getConnectTimeout();
+        Timeout timeout =
+            new Timeout(claimTimeoutMs > 0 ? claimTimeoutMs : 40000, TimeUnit.MILLISECONDS);
+        StormpotPooledConnection pooled = pool.claim(timeout);
+        if (pooled == null) {
+          return null;
+        }
+        if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
+          validationFailureCount.incrementAndGet();
+          pooled.connection.disconnect();
+          pooled.release();
+          return null;
+        }
+        pooled.setLeased(true);
+        poolablesByConnection.put(pooled.connection, pooled);
+        borrowCount.incrementAndGet();
+        return pooled.connection;
+      } catch (PoolException e) {
+        LOG.warn("Failed to claim Stormpot connection for {}", poolKey, e);
         return null;
-      }
-      if (connectionValidationEnabled && !isConnectionValid(pooled.connection)) {
-        validationFailureCount.incrementAndGet();
-        pooled.connection.disconnect();
-        pooled.release();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        LOG.warn("Interrupted while claiming Stormpot connection for {}", poolKey, e);
         return null;
+      } finally {
+        contextForCurrentClaim.remove();
       }
-      pooled.setLeased(true);
-      poolablesByConnection.put(pooled.connection, pooled);
-      borrowCount.incrementAndGet();
-      return pooled.connection;
-    } catch (PoolException e) {
-      LOG.warn("Failed to claim Stormpot connection for {}", poolKey, e);
-      return null;
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      LOG.warn("Interrupted while claiming Stormpot connection for {}", poolKey, e);
-      return null;
-    } finally {
-      creationContextByPoolKey.remove(poolKey);
     }
   }
 
@@ -258,8 +263,8 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
 
   private Pool<StormpotPooledConnection> createPool(String serverHostAndPort) {
     StormpotAllocator allocator = new StormpotAllocator(serverHostAndPort);
-    return Pool.from(allocator)
-        .setSize(maxConnectionsPerHost)
+    return Pool.fromInline(allocator)
+        .setSize(0)
         .setExpiration(new ConnectionExpiration(idleTimeout))
         .build();
   }
@@ -273,7 +278,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
 
     @Override
     public StormpotPooledConnection allocate(Slot slot) throws Exception {
-      ConnectionContext context = creationContextByPoolKey.get(serverHostAndPort);
+      ConnectionContext context = contextForCurrentClaim.get();
       if (context == null) {
         throw new IllegalStateException(
             "Missing connection creation context for " + serverHostAndPort);
@@ -321,12 +326,14 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     private final ProxyToServerConnection connection;
     private volatile long releasedAt;
     private volatile boolean leased;
+    private volatile boolean everLeased;
 
     private StormpotPooledConnection(Slot slot, ProxyToServerConnection connection) {
       this.slot = slot;
       this.connection = connection;
       this.releasedAt = System.currentTimeMillis();
       this.leased = false;
+      this.everLeased = false;
     }
 
     boolean isLeased() {
@@ -335,6 +342,9 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
 
     void setLeased(boolean leased) {
       this.leased = leased;
+      if (leased) {
+        everLeased = true;
+      }
     }
 
     @Override
@@ -373,9 +383,13 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     public boolean hasExpired(stormpot.SlotInfo<? extends StormpotPooledConnection> slotInfo)
         throws Exception {
       StormpotPooledConnection pooled = slotInfo.getPoolable();
-      if (pooled == null
-          || !pooled.connection.isConnected()
-          || !pooled.connection.isAvailableForNewRequest()) {
+      if (pooled == null) {
+        return true;
+      }
+      if (!pooled.everLeased) {
+        return false;
+      }
+      if (!pooled.connection.isConnected() || !pooled.connection.isAvailableForNewRequest()) {
         return true;
       }
       if (idleTimeoutMillis > 0
