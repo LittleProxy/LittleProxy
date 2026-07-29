@@ -783,7 +783,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * Sets the client connection that is making the current request. Used for pooled connections to
    * track which client to send the response to.
    */
-  void setCurrentClientConnectionForRequest(ClientToProxyConnection clientConnection) {
+  void setCurrentClientConnectionForRequest(@Nullable ClientToProxyConnection clientConnection) {
     this.currentClientConnectionForRequest = clientConnection;
   }
 
