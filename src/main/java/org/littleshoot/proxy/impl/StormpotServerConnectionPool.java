@@ -40,7 +40,8 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       poolablesByConnection = new ConcurrentHashMap<>();
   private final ConcurrentMap<Channel, Queue<PendingRequest>> pendingRequestsByChannel =
       new ConcurrentHashMap<>();
-  private final ThreadLocal<ConnectionContext> creationContext = new ThreadLocal<>();
+  private final ConcurrentMap<String, ConnectionContext> creationContextByPoolKey =
+      new ConcurrentHashMap<>();
   private final Semaphore totalConnectionPermits;
   @Nullable private volatile Duration idleTimeout;
   private volatile boolean connectionValidationEnabled = false;
@@ -81,7 +82,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     ConnectionContext context =
         new ConnectionContext(
             serverHostAndPort, chainedProxy, clientConnection, initialFilters, initialHttpRequest);
-    creationContext.set(context);
+    creationContextByPoolKey.put(poolKey, context);
     try {
       Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
       Timeout timeout = new Timeout(1, TimeUnit.MILLISECONDS);
@@ -107,7 +108,7 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
       LOG.warn("Interrupted while claiming Stormpot connection for {}", poolKey, e);
       return null;
     } finally {
-      creationContext.remove();
+      creationContextByPoolKey.remove(poolKey);
     }
   }
 
@@ -270,9 +271,10 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
 
     @Override
     public StormpotPooledConnection allocate(Slot slot) throws Exception {
-      ConnectionContext context = creationContext.get();
+      ConnectionContext context = creationContextByPoolKey.get(serverHostAndPort);
       if (context == null) {
-        throw new IllegalStateException("Missing connection creation context");
+        throw new IllegalStateException(
+            "Missing connection creation context for " + serverHostAndPort);
       }
       if (!totalConnectionPermits.tryAcquire()) {
         throw new IllegalStateException("Pool exhausted: max connections reached");
