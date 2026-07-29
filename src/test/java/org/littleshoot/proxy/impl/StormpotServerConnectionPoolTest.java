@@ -16,10 +16,12 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
 
+@Tag("slow-test")
 class StormpotServerConnectionPoolTest {
 
   private DefaultHttpProxyServer mockProxyServer;
@@ -42,6 +44,7 @@ class StormpotServerConnectionPoolTest {
     when(mockHostResolver.resolve(anyString(), anyInt()))
         .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
     when(mockProxyServer.getActivityTrackers()).thenReturn(java.util.Collections.emptyList());
+    when(mockProxyServer.getConnectTimeout()).thenReturn(100);
 
     when(mockClientConnection.flowContext()).thenReturn(mock());
     when(mockClientConnection.flowContextForServerConnection(any(ProxyToServerConnection.class)))

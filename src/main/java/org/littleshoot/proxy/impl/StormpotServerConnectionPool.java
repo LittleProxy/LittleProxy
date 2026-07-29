@@ -85,7 +85,9 @@ public class StormpotServerConnectionPool implements ServerConnectionPool {
     creationContextByPoolKey.put(poolKey, context);
     try {
       Pool<StormpotPooledConnection> pool = poolsByHost.computeIfAbsent(poolKey, this::createPool);
-      Timeout timeout = new Timeout(1, TimeUnit.MILLISECONDS);
+      int claimTimeoutMs = proxyServer.getConnectTimeout();
+      Timeout timeout =
+          new Timeout(claimTimeoutMs > 0 ? claimTimeoutMs : 40000, TimeUnit.MILLISECONDS);
       StormpotPooledConnection pooled = pool.claim(timeout);
       if (pooled == null) {
         return null;
