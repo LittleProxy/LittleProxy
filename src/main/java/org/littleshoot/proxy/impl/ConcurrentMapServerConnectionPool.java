@@ -415,11 +415,14 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     if (queue == null || queue.isEmpty()) {
       return null;
     }
-    while (true) {
+    int checked = 0;
+    int size = queue.size();
+    while (checked < size) {
       PooledConnection pooled = queue.poll();
       if (pooled == null) {
         return null;
       }
+      checked++;
       if (!pooled.connection.isConnected()) {
         removeConnection(pooled.connection);
         continue;
@@ -434,7 +437,9 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       if (pooled.connection.isAvailableForNewRequest()) {
         return pooled.connection;
       }
+      queue.add(pooled);
     }
+    return null;
   }
 
   private boolean isConnectionValid(ProxyToServerConnection connection) {
