@@ -661,6 +661,15 @@ The `useSharedPool` condition explicitly checks `!isTunneling()` and
 `!ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)` before every request.
 No configuration flag can override these exclusions.
 
+## HTTP/2 Compatibility Note
+
+The underlying pooling architecture (pool key generation, connection tracking,
+and connection lifecycle) is independent of HTTP version and could support HTTP/2
+multiplexed streams. Future HTTP/2 server connections would reuse the same
+`PoolMetrics` infrastructure to track success/failure of multiplexed requests,
+though ALPN and stream-tracking adjustments would be required beyond the current
+implementation.
+
 ## Known Limitations
 
 - **Metrics API not on `HttpProxyServer` interface:** To access pool metrics
