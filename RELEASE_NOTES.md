@@ -1,5 +1,14 @@
 # Release Notes
 
+- 2.9.0 (06.08.2026, https://github.com/LittleProxy/LittleProxy/milestone/52?closed=1)
+  - #737 Fix order of handlers to support proxy protocol decoding for inbound requests (#729) by Krasimir Marinov
+  - fix "IllegalReferenceCountException: null" on ClientToProxyConnection (#625) by James Baldassari
+  - #71 Fix assumption about CONNECT in MITM mode should use SSL (#717) by Charles Lescot
+  - #77 Fix: CONNECT response not returned to HttpFilters (#721) by Charles Lescot
+  - #57 Fix: Upstream Socks Proxy Not Authenticating (#719) by Charles Lescot
+  - Bump netty.version from 4.2.15.Final to 4.2.16.Final (#770)
+  - Bump org.seleniumhq.selenium:selenium-java from 4.45.0 to 4.46.0 (#771)
+
 - 2.8.0 (27.06.2026, https://github.com/LittleProxy/LittleProxy/milestone/51?closed=1)
   - Fix unsupported `com.lmax.disruptor` scope (#744) by Alexey Venderov
   - Bump selenium from 4.41.0 to 4.45.0
