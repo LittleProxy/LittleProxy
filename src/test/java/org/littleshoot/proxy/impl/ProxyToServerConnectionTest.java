@@ -1,6 +1,27 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Locale.ROOT;
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import java.lang.reflect.Field;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Queue;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLProtocolException;
 import org.jspecify.annotations.NullMarked;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,28 +38,6 @@ import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.TransportProtocol;
-
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLProtocolException;
-import java.lang.reflect.Field;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.List;
-import java.util.Queue;
-
-import static java.util.Locale.ROOT;
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 final class ProxyToServerConnectionTest {
 
@@ -63,15 +62,12 @@ final class ProxyToServerConnectionTest {
   }
 
   @NullMarked
-  private ProxyToServerConnection createConnection(ActivityTracker... trackers) throws UnknownHostException {
+  private ProxyToServerConnection createConnection(ActivityTracker... trackers)
+      throws UnknownHostException {
     when(proxyServer.getActivityTrackers()).thenReturn(List.of(trackers));
-    return requireNonNull(ProxyToServerConnection.create(
-        proxyServer,
-        clientConnection,
-        "localhost:8080",
-        filters,
-        null,
-        trafficHandler));
+    return requireNonNull(
+        ProxyToServerConnection.create(
+            proxyServer, clientConnection, "localhost:8080", filters, null, trafficHandler));
   }
 
   @Test
@@ -269,7 +265,8 @@ final class ProxyToServerConnectionTest {
     void returnsTrue_forKnownErrorMessages(String errorMessage) throws Exception {
       ProxyToServerConnection connection = createConnection();
 
-      assertThat(connection.shouldRetryWithoutSsl(new SSLHandshakeException(errorMessage))).isTrue();
+      assertThat(connection.shouldRetryWithoutSsl(new SSLHandshakeException(errorMessage)))
+          .isTrue();
       assertThat(connection.shouldRetryWithoutSsl(new SSLProtocolException(errorMessage))).isTrue();
       assertThat(connection.shouldRetryWithoutSsl(new SSLException(errorMessage))).isTrue();
 
