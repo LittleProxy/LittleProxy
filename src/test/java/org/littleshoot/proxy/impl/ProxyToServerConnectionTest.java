@@ -1,25 +1,13 @@
 package org.littleshoot.proxy.impl;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Queue;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLProtocolException;
+import org.jspecify.annotations.NullMarked;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.ChainedProxyManager;
@@ -30,45 +18,60 @@ import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.TransportProtocol;
 
-class ProxyToServerConnectionTest {
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLProtocolException;
+import java.lang.reflect.Field;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Queue;
 
-  private DefaultHttpProxyServer mockProxyServer;
-  private ClientToProxyConnection mockClientConnection;
-  private HttpFilters mockFilters;
-  private GlobalTrafficShapingHandler mockTrafficHandler;
-  private HostResolver mockHostResolver;
-  private FlowContext mockClientFlowContext;
-  private FullFlowContext mockFlowContext;
+import static java.util.Locale.ROOT;
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+final class ProxyToServerConnectionTest {
+
+  private final DefaultHttpProxyServer proxyServer = mock();
+  private final ClientToProxyConnection clientConnection = mock();
+  private final HttpFilters filters = mock();
+  private final GlobalTrafficShapingHandler trafficHandler = mock();
+  private final FlowContext flowContext = mock();
+  private final FullFlowContext fullFlowContext = mock();
+  private final InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 9443);
+  private final InetSocketAddress hostAddress = new InetSocketAddress("127.0.0.1", 8080);
 
   @BeforeEach
-  void setup() throws Exception {
-    mockProxyServer = mock();
-    mockClientConnection = mock();
-    mockFilters = mock();
-    mockTrafficHandler = mock();
-    mockHostResolver = mock();
+  void setup() throws UnknownHostException {
+    HostResolver hostResolver = mock();
 
-    when(mockProxyServer.getServerResolver()).thenReturn(mockHostResolver);
-    when(mockHostResolver.resolve(any(), anyInt()))
-        .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt())).thenReturn(hostAddress);
 
-    mockClientFlowContext = mock();
-    when(mockClientConnection.flowContext()).thenReturn(mockClientFlowContext);
-    mockFlowContext = mock();
-    when(mockClientConnection.flowContextForServerConnection(any(ProxyToServerConnection.class)))
-        .thenReturn(mockFlowContext);
+    when(clientConnection.flowContext()).thenReturn(flowContext);
+    when(clientConnection.flowContextForServerConnection(any())).thenReturn(fullFlowContext);
   }
 
-  private ProxyToServerConnection createConnection(List<ActivityTracker> trackers)
-      throws UnknownHostException {
-    when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
-    return ProxyToServerConnection.create(
-        mockProxyServer,
-        mockClientConnection,
+  @NullMarked
+  private ProxyToServerConnection createConnection(ActivityTracker... trackers) throws UnknownHostException {
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of(trackers));
+    return requireNonNull(ProxyToServerConnection.create(
+        proxyServer,
+        clientConnection,
         "localhost:8080",
-        mockFilters,
+        filters,
         null,
-        mockTrafficHandler);
+        trafficHandler));
   }
 
   @Test
@@ -78,31 +81,24 @@ class ProxyToServerConnectionTest {
     doThrow(new RuntimeException("Test exception"))
         .when(throwingTracker)
         .serverDisconnected(any(), any());
-
-    List<ActivityTracker> trackers = Collections.singletonList(throwingTracker);
-    ProxyToServerConnection connection = createConnection(trackers);
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(throwingTracker);
 
     connection.disconnected();
 
-    verify(throwingTracker)
-        .serverDisconnected(any(FullFlowContext.class), any(InetSocketAddress.class));
-    verify(mockClientConnection).clearFlowContextForServerConnection(connection);
+    verify(throwingTracker).serverDisconnected(fullFlowContext, hostAddress);
+    verify(clientConnection).clearFlowContextForServerConnection(connection);
   }
 
   @Test
   @DisplayName("disconnected should clear flow context when no exception occurs")
   void disconnectedShouldClearFlowContextWhenNoException() throws Exception {
     ActivityTracker normalTracker = mock();
-    List<ActivityTracker> trackers = Collections.singletonList(normalTracker);
-    ProxyToServerConnection connection = createConnection(trackers);
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(normalTracker);
 
     connection.disconnected();
 
-    verify(normalTracker)
-        .serverDisconnected(any(FullFlowContext.class), any(InetSocketAddress.class));
-    verify(mockClientConnection).clearFlowContextForServerConnection(connection);
+    verify(normalTracker).serverDisconnected(fullFlowContext, hostAddress);
+    verify(clientConnection).clearFlowContextForServerConnection(connection);
   }
 
   @Test
@@ -113,15 +109,12 @@ class ProxyToServerConnectionTest {
         .when(throwingTracker)
         .serverConnected(any(), any());
     ActivityTracker succeedingTracker = mock();
-
-    ProxyToServerConnection connection =
-        createConnection(Arrays.asList(throwingTracker, succeedingTracker));
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(throwingTracker, succeedingTracker);
 
     connection.recordServerConnected();
 
-    verify(throwingTracker).serverConnected(any(), any());
-    verify(succeedingTracker).serverConnected(any(), any());
+    verify(throwingTracker).serverConnected(fullFlowContext, hostAddress);
+    verify(succeedingTracker).serverConnected(fullFlowContext, hostAddress);
   }
 
   @Test
@@ -133,16 +126,13 @@ class ProxyToServerConnectionTest {
         .when(throwingTracker)
         .serverDisconnected(any(), any());
     ActivityTracker succeedingTracker = mock();
-
-    ProxyToServerConnection connection =
-        createConnection(Arrays.asList(throwingTracker, succeedingTracker));
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(throwingTracker, succeedingTracker);
 
     connection.recordServerDisconnected();
 
-    verify(throwingTracker).serverDisconnected(any(), any());
-    verify(succeedingTracker).serverDisconnected(any(), any());
-    verify(mockClientConnection).clearFlowContextForServerConnection(connection);
+    verify(throwingTracker).serverDisconnected(fullFlowContext, hostAddress);
+    verify(succeedingTracker).serverDisconnected(fullFlowContext, hostAddress);
+    verify(clientConnection).clearFlowContextForServerConnection(connection);
   }
 
   @Test
@@ -153,15 +143,12 @@ class ProxyToServerConnectionTest {
         .when(throwingTracker)
         .connectionSaturated(any());
     ActivityTracker succeedingTracker = mock();
-
-    ProxyToServerConnection connection =
-        createConnection(Arrays.asList(throwingTracker, succeedingTracker));
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(throwingTracker, succeedingTracker);
 
     connection.recordConnectionSaturated();
 
-    verify(throwingTracker).connectionSaturated(any());
-    verify(succeedingTracker).connectionSaturated(any());
+    verify(throwingTracker).connectionSaturated(fullFlowContext);
+    verify(succeedingTracker).connectionSaturated(fullFlowContext);
   }
 
   @Test
@@ -170,15 +157,12 @@ class ProxyToServerConnectionTest {
     ActivityTracker throwingTracker = mock();
     doThrow(new RuntimeException("Test exception")).when(throwingTracker).connectionWritable(any());
     ActivityTracker succeedingTracker = mock();
-
-    ProxyToServerConnection connection =
-        createConnection(Arrays.asList(throwingTracker, succeedingTracker));
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(throwingTracker, succeedingTracker);
 
     connection.recordConnectionWritable();
 
-    verify(throwingTracker).connectionWritable(any());
-    verify(succeedingTracker).connectionWritable(any());
+    verify(throwingTracker).connectionWritable(fullFlowContext);
+    verify(succeedingTracker).connectionWritable(fullFlowContext);
   }
 
   @Test
@@ -187,15 +171,12 @@ class ProxyToServerConnectionTest {
     ActivityTracker throwingTracker = mock();
     doThrow(new RuntimeException("Test exception")).when(throwingTracker).connectionTimedOut(any());
     ActivityTracker succeedingTracker = mock();
-
-    ProxyToServerConnection connection =
-        createConnection(Arrays.asList(throwingTracker, succeedingTracker));
-    assertThat(connection).isNotNull();
+    ProxyToServerConnection connection = createConnection(throwingTracker, succeedingTracker);
 
     connection.recordConnectionTimedOut();
 
-    verify(throwingTracker).connectionTimedOut(any());
-    verify(succeedingTracker).connectionTimedOut(any());
+    verify(throwingTracker).connectionTimedOut(fullFlowContext);
+    verify(succeedingTracker).connectionTimedOut(fullFlowContext);
   }
 
   @Test
@@ -235,21 +216,19 @@ class ProxyToServerConnectionTest {
         .when(throwingTracker)
         .connectionExceptionCaught(any(), any());
     ActivityTracker succeedingTracker = mock();
+    ProxyToServerConnection connection = createConnection(throwingTracker, succeedingTracker);
+    RuntimeException cause = new RuntimeException("Test cause");
 
-    ProxyToServerConnection connection =
-        createConnection(Arrays.asList(throwingTracker, succeedingTracker));
-    assertThat(connection).isNotNull();
+    connection.recordConnectionExceptionCaught(cause);
 
-    connection.recordConnectionExceptionCaught(new RuntimeException("Test cause"));
-
-    verify(throwingTracker).connectionExceptionCaught(any(), any());
-    verify(succeedingTracker).connectionExceptionCaught(any(), any());
+    verify(throwingTracker).connectionExceptionCaught(fullFlowContext, cause);
+    verify(succeedingTracker).connectionExceptionCaught(fullFlowContext, cause);
   }
 
   private ProxyToServerConnection createConnectionWithChainedProxy(ChainedProxy chainedProxy)
       throws UnknownHostException {
     ChainedProxyManager chainedProxyManager = mock();
-    when(mockProxyServer.getChainProxyManager()).thenReturn(chainedProxyManager);
+    when(proxyServer.getChainProxyManager()).thenReturn(chainedProxyManager);
     doAnswer(
             invocation -> {
               invocation.<Queue<ChainedProxy>>getArgument(1).add(chainedProxy);
@@ -260,25 +239,9 @@ class ProxyToServerConnectionTest {
 
     when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
     when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
-    when(chainedProxy.getChainedProxyAddress())
-        .thenReturn(new InetSocketAddress("127.0.0.1", 9443));
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(proxyAddress);
 
-    return createConnection(Collections.emptyList());
-  }
-
-  /**
-   * Helper to invoke the private {@code shouldRetryWithoutSsl} method via reflection.
-   *
-   * @param connection the connection instance
-   * @param cause the exception to test
-   * @return true if the method says to retry without SSL
-   */
-  private boolean invokeShouldRetryWithoutSsl(ProxyToServerConnection connection, Throwable cause)
-      throws Exception {
-    Method method =
-        ProxyToServerConnection.class.getDeclaredMethod("shouldRetryWithoutSsl", Throwable.class);
-    method.setAccessible(true);
-    return (boolean) method.invoke(connection, cause);
+    return createConnection();
   }
 
   /**
@@ -294,109 +257,69 @@ class ProxyToServerConnectionTest {
     field.setBoolean(connection, value);
   }
 
-  @Test
-  @DisplayName(
-      "shouldRetryWithoutSsl should return true for SSLHandshakeException with matching message")
-  void shouldRetryWithoutSslReturnsTrueForSslHandshakeException() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
+  @Nested
+  class ShouldRetryWithoutSsl {
+    @ParameterizedTest
+    @CsvSource({
+      "Remote host terminated the handshake",
+      "end of file",
+      "not an SSL/TLS record",
+      "Connection reset"
+    })
+    void returnsTrue_forKnownErrorMessages(String errorMessage) throws Exception {
+      ProxyToServerConnection connection = createConnection();
 
-    SSLHandshakeException cause = new SSLHandshakeException("Remote host terminated the handshake");
-    assertThat(invokeShouldRetryWithoutSsl(connection, cause)).isTrue();
-  }
+      assertThat(connection.shouldRetryWithoutSsl(new SSLHandshakeException(errorMessage))).isTrue();
+      assertThat(connection.shouldRetryWithoutSsl(new SSLProtocolException(errorMessage))).isTrue();
+      assertThat(connection.shouldRetryWithoutSsl(new SSLException(errorMessage))).isTrue();
 
-  @Test
-  @DisplayName(
-      "shouldRetryWithoutSsl should return true for SSLProtocolException with matching message")
-  void shouldRetryWithoutSslReturnsTrueForSslProtocolException() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
+      assertThat(
+              connection.shouldRetryWithoutSsl(
+                  new SSLHandshakeException(errorMessage.toUpperCase(ROOT))))
+          .as("case-insensitive")
+          .isTrue();
+      assertThat(
+              connection.shouldRetryWithoutSsl(
+                  new SSLHandshakeException(errorMessage.toLowerCase(ROOT))))
+          .as("case-insensitive")
+          .isTrue();
+    }
 
-    SSLProtocolException cause = new SSLProtocolException("end of file");
-    assertThat(invokeShouldRetryWithoutSsl(connection, cause)).isTrue();
-  }
+    @Test
+    @DisplayName("should return false for null cause")
+    void returnsFalse_forNullCause() throws Exception {
+      ProxyToServerConnection connection = createConnection();
 
-  @Test
-  @DisplayName(
-      "shouldRetryWithoutSsl should return true for generic SSLException with matching message")
-  void shouldRetryWithoutSslReturnsTrueForGenericSslException() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
+      assertThat(connection.shouldRetryWithoutSsl(null)).isFalse();
+    }
 
-    SSLException cause = new SSLException("not an SSL/TLS record");
-    assertThat(invokeShouldRetryWithoutSsl(connection, cause)).isTrue();
-  }
+    @Test
+    @DisplayName("should return false for non-SSL exceptions")
+    void returnsFalse_forNonSslExceptions() throws Exception {
+      ProxyToServerConnection connection = createConnection();
 
-  @Test
-  @DisplayName("shouldRetryWithoutSsl should handle case-insensitive error messages (Bug 3)")
-  void shouldRetryWithoutSslHandlesCaseInsensitiveMessages() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
+      assertThat(connection.shouldRetryWithoutSsl(new RuntimeException("some error"))).isFalse();
+    }
 
-    // Uppercase variant - should match even though current code uses case-sensitive contains
-    SSLHandshakeException upperCase =
-        new SSLHandshakeException("Remote Host Terminated The Handshake");
-    assertThat(invokeShouldRetryWithoutSsl(connection, upperCase))
-        .as(
-            "shouldRetryWithoutSsl should match 'Remote Host Terminated' (mixed case) - "
-                + "Bug 3: case-sensitive matching is fragile across JVM implementations")
-        .isTrue();
+    @Test
+    @DisplayName("should return false when already retried without SSL")
+    void returnsFalse_WhenAlreadyRetried() throws Exception {
+      ProxyToServerConnection connection = createConnection();
 
-    // Lowercase variant
-    SSLHandshakeException lowerCase =
-        new SSLHandshakeException("remote host terminated the handshake");
-    assertThat(invokeShouldRetryWithoutSsl(connection, lowerCase))
-        .as("shouldRetryWithoutSsl should match 'remote host terminated' (lowercase)")
-        .isTrue();
+      setDisableSslForNonTls(connection, true); // TODO
 
-    // "Connection Reset" vs "connection reset"
-    SSLException connectionResetUpper = new SSLException("Connection reset");
-    assertThat(invokeShouldRetryWithoutSsl(connection, connectionResetUpper))
-        .as(
-            "shouldRetryWithoutSsl should match 'Connection reset' (capitalized) - "
-                + "Bug 3: some JVMs capitalize this message")
-        .isTrue();
-  }
+      SSLHandshakeException cause =
+          new SSLHandshakeException("Remote host terminated the handshake");
+      assertThat(connection.shouldRetryWithoutSsl(cause)).isFalse();
+    }
 
-  @Test
-  @DisplayName("shouldRetryWithoutSsl should return false for null cause")
-  void shouldRetryWithoutSslReturnsFalseForNullCause() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
+    @Test
+    @DisplayName("should return false for SSL exceptions with non-matching messages")
+    void returnsFalse_rorNonMatchingMessages() throws Exception {
+      ProxyToServerConnection connection = createConnection();
 
-    assertThat(invokeShouldRetryWithoutSsl(connection, null)).isFalse();
-  }
-
-  @Test
-  @DisplayName("shouldRetryWithoutSsl should return false for non-SSL exceptions")
-  void shouldRetryWithoutSslReturnsFalseForNonSslExceptions() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
-
-    assertThat(invokeShouldRetryWithoutSsl(connection, new RuntimeException("some error")))
-        .isFalse();
-  }
-
-  @Test
-  @DisplayName("shouldRetryWithoutSsl should return false when already retried without SSL")
-  void shouldRetryWithoutSslReturnsFalseWhenAlreadyRetried() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
-
-    setDisableSslForNonTls(connection, true);
-
-    SSLHandshakeException cause = new SSLHandshakeException("Remote host terminated the handshake");
-    assertThat(invokeShouldRetryWithoutSsl(connection, cause)).isFalse();
-  }
-
-  @Test
-  @DisplayName(
-      "shouldRetryWithoutSsl should return false for SSL exceptions with non-matching messages")
-  void shouldRetryWithoutSslReturnsFalseForNonMatchingMessages() throws Exception {
-    ProxyToServerConnection connection = createConnection(Collections.emptyList());
-    assertThat(connection).isNotNull();
-
-    SSLHandshakeException cause = new SSLHandshakeException("certificate expired");
-    assertThat(invokeShouldRetryWithoutSsl(connection, cause)).isFalse();
+      SSLHandshakeException cause = new SSLHandshakeException("certificate expired");
+      assertThat(connection.shouldRetryWithoutSsl(cause)).isFalse();
+    }
   }
 }

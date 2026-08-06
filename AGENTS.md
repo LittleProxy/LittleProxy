@@ -54,6 +54,10 @@ For diagrams and the full lifecycle of CONNECT/MITM/filter callbacks, see `Littl
 - Long-running or timing-sensitive tests are marked `@Tag("slow-test")` and excluded from the default/smoke profile.
 - Integration tests start real proxy instances on ephemeral ports; prefer extending `AbstractProxyTest` / `BaseProxyTest` / `BaseChainedProxyTest` rather than duplicating setup.
 - Test resources include keystores and `log4j.xml` under `src/test/resources/`.
+- Prefer `final` fields for test fixtures (e.g. `private final Foo foo = mock();`) over non-final fields assigned in `@BeforeEach`.
+- Prefer initializing fields inline at declaration over assigning them in `@BeforeEach`, when possible (e.g. only fall back to `@BeforeEach` when a value depends on another mock's stubbing or on a checked exception).
+- Never use `any()`/`any(Class)` in a `verify(...)` clause — pass the actual expected argument instead, e.g. `verify(throwingTracker).serverDisconnected(fullFlowContext, hostAddress);` not `verify(throwingTracker).serverDisconnected(any(), any());`. `any()` in `verify` only checks that some call happened, not that it happened with the right arguments.
+- Avoid reflection to reach a private field/method from a test. Best: test through the class's public API. If that's not practical, widen the member to package-private (test class lives in the same package) rather than reaching in via reflection — less magic, and the IDE/compiler catch renames.
 
 ## Release
 

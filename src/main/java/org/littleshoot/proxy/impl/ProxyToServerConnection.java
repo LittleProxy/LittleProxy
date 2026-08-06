@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Locale.ROOT;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CHUNK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CONNECT_OK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
@@ -1357,15 +1358,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * @param cause the cause of the connection failure
    * @return true if we should retry without SSL
    */
-  private boolean shouldRetryWithoutSsl(Throwable cause) {
+  boolean shouldRetryWithoutSsl(@Nullable Throwable cause) {
     if (cause == null) {
-      return false;
-    }
-
-    // Only retry if this is an SSL handshake failure
-    if (!(cause instanceof SSLHandshakeException)
-        && !(cause instanceof SSLProtocolException)
-        && !(cause instanceof javax.net.ssl.SSLException)) {
       return false;
     }
 
@@ -1374,20 +1368,23 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       return false;
     }
 
+    // Only retry if this is an SSL handshake failure
+    if (!(cause instanceof javax.net.ssl.SSLException)) {
+      return false;
+    }
+
     // Check for patterns that indicate the server doesn't speak SSL
     String message = cause.getMessage();
     if (message != null) {
-      String lowerMessage = message.toLowerCase(java.util.Locale.ROOT);
+      String lowerMessage = message.toLowerCase(ROOT);
       // "Remote host terminated the handshake" - server doesn't support SSL
       // "end of file" - server closed connection unexpectedly
       // "connection reset" - server doesn't speak SSL
       // "not an SSL/TLS record" - server sent HTTP response to SSL handshake
-      if (lowerMessage.contains("remote host terminated")
+      return lowerMessage.contains("remote host terminated")
           || lowerMessage.contains("end of file")
           || lowerMessage.contains("connection reset")
-          || lowerMessage.contains("not an ssl")) {
-        return true;
-      }
+          || lowerMessage.contains("not an ssl");
     }
 
     return false;
