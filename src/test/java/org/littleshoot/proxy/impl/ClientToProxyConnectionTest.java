@@ -1,103 +1,57 @@
 package org.littleshoot.proxy.impl;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
+import io.netty.channel.ChannelPipeline;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
-import org.littleshoot.proxy.FlowContext;
+import org.littleshoot.proxy.HttpFiltersSource;
 
 class ClientToProxyConnectionTest {
 
-  @Test
-  @DisplayName("recordClientDisconnected should call all trackers even if one throws")
-  void recordClientDisconnectedShouldCallAllTrackersEvenIfOneThrows() throws Exception {
-    DefaultHttpProxyServer mockProxyServer = mock();
-    ClientToProxyConnection mockConnection = mock();
+  private final DefaultHttpProxyServer proxyServer = mock();
 
+  private ClientToProxyConnection createConnection(ActivityTracker... trackers) {
+    when(proxyServer.getMaxInitialLineLength()).thenReturn(4096);
+    when(proxyServer.getMaxHeaderSize()).thenReturn(8192);
+    when(proxyServer.getMaxChunkSize()).thenReturn(8192);
+    when(proxyServer.getIdleConnectionTimeout()).thenReturn(60);
+    when(proxyServer.getFiltersSource()).thenReturn(mock(HttpFiltersSource.class));
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of(trackers));
+
+    return new ClientToProxyConnection(proxyServer, null, false, mock(ChannelPipeline.class), null);
+  }
+
+  @Test
+  @DisplayName("disconnected should notify all trackers even if one throws")
+  void disconnectedShouldNotifyAllTrackersEvenIfOneThrows() {
     ActivityTracker throwingTracker = mock();
     doThrow(new RuntimeException("Test exception"))
         .when(throwingTracker)
         .clientDisconnected(any(), any());
-
     ActivityTracker normalTracker = mock();
+    ClientToProxyConnection connection = createConnection(throwingTracker, normalTracker);
 
-    List<ActivityTracker> trackers = new ArrayList<>();
-    trackers.add(throwingTracker);
-    trackers.add(normalTracker);
-    when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
+    connection.disconnected();
 
-    FlowContext mockFlowContext = mock();
-    when(mockConnection.flowContext()).thenReturn(mockFlowContext);
-
-    Field proxyServerField = ProxyConnection.class.getDeclaredField("proxyServer");
-    proxyServerField.setAccessible(true);
-    proxyServerField.set(mockConnection, mockProxyServer);
-
-    ProxyConnectionLogger mockLogger = mock(ProxyConnectionLogger.class);
-    Field logField = ProxyConnection.class.getDeclaredField("LOG");
-    logField.setAccessible(true);
-    logField.set(mockConnection, mockLogger);
-
-    // The mock bypasses the constructor; set the guard to true so recordDisconnected's fallback
-    // recordClientConnected() is a no-op here.
-    Field clientConnectedRecordedField =
-        ClientToProxyConnection.class.getDeclaredField("clientConnectedRecorded");
-    clientConnectedRecordedField.setAccessible(true);
-    clientConnectedRecordedField.set(mockConnection, new AtomicBoolean(true));
-
-    Method recordMethod =
-        ClientToProxyConnection.class.getDeclaredMethod("recordClientDisconnected");
-    recordMethod.setAccessible(true);
-    recordMethod.invoke(mockConnection);
-
-    verify(throwingTracker).clientDisconnected(eq(mockFlowContext), any());
-    verify(normalTracker).clientDisconnected(eq(mockFlowContext), any());
+    verify(throwingTracker).clientDisconnected(connection.flowContext(), null);
+    verify(normalTracker).clientDisconnected(connection.flowContext(), null);
   }
 
   @Test
-  @DisplayName("recordClientDisconnected should call trackers when no exception occurs")
-  void recordClientDisconnectedShouldCallTrackersWhenNoException() throws Exception {
-    DefaultHttpProxyServer mockProxyServer = mock();
-    ClientToProxyConnection mockConnection = mock();
-
+  @DisplayName("disconnected should notify trackers when no exception occurs")
+  void disconnectedShouldNotifyTrackersWhenNoException() {
     ActivityTracker normalTracker = mock();
+    ClientToProxyConnection connection = createConnection(normalTracker);
 
-    List<ActivityTracker> trackers = new ArrayList<>();
-    trackers.add(normalTracker);
-    when(mockProxyServer.getActivityTrackers()).thenReturn(trackers);
+    connection.disconnected();
 
-    FlowContext mockFlowContext = mock();
-    when(mockConnection.flowContext()).thenReturn(mockFlowContext);
-
-    Field proxyServerField = ProxyConnection.class.getDeclaredField("proxyServer");
-    proxyServerField.setAccessible(true);
-    proxyServerField.set(mockConnection, mockProxyServer);
-
-    ProxyConnectionLogger mockLogger = mock(ProxyConnectionLogger.class);
-    Field logField = ProxyConnection.class.getDeclaredField("LOG");
-    logField.setAccessible(true);
-    logField.set(mockConnection, mockLogger);
-
-    // The mock bypasses the constructor; set the guard to true so recordDisconnected's fallback
-    // recordClientConnected() is a no-op here.
-    Field clientConnectedRecordedField =
-        ClientToProxyConnection.class.getDeclaredField("clientConnectedRecorded");
-    clientConnectedRecordedField.setAccessible(true);
-    clientConnectedRecordedField.set(mockConnection, new AtomicBoolean(true));
-
-    Method recordMethod =
-        ClientToProxyConnection.class.getDeclaredMethod("recordClientDisconnected");
-    recordMethod.setAccessible(true);
-    recordMethod.invoke(mockConnection);
-
-    verify(normalTracker).clientDisconnected(eq(mockFlowContext), any());
+    verify(normalTracker).clientDisconnected(connection.flowContext(), null);
   }
 }
