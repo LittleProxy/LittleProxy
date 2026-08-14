@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -7,7 +8,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
@@ -53,5 +57,51 @@ class ClientToProxyConnectionTest {
     connection.disconnected();
 
     verify(normalTracker).clientDisconnected(connection.flowContext(), null);
+  }
+
+  @Test
+  @DisplayName("encrypt requires a client certificate when authenticateClients is true")
+  void encryptRequiresClientCertificateWhenAuthenticateClientsIsTrue() throws Exception {
+    ClientToProxyConnection connection = createConnection();
+    SSLEngine engine = newServerEngine();
+
+    connection.encrypt(newRealPipeline(), engine, true);
+
+    assertThat(engine.getNeedClientAuth()).isTrue();
+  }
+
+  @Test
+  @DisplayName("encrypt leaves a plain engine unauthenticated when authenticateClients is false")
+  void encryptLeavesPlainEngineUnauthenticatedWhenAuthenticateClientsIsFalse() throws Exception {
+    ClientToProxyConnection connection = createConnection();
+    SSLEngine engine = newServerEngine(); // default engine: neither need nor want
+
+    connection.encrypt(newRealPipeline(), engine, false);
+
+    assertThat(engine.getNeedClientAuth()).isFalse();
+    assertThat(engine.getWantClientAuth()).isFalse();
+  }
+
+  @Test
+  @DisplayName(
+      "encrypt preserves setWantClientAuth from the SslEngineSource when authenticateClients is false")
+  void encryptPreservesWantClientAuthWhenAuthenticateClientsIsFalse() throws Exception {
+    ClientToProxyConnection connection = createConnection();
+    SSLEngine engine = newServerEngine();
+    engine.setWantClientAuth(true); // e.g. an engine built with Netty ClientAuth.OPTIONAL
+
+    connection.encrypt(newRealPipeline(), engine, false);
+
+    // Before the fix, encrypt() called setNeedClientAuth(false) here, which cleared this flag.
+    assertThat(engine.getWantClientAuth()).isTrue();
+    assertThat(engine.getNeedClientAuth()).isFalse();
+  }
+
+  private static SSLEngine newServerEngine() throws Exception {
+    return SSLContext.getDefault().createSSLEngine();
+  }
+
+  private static ChannelPipeline newRealPipeline() {
+    return new EmbeddedChannel().pipeline();
   }
 }
