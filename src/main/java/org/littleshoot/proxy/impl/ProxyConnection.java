@@ -315,7 +315,9 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    * Encrypts traffic on this connection with SSL/TLS.
    *
    * @param sslEngine the {@link SSLEngine} for doing the encryption
-   * @param authenticateClients determines whether to authenticate clients or not
+   * @param authenticateClients when {@code true}, client authentication is required; when {@code
+   *     false}, the engine's client-auth configuration is left as-is (see {@link
+   *     #encrypt(ChannelPipeline, SSLEngine, boolean)})
    * @return a Future for when the SSL handshake has completed
    */
   protected Future<Channel> encrypt(SSLEngine sslEngine, boolean authenticateClients) {
@@ -327,7 +329,12 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    *
    * @param pipeline the ChannelPipeline on which to enable encryption
    * @param sslEngine the {@link SSLEngine} for doing the encryption
-   * @param authenticateClients determines whether to authenticate clients or not
+   * @param authenticateClients when {@code true}, client authentication is required ({@link
+   *     SSLEngine#setNeedClientAuth(boolean)}). When {@code false}, the client-authentication
+   *     configuration of the supplied {@link SSLEngine} is left untouched, so callers can opt into
+   *     requesting (but not requiring) a client certificate via their {@link
+   *     org.littleshoot.proxy.SslEngineSource} (for example {@link
+   *     SSLEngine#setWantClientAuth(boolean)} or Netty's {@code ClientAuth.OPTIONAL}).
    * @return a Future for when the SSL handshake has completed
    */
   protected Future<Channel> encrypt(
@@ -335,7 +342,9 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
     LOG.debug("Enabling encryption with SSLEngine: {}", sslEngine);
     this.sslEngine = sslEngine;
     sslEngine.setUseClientMode(runsAsSslClient);
-    sslEngine.setNeedClientAuth(authenticateClients);
+    if (authenticateClients) {
+      sslEngine.setNeedClientAuth(true);
+    }
     if (null != channel) {
       channel.config().setAutoRead(true);
     }
