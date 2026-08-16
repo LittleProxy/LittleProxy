@@ -1,6 +1,17 @@
 
 Contribution guide for LittleProxy
 
+## Project scope
+
+LittleProxy is intended to be a LITTLE library, not a kitchen-sink proxy with every conceivable feature.
+Before starting work on a new feature, please discuss it first in
+[GitHub Discussions](https://github.com/LittleProxy/LittleProxy/discussions) or as a
+[GitHub Issue](https://github.com/LittleProxy/LittleProxy/issues), so we can agree whether it fits the
+project's scope before you invest time implementing it.
+
+If you need a richer feature set, consider [BrowserUp Proxy](https://github.com/valfirst/browserup-proxy),
+which is built on top of LittleProxy and provides more functionality.
+
 ## How to start
 
     git clone git@github.com:LittleProxy/LittleProxy.git
