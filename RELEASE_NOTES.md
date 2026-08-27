@@ -1,5 +1,10 @@
 # Release Notes
 
+- 2.9.1 (28.08.2026, https://github.com/LittleProxy/LittleProxy/milestone/53?closed=1)
+  - Bump Netty from 4.2.16.Final to 4.2.17.Final (#782)
+  - Bump Selenium from 4.46.0 to 4.48.0 (#784) (#792)
+  - Bump Guava from 33.6.0-jre to 33.7.1-jre (#787) (#788)
+
 - 2.9.0 (06.08.2026, https://github.com/LittleProxy/LittleProxy/milestone/52?closed=1)
   - #737 Fix order of handlers to support proxy protocol decoding for inbound requests (#729) by Krasimir Marinov
   - fix "IllegalReferenceCountException: null" on ClientToProxyConnection (#625) by James Baldassari
