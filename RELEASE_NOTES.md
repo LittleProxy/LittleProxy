@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.10.0 (Under construction, https://github.com/LittleProxy/LittleProxy/milestone/54?closed=1)
+  - TBD
+
 - 2.9.1 (28.08.2026, https://github.com/LittleProxy/LittleProxy/milestone/53?closed=1)
   - Bump Netty from 4.2.16.Final to 4.2.17.Final (#782)
   - Bump Selenium from 4.46.0 to 4.48.0 (#784) (#792)
