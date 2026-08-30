@@ -16,3 +16,5 @@ LittleProxy.pro
 performance/site/
 .claude/settings.local.json
 /logs
+/.opencode
+/.sisyphus
