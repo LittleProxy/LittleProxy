@@ -69,6 +69,16 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     requestMap.remove(flowContext);
   }
 
+  @Override
+  public void connectionTimedOut(FlowContext flowContext) {
+    requestMap.remove(flowContext);
+  }
+
+  @Override
+  public void connectionExceptionCaught(FlowContext flowContext, Throwable cause) {
+    requestMap.remove(flowContext);
+  }
+
   private String formatLogEntry(
       FlowContext flowContext, TimedRequest timedInfo, HttpResponse response) {
     HttpRequest request = timedInfo.request;

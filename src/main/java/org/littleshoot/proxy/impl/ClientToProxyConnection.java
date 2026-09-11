@@ -50,7 +50,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,6 +65,7 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.ChainedProxyType;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
@@ -272,31 +275,71 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
 
     LOG.debug("Finding ProxyToServerConnection for: {}", serverHostAndPort);
-    if (!isMitming() && !isTunneling()) {
-      currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
-    }
+
+    // Use the shared connection pool if enabled (disabled by default for backwards compatibility)
+    ServerConnectionPool pool = proxyServer.getServerConnectionPool();
+    boolean usePool = pool != null;
+    boolean isConnect = ProxyUtils.isCONNECT(httpRequest);
+    boolean poolSharedMitm = usePool && proxyServer.isPoolSharedMitmConnections();
+    boolean poolPerRequest = usePool && proxyServer.isPoolPerRequestInMitm();
+    boolean useSharedPool =
+        usePool
+            && !isTunneling()
+            && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)
+            && (poolPerRequest || !isMitming())
+            && (poolSharedMitm || !isConnect);
 
     boolean newConnectionRequired = false;
-    if (ProxyUtils.isCONNECT(httpRequest)) {
+    if (!useSharedPool) {
+      // For non-pooled mode, CONNECT, tunneling (WebSocket), or MITM, use dedicated connections
       LOG.debug(
-          "Not reusing existing ProxyToServerConnection because request is a CONNECT for: {}",
-          serverHostAndPort);
-      newConnectionRequired = true;
-    } else if (currentServerConnection == null) {
-      LOG.debug("Didn't find existing ProxyToServerConnection for: {}", serverHostAndPort);
+          "Not using shared pool for: {} (pool enabled: {}, is CONNECT: {}, is Tunneling: {}, is MITM: {})",
+          serverHostAndPort,
+          usePool,
+          ProxyUtils.isCONNECT(httpRequest),
+          isTunneling(),
+          isMitming());
+      currentServerConnection = serverConnectionsByHostAndPort.get(serverHostAndPort);
+      if (currentServerConnection == null) {
+        newConnectionRequired = true;
+      }
+    } else {
+      // For regular requests with pool enabled, get from shared pool
       newConnectionRequired = true;
     }
 
     if (newConnectionRequired) {
       try {
-        currentServerConnection =
-            ProxyToServerConnection.create(
-                proxyServer,
-                this,
-                serverHostAndPort,
-                currentFilters,
-                httpRequest,
-                globalTrafficShapingHandler);
+        // Create dedicated connection for non-pooled/CONNECT/tunneling/MITM, or use pool
+        if (!useSharedPool) {
+          currentServerConnection =
+              ProxyToServerConnection.create(
+                  proxyServer,
+                  this,
+                  serverHostAndPort,
+                  currentFilters,
+                  httpRequest,
+                  globalTrafficShapingHandler);
+        } else {
+          // Use the shared pool for regular requests
+          // Resolve ChainedProxy address before pooling to segregate connections by upstream route
+          ChainedProxy chainedProxy = null;
+          ChainedProxyManager chainedProxyManager = proxyServer.getChainProxyManager();
+          if (chainedProxyManager != null) {
+            Queue<ChainedProxy> chainedProxies = new ConcurrentLinkedQueue<>();
+            chainedProxyManager.lookupChainedProxies(
+                httpRequest, chainedProxies, getClientDetails());
+            if (!chainedProxies.isEmpty()) {
+              chainedProxy = chainedProxies.poll();
+            }
+          }
+          InetSocketAddress chainedProxyAddress =
+              chainedProxy != null ? chainedProxy.getChainedProxyAddress() : null;
+          currentServerConnection =
+              pool.getOrCreateConnection(
+                  serverHostAndPort, chainedProxyAddress, this, currentFilters, httpRequest);
+        }
+
         if (currentServerConnection == null) {
           LOG.debug("Unable to create server connection, probably no chained proxies available");
           boolean keepAlive = writeBadGateway(httpRequest);
@@ -307,9 +350,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             return DISCONNECT_REQUESTED;
           }
         }
-        // Remember the connection for later
-        serverConnectionsByHostAndPort.put(
-            serverHostAndPort, requireNonNull(currentServerConnection));
+
+        // Remember the connection for tracking (for non-pooled connections or
+        // CONNECT/tunneling/MITM). In per-request MITM mode, CONNECT connections are
+        // released to pool after flow completes, so they don't need session tracking.
+        if (!useSharedPool || (isConnect && !poolPerRequest)) {
+          serverConnectionsByHostAndPort.put(
+              serverHostAndPort, requireNonNull(currentServerConnection));
+        }
       } catch (UnknownHostException uhe) {
         LOG.info("Bad Host {}", httpRequest.uri());
         boolean keepAlive = writeBadGateway(httpRequest);
@@ -325,6 +373,20 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       numberOfReusedServerConnections.incrementAndGet();
     }
 
+    // For pooled connections, set the current client connection before writing
+    // This allows the server connection to know where to send the response
+    // Set for pooled requests including CONNECT and MITM when pool flags are active,
+    // so that reused connections route responses to the correct client
+    if (usePool
+        && !isTunneling()
+        && !ProxyUtils.isSwitchingToWebSocketProtocol(httpRequest)
+        && currentServerConnection != null
+        && (poolPerRequest
+            || poolSharedMitm
+            || (!ProxyUtils.isCONNECT(httpRequest) && !isMitming()))) {
+      currentServerConnection.setCurrentClientConnectionForRequest(this);
+    }
+
     modifyRequestHeadersToReflectProxying(httpRequest);
 
     HttpResponse proxyToServerFilterResponse = currentFilters.proxyToServerRequest(httpRequest);
@@ -332,6 +394,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       LOG.debug(
           "Responding to client with short-circuit response from filter: {}",
           proxyToServerFilterResponse);
+
+      if (usePool && currentServerConnection != null) {
+        currentServerConnection.setCurrentClientConnectionForRequest(null);
+        currentServerConnection.releaseToPool();
+      }
 
       boolean keepAlive = respondWithShortCircuitResponse(proxyToServerFilterResponse);
       if (keepAlive) {
@@ -629,8 +696,16 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected void disconnected() {
     super.disconnected();
+    boolean poolSharedMitm = proxyServer.isPoolSharedMitmConnections();
+    boolean poolPerRequest = proxyServer.isPoolPerRequestInMitm();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
-      serverConnection.disconnect();
+      // Phase 1: release pooled MITM connections back to the pool
+      // Phase 2: connections are already in pool after each response, no release needed
+      if (poolSharedMitm && !poolPerRequest && serverConnection.isManagedByPool()) {
+        serverConnection.releaseToPool();
+      } else {
+        serverConnection.disconnect();
+      }
     }
     recordClientDisconnected();
   }
@@ -754,10 +829,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected synchronized void becameSaturated() {
     super.becameSaturated();
     recordConnectionSaturated();
+    ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
       synchronized (serverConnection) {
         if (isSaturated()) {
           serverConnection.stopReading();
+        }
+      }
+    }
+    if (current != null) {
+      synchronized (current) {
+        if (isSaturated()) {
+          current.stopReading();
         }
       }
     }
@@ -771,10 +854,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   protected synchronized void becameWritable() {
     super.becameWritable();
     recordConnectionWritable();
+    ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
       synchronized (serverConnection) {
         if (!isSaturated()) {
           serverConnection.resumeReading();
+        }
+      }
+    }
+    if (current != null) {
+      synchronized (current) {
+        if (!isSaturated()) {
+          current.resumeReading();
         }
       }
     }
@@ -794,11 +885,18 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    */
   protected synchronized void serverBecameWriteable(ProxyToServerConnection serverConnection) {
     boolean anyServersSaturated = false;
+    ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection otherServerConnection : serverConnectionsByHostAndPort.values()) {
       if (otherServerConnection.isSaturated()) {
         anyServersSaturated = true;
         break;
       }
+    }
+    if (!anyServersSaturated
+        && current != null
+        && current != serverConnection
+        && current.isSaturated()) {
+      anyServersSaturated = true;
     }
     if (!anyServersSaturated) {
       LOG.info("All server connections writeable, resuming reading");
@@ -1596,6 +1694,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new RequestReadMonitor() {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
+          recordClientConnected();
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             tracker.requestReceivedFromClient(flowContext, httpRequest);
@@ -1725,7 +1824,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Nullable
   public InetSocketAddress getClientAddress() {
-    return ofNullable(channel).map(c -> (InetSocketAddress) c.remoteAddress()).orElse(null);
+    return ofNullable(channel)
+        .map(c -> c.remoteAddress())
+        .filter(InetSocketAddress.class::isInstance)
+        .map(InetSocketAddress.class::cast)
+        .orElse(null);
   }
 
   FlowContext flowContext() {

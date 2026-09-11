@@ -18,6 +18,11 @@ public class FlowContext {
   private final long connectionId;
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
 
+  /**
+   * Creates a new FlowContext for the given client connection.
+   *
+   * @param clientConnection the client-side connection that owns this flow
+   */
   public FlowContext(ClientToProxyConnection clientConnection) {
     this.clientConnection = clientConnection;
     this.connectionId = clientConnection.getId();
@@ -26,6 +31,8 @@ public class FlowContext {
   /**
    * The client's address: the PROXY header's source address when PROXY protocol is in use,
    * otherwise the TCP peer. Resolved lazily so a header received after construction is reflected.
+   *
+   * @return the client's socket address
    */
   public InetSocketAddress getClientAddress() {
     HAProxyMessage haProxyMessage = clientConnection.getHaProxyMessage();
@@ -37,7 +44,11 @@ public class FlowContext {
     return clientConnection.getClientAddress();
   }
 
-  /** If using SSL, this returns the {@link SSLSession} on the client connection. */
+  /**
+   * If using SSL, this returns the {@link SSLSession} on the client connection.
+   *
+   * @return the SSL session, or null if the client connection is not using SSL
+   */
   public SSLSession getClientSslSession() {
     SSLEngine sslEngine = clientConnection.getSslEngine();
     return sslEngine != null ? sslEngine.getSession() : null;
