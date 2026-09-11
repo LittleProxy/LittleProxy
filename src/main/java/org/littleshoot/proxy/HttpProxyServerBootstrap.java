@@ -217,4 +217,82 @@ public interface HttpProxyServerBootstrap {
    * @param sendProxyProtocol when true, the proxy will send a proxy protocol header
    */
   HttpProxyServerBootstrap withSendProxyProtocol(boolean sendProxyProtocol);
+
+  /**
+   * Enable or disable the shared server connection pool.
+   *
+   * <p>When enabled, all client connections share a common pool of server connections, allowing
+   * connections to the same server to be reused across different client connections. This addresses
+   * connection explosion when many clients connect to the same servers.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param useSharedServerConnectionPool true to enable the shared pool
+   */
+  HttpProxyServerBootstrap withSharedServerConnectionPool(boolean useSharedServerConnectionPool);
+
+  /**
+   * Selects the server connection pool implementation to use when the shared pool is enabled.
+   *
+   * <p>Default is {@link ServerConnectionPoolType#CONCURRENT_MAP}.
+   *
+   * @param poolType the pool implementation to use
+   */
+  HttpProxyServerBootstrap withServerConnectionPoolType(ServerConnectionPoolType poolType);
+
+  /**
+   * Sets the maximum number of connections per host:port when using the shared connection pool.
+   *
+   * <p>Default is 10. This allows multiple connections to the same server for high concurrency
+   * scenarios.
+   *
+   * @param maxConnectionsPerHost the maximum number of connections per host:port
+   */
+  HttpProxyServerBootstrap withMaxConnectionsPerHost(int maxConnectionsPerHost);
+
+  /**
+   * Sets the maximum total number of connections in the shared connection pool.
+   *
+   * <p>Default is 200.
+   *
+   * @param maxConnections the maximum total number of pooled connections
+   */
+  HttpProxyServerBootstrap withMaxConnections(int maxConnections);
+
+  /**
+   * Sets the idle timeout for pooled connections. Connections that remain idle (available in the
+   * pool) for longer than this duration will be evicted.
+   *
+   * <p>Default is null (no eviction based on idle time). When set, connections will be evicted
+   * after being idle for the specified duration.
+   *
+   * @param idleTimeout the idle timeout duration, or null to disable idle eviction
+   */
+  HttpProxyServerBootstrap withPoolIdleTimeout(Duration idleTimeout);
+
+  /**
+   * When enabled, MITM connections will use the shared server connection pool. This allows upstream
+   * connections for MITM'd HTTPS traffic to be reused across different client connections.
+   *
+   * <p>Enabled only takes effect when {@link #withSharedServerConnectionPool(boolean)} is also
+   * enabled.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param poolSharedMitmConnections true to allow MITM connections to use the shared pool
+   */
+  HttpProxyServerBootstrap withPoolSharedMitmConnections(boolean poolSharedMitmConnections);
+
+  /**
+   * When enabled, each HTTP request through an MITM tunnel independently acquires and releases a
+   * server connection from the shared pool. This allows multiple clients' MITM requests to share
+   * upstream connections concurrently (one request at a time per connection).
+   *
+   * <p>Only takes effect when {@link #withPoolSharedMitmConnections(boolean)} is also enabled.
+   *
+   * <p>Disabled by default for backwards compatibility.
+   *
+   * @param poolPerRequestInMitm true to enable per-request pooling inside MITM tunnels
+   */
+  HttpProxyServerBootstrap withPoolPerRequestInMitm(boolean poolPerRequestInMitm);
 }
