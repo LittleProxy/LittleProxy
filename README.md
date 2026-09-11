@@ -48,7 +48,7 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
-- `server_connection_pool_type` : pool implementation used by the shared server connection pool (`CONCURRENT_MAP`, `COMMONS_POOL2`, `STORMPOT`) (default : `CONCURRENT_MAP`) -- only effective when `use_shared_server_connection_pool=true`
+- `server_connection_pool_type` : pool implementation used by the shared server connection pool (`CONCURRENT_MAP`) (default : `CONCURRENT_MAP`) -- only effective when `use_shared_server_connection_pool=true`
 - `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`) -- only effective when `use_shared_server_connection_pool=true`
 - `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`) -- only effective when `use_shared_server_connection_pool=true`
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
@@ -363,7 +363,6 @@ HttpProxyServer server =
         DefaultHttpProxyServer.bootstrap()
                 .withPort(8080)
                 .withSharedServerConnectionPool(true)
-                .withServerConnectionPoolType(ServerConnectionPoolType.COMMONS_POOL2)
                 .withMaxConnections(500)
                 .withMaxConnectionsPerHost(50)
                 .withPoolIdleTimeout(Duration.ofSeconds(30))
@@ -373,8 +372,6 @@ HttpProxyServer server =
 Available pool types:
 
 - `CONCURRENT_MAP`: lightweight default implementation
-- `COMMONS_POOL2`: Apache Commons Pool 2 keyed pooling
-- `STORMPOT`: Stormpot-based lifecycle-managed pooling
 
 #### Pool metrics
 
@@ -391,17 +388,6 @@ Implementation details:
   - `borrowCount` / `returnCount`: incremented on successful borrow/return
   - `evictionCount`: incremented when idle-timeout eviction removes connections
   - `validationFailureCount`: incremented when validation rejects a pooled connection
-- `COMMONS_POOL2`
-  - `totalConnections`, `activeConnections`, `idleConnections` are mapped from Commons Pool stats
-  - `borrowCount` / `returnCount`: tracked by LittleProxy on borrow/return calls
-  - `evictionCount` / `validationFailureCount`: currently not surfaced from Commons Pool internals
-    and may remain `0`
-- `STORMPOT`
-  - `totalConnections`: current number of tracked pooled connections
-  - `idleConnections`: count of non-leased (available) connections in the pool
-  - `activeConnections`: `totalConnections - idleConnections`
-  - `borrowCount` / `returnCount`: tracked by LittleProxy on claim/release calls
-  - `evictionCount` / `validationFailureCount`: currently not surfaced and may remain `0`
 
 These metrics are useful for capacity tuning, behavior validation during load tests, and
 troubleshooting connection reuse.
