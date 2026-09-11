@@ -20,8 +20,8 @@ class ServerConnectionPoolConfigTest {
 
   @Test
   void setPoolTypeAcceptsValidValue() {
-    config.setPoolType(ServerConnectionPoolType.COMMONS_POOL2);
-    assertThat(config.getPoolType()).isEqualTo(ServerConnectionPoolType.COMMONS_POOL2);
+    config.setPoolType(ServerConnectionPoolType.CONCURRENT_MAP);
+    assertThat(config.getPoolType()).isEqualTo(ServerConnectionPoolType.CONCURRENT_MAP);
   }
 
   @Test

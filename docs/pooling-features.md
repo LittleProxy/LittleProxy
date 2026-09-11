@@ -36,25 +36,23 @@ per-client `serverConnectionsByHostAndPort` map.
 | Config | `DefaultHttpProxyServerConfig` | Server-level config carrier that includes pool config |
 | Metrics | `PoolMetrics` | Active/idle/borrow/return/eviction counters |
 | Model | `PendingRequest` | Tracks a request awaiting a response (for HTTP pipelining) |
-| Enum | `ServerConnectionPoolType` | `CONCURRENT_MAP`, `COMMONS_POOL2`, `STORMPOT` |
+| Enum | `ServerConnectionPoolType` | `CONCURRENT_MAP` |
 
 ### Pool Implementations
 
-Three interchangeable backends, selected via `ServerConnectionPoolType`:
+Single backend implementation:
 
 | Pool type | Class | Approach | Dependencies |
 |---|---|---|---|
 | `CONCURRENT_MAP` | `ConcurrentMapServerConnectionPool` | `ConcurrentHashMap` + per-host `Queue` of available connections | None (pure Netty/Java) |
-| `COMMONS_POOL2` | `CommonsPoolServerConnectionPool` | Apache Commons Pool 2 `PooledObjectFactory` | `commons-pool2` |
-| `STORMPOT` | `StormpotServerConnectionPool` | Stormpot `Pool` with inline allocator | `stormpot` |
 
-All three:
-- Implement `getOrCreateConnection(host, chainedProxyAddr, client, filters, request)` +
+The implementation:
+- Implements `getOrCreateConnection(host, chainedProxyAddr, client, filters, request)` +
   `releaseConnection(connection)` + `removeConnection(connection)` + `closeAll()`
-- Track pending requests per channel for HTTP pipelining support
-- Enforce per-host and global connection limits
-- Support idle timeout eviction and optional connection validation on borrow
-- Expose `getMetrics()` returning active/idle/total connections and cumulative operation counts
+- Tracks pending requests per channel for HTTP pipelining support
+- Enforces per-host and global connection limits
+- Supports idle timeout eviction and optional connection validation on borrow
+- Exposes `getMetrics()` returning active/idle/total connections and cumulative operation counts
 
 ### `ServerConnectionPool` Interface
 
@@ -151,7 +149,7 @@ each key:
 
 ```properties
 use_shared_server_connection_pool=true
-server_connection_pool_type=COMMONS_POOL2|CONCURRENT_MAP|STORMPOT
+server_connection_pool_type=CONCURRENT_MAP
 max_connections_per_host=10
 max_total_connections=200
 ```
@@ -610,7 +608,7 @@ effect — per-request mode requires the shared pool for MITM.)
 ```properties
 # Base pooling
 use_shared_server_connection_pool=true
-server_connection_pool_type=COMMONS_POOL2|CONCURRENT_MAP|STORMPOT
+server_connection_pool_type=CONCURRENT_MAP
 max_connections_per_host=10
 max_total_connections=200
 
@@ -640,9 +638,8 @@ pool_per_request_in_mitm=true
 | Test class | Tests | What it covers |
 |---|---|---|
 | `ConcurrentMapServerConnectionPoolTest` | 24 | Pool implementation: borrow, release, eviction, pending requests |
-| `StormpotServerConnectionPoolTest` | 8 | Stormpot pool implementation |
 | `SharedConnectionPoolTest` | 13 | Integrated shared pool for plain HTTP |
-| `ServerConnectionPoolTypeTest` | 6 | Pool type selection across all three implementations |
+| `ServerConnectionPoolTypeTest` | 6 | Pool type selection |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |
 

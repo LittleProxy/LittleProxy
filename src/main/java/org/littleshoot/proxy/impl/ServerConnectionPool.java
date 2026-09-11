@@ -14,8 +14,6 @@ import org.littleshoot.proxy.HttpFilters;
  *
  * <ul>
  *   <li>{@link ConcurrentMapServerConnectionPool} - Simple ConcurrentHashMap-based pool
- *   <li>{@link CommonsPoolServerConnectionPool} - Apache Commons Pool 2 based
- *   <li>{@link StormpotServerConnectionPool} - Stormpot-based for high performance
  * </ul>
  */
 public interface ServerConnectionPool {

@@ -395,18 +395,6 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     int maxConn = serverConnectionPoolConfig.getMaxConnections();
 
     switch (poolType) {
-      case COMMONS_POOL2:
-        CommonsPoolServerConnectionPool commonsPool =
-            new CommonsPoolServerConnectionPool(
-                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
-        commonsPool.setIdleTimeout(idleTimeout);
-        return commonsPool;
-      case STORMPOT:
-        StormpotServerConnectionPool stormpotPool =
-            new StormpotServerConnectionPool(
-                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
-        stormpotPool.setIdleTimeout(idleTimeout);
-        return stormpotPool;
       case CONCURRENT_MAP:
       default:
         ConcurrentMapServerConnectionPool concurrentMapPool =
