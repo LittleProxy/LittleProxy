@@ -19,6 +19,7 @@
 
         <!-- Centralized dependency versions for easier maintenance (alphabetically sorted) -->
         <assertj.version>3.27.7</assertj.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <commons.cli.version>1.11.0</commons.cli.version>
         <commons.exec.version>1.6.0</commons.exec.version>
         <commons.io.version>2.22.0</commons.io.version>
@@ -30,13 +31,16 @@
         <guava.version>33.7.1-jre</guava.version>
         <httpclient.version>4.5.14</httpclient.version>
         <jackson.bom.version>2.22.2</jackson.bom.version>
+        <jackson.databind.version>2.13.1</jackson.databind.version>
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.1.3</junit.version>
         <log4j.version>2.26.1</log4j.version>
+        <maxmind.db.version>3.1.1</maxmind.db.version>
         <mockito.version>5.23.0</mockito.version>
         <netty.version>4.2.17.Final</netty.version>
         <selenium.version>4.48.0</selenium.version>
         <slf4j.version>2.0.19</slf4j.version>
+        <ulid.version>5.2.3</ulid.version>
         <wiremock.version>3.13.2</wiremock.version>
     </properties>
 
@@ -383,6 +387,34 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-exec</artifactId>
             <version>${commons.exec.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ULID support -->
+        <dependency>
+            <groupId>com.github.f4b6a3</groupId>
+            <artifactId>ulid-creator</artifactId>
+            <version>${ulid.version}</version>
+        </dependency>
+
+        <!-- JSON support -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- MaxMind GeoIP databases -->
+        <dependency>
+            <groupId>com.maxmind.db</groupId>
+            <artifactId>maxmind-db</artifactId>
+            <version>${maxmind.db.version}</version>
+        </dependency>
+
+        <!-- Resilience testing -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
