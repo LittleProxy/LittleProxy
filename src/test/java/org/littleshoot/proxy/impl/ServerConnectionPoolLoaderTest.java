@@ -15,7 +15,7 @@ class ServerConnectionPoolLoaderTest {
 
   private final ServerConnectionPoolContext context =
       ServerConnectionPoolContext.builder()
-          .server(mock(DefaultHttpProxyServer.class))
+          .server(mock(org.littleshoot.proxy.impl.DefaultHttpProxyServer.class))
           .options(Collections.emptyMap())
           .build();
 
