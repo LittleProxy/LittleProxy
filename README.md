@@ -48,7 +48,7 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
-- `server_connection_pool_type` : pool implementation used by the shared server connection pool (`CONCURRENT_MAP`) (default : `CONCURRENT_MAP`) -- only effective when `use_shared_server_connection_pool=true`
+- `server_connection_pool_name` : name of the pool implementation loaded via the Java ServiceLoader (`CONCURRENT_MAP`) (default : `CONCURRENT_MAP`) -- only effective when `use_shared_server_connection_pool=true`
 - `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`) -- only effective when `use_shared_server_connection_pool=true`
 - `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`) -- only effective when `use_shared_server_connection_pool=true`
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
@@ -84,7 +84,7 @@ connect_timeout=30
 max_initial_line_length=8192
 max_header_size=16384
 max_chunk_size=16384
-server_connection_pool_type=CONCURRENT_MAP
+server_connection_pool_name=CONCURRENT_MAP
 max_total_connections=200
 max_connections_per_host=10
 name=LittleProxy
@@ -369,7 +369,7 @@ HttpProxyServer server =
                 .start();
 ```
 
-Available pool types:
+Available pool implementations (loaded through the Java ServiceLoader, selected by name):
 
 - `CONCURRENT_MAP`: lightweight default implementation
 

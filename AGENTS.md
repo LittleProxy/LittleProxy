@@ -62,3 +62,17 @@ For diagrams and the full lifecycle of CONNECT/MITM/filter callbacks, see `Littl
 ## Release
 
 Release steps (version bumps in `pom.xml` + `README.md`, `deploy.bash`, tag, publish on Sonatype Central) are documented in `CONTRIBUTING.md`. Do not bump versions unless a release is being cut.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues (`clescot/LittleProxy`), via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: root `CONTEXT.md` + `docs/adr/` (created lazily). See `docs/agents/domain.md`.

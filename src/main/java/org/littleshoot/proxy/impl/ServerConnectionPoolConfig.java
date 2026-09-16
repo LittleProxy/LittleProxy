@@ -4,12 +4,11 @@ import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
 import org.jspecify.annotations.Nullable;
-import org.littleshoot.proxy.ServerConnectionPoolType;
 
 /** Configuration for the server connection pool. */
 public class ServerConnectionPoolConfig {
   private boolean enabled = false;
-  private ServerConnectionPoolType poolType = ServerConnectionPoolType.CONCURRENT_MAP;
+  private String poolName = ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
   private int maxConnectionsPerHost =
       ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
@@ -26,12 +25,12 @@ public class ServerConnectionPoolConfig {
     return this;
   }
 
-  public ServerConnectionPoolType getPoolType() {
-    return poolType;
+  public String getPoolName() {
+    return poolName;
   }
 
-  public ServerConnectionPoolConfig setPoolType(ServerConnectionPoolType poolType) {
-    this.poolType = requireNonNull(poolType, "poolType must not be null");
+  public ServerConnectionPoolConfig setPoolName(String poolName) {
+    this.poolName = requireNonNull(poolName, "poolName must not be null");
     return this;
   }
 

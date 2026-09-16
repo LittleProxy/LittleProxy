@@ -10,13 +10,33 @@ import org.littleshoot.proxy.HttpFilters;
 /**
  * Interface for pooling ProxyToServerConnection instances.
  *
- * <p>This interface allows swapping different pooling implementations:
+ * <p>Implementations are discovered at startup through the Java {@link java.util.ServiceLoader}:
+ * each implementation is registered in {@code
+ * META-INF/services/org.littleshoot.proxy.impl.ServerConnectionPool} and provides a public
+ * no-argument constructor. The chosen implementation is selected by name via {@link #getName()} and
+ * configured once through {@link #initialize(ServerConnectionPoolContext)}.
  *
  * <ul>
  *   <li>{@link ConcurrentMapServerConnectionPool} - Simple ConcurrentHashMap-based pool
  * </ul>
  */
 public interface ServerConnectionPool {
+
+  /**
+   * Returns the name used to select this implementation. Must be unique among the implementations
+   * on the classpath.
+   *
+   * @return the implementation name
+   */
+  String getName();
+
+  /**
+   * Initializes this pool with the dependencies and options it needs. Called exactly once after
+   * instantiation; implementations must throw {@link IllegalStateException} if invoked again.
+   *
+   * @param context the server context and options
+   */
+  void initialize(ServerConnectionPoolContext context);
 
   /**
    * Gets a connection for the given host and port, or creates one if it doesn't exist.

@@ -5,23 +5,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
-import org.littleshoot.proxy.ServerConnectionPoolType;
 
 class ServerConnectionPoolConfigTest {
 
   private final ServerConnectionPoolConfig config = new ServerConnectionPoolConfig();
 
   @Test
-  void setPoolTypeRejectsNull() {
-    assertThatThrownBy(() -> config.setPoolType(null))
+  void setPoolNameRejectsNull() {
+    assertThatThrownBy(() -> config.setPoolName(null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("poolType");
+        .hasMessageContaining("poolName");
   }
 
   @Test
-  void setPoolTypeAcceptsValidValue() {
-    config.setPoolType(ServerConnectionPoolType.CONCURRENT_MAP);
-    assertThat(config.getPoolType()).isEqualTo(ServerConnectionPoolType.CONCURRENT_MAP);
+  void setPoolNameAcceptsValidValue() {
+    config.setPoolName("CONCURRENT_MAP");
+    assertThat(config.getPoolName()).isEqualTo("CONCURRENT_MAP");
   }
 
   @Test
@@ -72,7 +71,7 @@ class ServerConnectionPoolConfigTest {
   @Test
   void defaults() {
     assertThat(config.isEnabled()).isFalse();
-    assertThat(config.getPoolType()).isEqualTo(ServerConnectionPoolType.CONCURRENT_MAP);
+    assertThat(config.getPoolName()).isEqualTo("CONCURRENT_MAP");
     assertThat(config.getMaxConnectionsPerHost()).isEqualTo(10);
     assertThat(config.getMaxConnections()).isEqualTo(200);
     assertThat(config.getIdleTimeout()).isNull();

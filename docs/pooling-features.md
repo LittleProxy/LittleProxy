@@ -31,18 +31,19 @@ per-client `serverConnectionsByHostAndPort` map.
 
 | Type | File | Purpose |
 |---|---|---|
-| Interface | `ServerConnectionPool` | Contract for pooling server connections |
-| Config | `ServerConnectionPoolConfig` | Configuration bean (pool type, sizes, timeouts) |
-| Config | `DefaultHttpProxyServerConfig` | Server-level config carrier that includes pool config |
+| Interface | `ServerConnectionPool` | Contract for pooling server connections; also the ServiceLoader SPI (`getName()` + `initialize(ServerConnectionPoolContext)`) |
+| Config | `ServerConnectionPoolConfig` | Configuration bean (pool name, sizes, timeouts) |
+| Config | `ServerConnectionPoolContext` | Dependencies + option map handed to a pool at initialization |
 | Metrics | `PoolMetrics` | Active/idle/borrow/return/eviction counters |
 | Model | `PendingRequest` | Tracks a request awaiting a response (for HTTP pipelining) |
-| Enum | `ServerConnectionPoolType` | `CONCURRENT_MAP` |
+| Loader | `ServerConnectionPoolLoader` | ServiceLoader-based selection by name, with fallback to `CONCURRENT_MAP` |
+| Utils | `PoolConfigUtils` | Typed/string converters for pool option values |
 
 ### Pool Implementations
 
-Single backend implementation:
+Single backend implementation, registered in `META-INF/services/org.littleshoot.proxy.impl.ServerConnectionPool`:
 
-| Pool type | Class | Approach | Dependencies |
+| Pool name | Class | Approach | Dependencies |
 |---|---|---|---|
 | `CONCURRENT_MAP` | `ConcurrentMapServerConnectionPool` | `ConcurrentHashMap` + per-host `Queue` of available connections | None (pure Netty/Java) |
 
@@ -130,7 +131,7 @@ is dequeued and routed.
 
 ```java
 .withSharedServerConnectionPool(boolean)       // master switch
-.withServerConnectionPoolType(ServerConnectionPoolType)  // CONCURRENT_MAP default
+.withServerConnectionPoolName(String)          // CONCURRENT_MAP default
 .withMaxConnectionsPerHost(int)                 // default 10
 .withMaxConnections(int)                        // default 200
 .withPoolIdleTimeout(Duration)                  // null = no idle eviction
@@ -142,17 +143,34 @@ The configuration flows through three layers:
 
 1. `DefaultHttpProxyServerBootstrap` stores raw builder fields
 2. `build()` creates a `ServerConnectionPoolConfig` and a `DefaultHttpProxyServerConfig`
-3. `DefaultHttpProxyServer` reads the config on construction
+3. `DefaultHttpProxyServer` reads the config on construction, translates it to a
+   `ServerConnectionPoolContext` option map, and asks `ServerConnectionPoolLoader` for the
+   selected implementation
 
 Properties file parsing in `DefaultHttpProxyServerBootstrap(Properties props)` maps
 each key:
 
 ```properties
 use_shared_server_connection_pool=true
-server_connection_pool_type=CONCURRENT_MAP
+server_connection_pool_name=CONCURRENT_MAP
 max_connections_per_host=10
 max_total_connections=200
 ```
+
+### Loading a custom pool implementation (SPI)
+
+1. Implement `ServerConnectionPool` (`getName()` + `initialize(ServerConnectionPoolContext)` +
+   the pooling methods).
+2. Expose a public no-argument constructor; parse your options in `initialize` with
+   `PoolConfigUtils` (values may be typed objects or strings from the properties file).
+3. Register the class in `META-INF/services/org.littleshoot.proxy.impl.ServerConnectionPool`
+   (merge with the built-in entry when shading) and add the jar to the classpath.
+4. Select it with `.withServerConnectionPoolName("YOUR_NAME")` or
+   `server_connection_pool_name=YOUR_NAME`.
+
+Loading is fail-fast: an unknown or ambiguous name, a blank `getName()`, or an exception thrown
+by a constructor/initializer aborts startup. If no implementation is registered at all, startup
+falls back to `CONCURRENT_MAP` with a warning.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 
@@ -593,7 +611,7 @@ effect — per-request mode requires the shared pool for MITM.)
 ```java
 // Base pooling (PR #724 infrastructure)
 .withSharedServerConnectionPool(boolean)
-.withServerConnectionPoolType(ServerConnectionPoolType)
+.withServerConnectionPoolName(String)          // CONCURRENT_MAP default
 .withMaxConnectionsPerHost(int)
 .withMaxConnections(int)
 .withPoolIdleTimeout(Duration)
@@ -608,7 +626,7 @@ effect — per-request mode requires the shared pool for MITM.)
 ```properties
 # Base pooling
 use_shared_server_connection_pool=true
-server_connection_pool_type=CONCURRENT_MAP
+server_connection_pool_name=CONCURRENT_MAP
 max_connections_per_host=10
 max_total_connections=200
 
@@ -639,7 +657,9 @@ pool_per_request_in_mitm=true
 |---|---|---|
 | `ConcurrentMapServerConnectionPoolTest` | 24 | Pool implementation: borrow, release, eviction, pending requests |
 | `SharedConnectionPoolTest` | 13 | Integrated shared pool for plain HTTP |
-| `ServerConnectionPoolTypeTest` | 6 | Pool type selection |
+| `ServerConnectionPoolNameTest` | 5 | Pool selection by name, unknown-name fallback |
+| `ServerConnectionPoolLoaderTest` | 7 | ServiceLoader selection, ambiguity, fallback, double-init |
+| `PoolConfigUtilsTest` | 6 | Option value conversion (int/boolean/duration) |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |
 

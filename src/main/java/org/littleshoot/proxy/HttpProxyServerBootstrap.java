@@ -158,7 +158,6 @@ public interface HttpProxyServerBootstrap {
    * @param inetSocketAddress to be used for outgoing communication
    */
   @CanIgnoreReturnValue
-  @NullMarked
   HttpProxyServerBootstrap withNetworkInterface(InetSocketAddress inetSocketAddress);
 
   HttpProxyServerBootstrap withMaxInitialLineLength(int maxInitialLineLength);
@@ -232,13 +231,15 @@ public interface HttpProxyServerBootstrap {
   HttpProxyServerBootstrap withSharedServerConnectionPool(boolean useSharedServerConnectionPool);
 
   /**
-   * Selects the server connection pool implementation to use when the shared pool is enabled.
+   * Selects the server connection pool implementation to use when the shared pool is enabled, by
+   * name.
    *
-   * <p>Default is {@link ServerConnectionPoolType#CONCURRENT_MAP}.
+   * <p>Implementations are discovered through the Java {@link java.util.ServiceLoader} and expose
+   * their name via {@code ServerConnectionPool#getName()}. Default is {@code CONCURRENT_MAP}.
    *
-   * @param poolType the pool implementation to use
+   * @param poolName the name of the pool implementation
    */
-  HttpProxyServerBootstrap withServerConnectionPoolType(ServerConnectionPoolType poolType);
+  HttpProxyServerBootstrap withServerConnectionPoolName(String poolName);
 
   /**
    * Sets the maximum number of connections per host:port when using the shared connection pool.

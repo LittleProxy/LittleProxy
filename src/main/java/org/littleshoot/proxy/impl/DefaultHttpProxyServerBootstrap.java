@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxyManager;
@@ -20,7 +21,6 @@ import org.littleshoot.proxy.HttpProxyServerBootstrap;
 import org.littleshoot.proxy.Launcher;
 import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.ProxyAuthenticator;
-import org.littleshoot.proxy.ServerConnectionPoolType;
 import org.littleshoot.proxy.SslEngineSource;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.extras.ActivityLogger;
@@ -28,6 +28,7 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@NullMarked
 class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   private static final Logger LOG = LoggerFactory.getLogger(DefaultHttpProxyServerBootstrap.class);
 
@@ -70,8 +71,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   private boolean useSharedServerConnectionPool = false;
   private int maxConnectionsPerHost = 10;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
-  private ServerConnectionPoolType serverConnectionPoolType =
-      ServerConnectionPoolType.CONCURRENT_MAP;
+  private String serverConnectionPoolName = ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
   @Nullable private Duration poolIdleTimeout;
   private boolean poolSharedMitmConnections = false;
   private boolean poolPerRequestInMitm = false;
@@ -169,15 +169,13 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
       sendProxyProtocol =
           ProxyUtils.extractBooleanDefaultFalse(props, DefaultHttpProxyServer.SEND_PROXY_PROTOCOL);
     }
-    if (props.containsKey(DefaultHttpProxyServer.SERVER_CONNECTION_POOL_TYPE)) {
-      String poolTypeValue =
-          props.getProperty(DefaultHttpProxyServer.SERVER_CONNECTION_POOL_TYPE, "CONCURRENT_MAP");
-      try {
-        serverConnectionPoolType =
-            ServerConnectionPoolType.valueOf(poolTypeValue.trim().toUpperCase());
-      } catch (IllegalArgumentException e) {
-        LOG.warn("Unknown server connection pool type: {}", poolTypeValue);
-      }
+    if (props.containsKey(DefaultHttpProxyServer.SERVER_CONNECTION_POOL_NAME)) {
+      serverConnectionPoolName =
+          props
+              .getProperty(
+                  DefaultHttpProxyServer.SERVER_CONNECTION_POOL_NAME,
+                  ServerConnectionPoolLoader.DEFAULT_POOL_NAME)
+              .trim();
     }
     if (props.containsKey(DefaultHttpProxyServer.USE_SHARED_SERVER_CONNECTION_POOL)) {
       useSharedServerConnectionPool =
@@ -257,7 +255,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
     ServerConnectionPoolConfig poolConfig = config.getServerConnectionPoolConfig();
     this.useSharedServerConnectionPool = poolConfig.isEnabled();
     this.maxConnectionsPerHost = poolConfig.getMaxConnectionsPerHost();
-    this.serverConnectionPoolType = poolConfig.getPoolType();
+    this.serverConnectionPoolName = poolConfig.getPoolName();
     this.maxConnections = poolConfig.getMaxConnections();
     this.poolIdleTimeout = poolConfig.getIdleTimeout();
     this.poolSharedMitmConnections = poolConfig.isPoolSharedMitmConnections();
@@ -447,9 +445,8 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   }
 
   @Override
-  public HttpProxyServerBootstrap withServerConnectionPoolType(ServerConnectionPoolType poolType) {
-    this.serverConnectionPoolType =
-        poolType != null ? poolType : ServerConnectionPoolType.CONCURRENT_MAP;
+  public HttpProxyServerBootstrap withServerConnectionPoolName(String poolName) {
+    this.serverConnectionPoolName = poolName;
     return this;
   }
 
@@ -518,7 +515,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
     ServerConnectionPoolConfig poolConfig =
         new ServerConnectionPoolConfig()
             .setEnabled(useSharedServerConnectionPool)
-            .setPoolType(serverConnectionPoolType)
+            .setPoolName(serverConnectionPoolName)
             .setMaxConnectionsPerHost(maxConnectionsPerHost)
             .setMaxConnections(maxConnections)
             .setIdleTimeout(poolIdleTimeout)

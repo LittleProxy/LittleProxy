@@ -70,7 +70,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   public static final String ACCEPTOR_THREADS = "acceptor_threads";
   public static final String SEND_PROXY_PROTOCOL = "send_proxy_protocol";
   public static final String ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
-  public static final String SERVER_CONNECTION_POOL_TYPE = "server_connection_pool_type";
+  public static final String SERVER_CONNECTION_POOL_NAME = "server_connection_pool_name";
   public static final String USE_SHARED_SERVER_CONNECTION_POOL =
       "use_shared_server_connection_pool";
   public static final String MAX_TOTAL_CONNECTIONS = "max_total_connections";
@@ -170,8 +170,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   /** Maximum total connections in the shared pool. */
   private final int maxConnections;
 
-  /** Selected server connection pool implementation. */
-  private final ServerConnectionPoolType serverConnectionPoolType;
+  /** Selected server connection pool implementation name. */
+  private final String serverConnectionPoolName;
 
   /** Configuration for the server connection pool. */
   private final ServerConnectionPoolConfig serverConnectionPoolConfig;
@@ -258,7 +258,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     this.serverConnectionPoolConfig = config.getServerConnectionPoolConfig();
     this.useSharedServerConnectionPool = this.serverConnectionPoolConfig.isEnabled();
     this.maxConnectionsPerHost = this.serverConnectionPoolConfig.getMaxConnectionsPerHost();
-    this.serverConnectionPoolType = this.serverConnectionPoolConfig.getPoolType();
+    this.serverConnectionPoolName = this.serverConnectionPoolConfig.getPoolName();
     this.maxConnections = this.serverConnectionPoolConfig.getMaxConnections();
   }
 
@@ -389,20 +389,21 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   }
 
   private ServerConnectionPool createServerConnectionPool() {
-    ServerConnectionPoolType poolType = serverConnectionPoolConfig.getPoolType();
+    String poolName = serverConnectionPoolConfig.getPoolName();
     Duration idleTimeout = serverConnectionPoolConfig.getIdleTimeout();
     int maxConnPerHost = serverConnectionPoolConfig.getMaxConnectionsPerHost();
     int maxConn = serverConnectionPoolConfig.getMaxConnections();
 
-    switch (poolType) {
-      case CONCURRENT_MAP:
-      default:
-        ConcurrentMapServerConnectionPool concurrentMapPool =
-            new ConcurrentMapServerConnectionPool(
-                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
-        concurrentMapPool.setIdleTimeout(idleTimeout);
-        return concurrentMapPool;
-    }
+    ServerConnectionPoolContext context =
+        ServerConnectionPoolContext.builder()
+            .server(this)
+            .globalTrafficShapingHandler(globalTrafficShapingHandler)
+            .option(ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS_PER_HOST, maxConnPerHost)
+            .option(ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS, maxConn)
+            .option(ServerConnectionPoolContext.OPTION_IDLE_TIMEOUT, idleTimeout)
+            .build();
+
+    return new ServerConnectionPoolLoader().load(poolName, context);
   }
 
   public boolean isPoolSharedMitmConnections() {
@@ -435,7 +436,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     ServerConnectionPoolConfig poolConfig =
         new ServerConnectionPoolConfig()
             .setEnabled(useSharedServerConnectionPool)
-            .setPoolType(serverConnectionPoolType)
+            .setPoolName(serverConnectionPoolName)
             .setMaxConnectionsPerHost(maxConnectionsPerHost)
             .setMaxConnections(maxConnections)
             .setIdleTimeout(serverConnectionPoolConfig.getIdleTimeout())

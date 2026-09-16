@@ -4,6 +4,7 @@ import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -48,10 +49,12 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
           });
   @Nullable private volatile ScheduledFuture<?> evictionTask;
 
-  private final int maxConnectionsPerHost;
-  private final int maxConnections;
-  private final DefaultHttpProxyServer proxyServer;
-  private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
+  private int maxConnectionsPerHost;
+  private int maxConnections;
+  private DefaultHttpProxyServer proxyServer;
+  private io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
+
+  private volatile boolean initialized;
 
   private final ConcurrentMap<ProxyToServerConnection, String> connectionKeys =
       new ConcurrentHashMap<>();
@@ -64,6 +67,52 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       new java.util.concurrent.atomic.AtomicLong(0);
   private final java.util.concurrent.atomic.AtomicLong validationFailureCount =
       new java.util.concurrent.atomic.AtomicLong(0);
+
+  @Override
+  public String getName() {
+    return ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
+  }
+
+  @Override
+  public void initialize(ServerConnectionPoolContext context) {
+    java.util.Objects.requireNonNull(context, "context must not be null");
+    if (initialized) {
+      throw new IllegalStateException("Server connection pool already initialized: " + getName());
+    }
+    initialized = true;
+
+    if (!(context.getServer() instanceof DefaultHttpProxyServer)) {
+      throw new IllegalStateException(
+          "DefaultHttpProxyServer expected but got: " + context.getServer().getClass().getName());
+    }
+    this.proxyServer = (DefaultHttpProxyServer) context.getServer();
+    this.globalTrafficShapingHandler = context.getGlobalTrafficShapingHandler();
+
+    Map<String, Object> options = context.getOptions();
+    int maxConnPerHost =
+        PoolConfigUtils.intValue(
+            ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS_PER_HOST,
+            options.getOrDefault(
+                ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS_PER_HOST,
+                DEFAULT_MAX_CONNECTIONS_PER_HOST));
+    int maxConn =
+        PoolConfigUtils.intValue(
+            ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS,
+            options.getOrDefault(
+                ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS, DEFAULT_MAX_TOTAL_CONNECTIONS));
+    this.maxConnectionsPerHost =
+        maxConnPerHost > 0 ? maxConnPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
+    this.maxConnections = maxConn > 0 ? maxConn : DEFAULT_MAX_TOTAL_CONNECTIONS;
+
+    Object idleTimeout = options.get(ServerConnectionPoolContext.OPTION_IDLE_TIMEOUT);
+    if (idleTimeout != null) {
+      setIdleTimeout(
+          PoolConfigUtils.durationValue(
+              ServerConnectionPoolContext.OPTION_IDLE_TIMEOUT, idleTimeout));
+    }
+  }
+
+  public ConcurrentMapServerConnectionPool() {}
 
   public ConcurrentMapServerConnectionPool(
       DefaultHttpProxyServer proxyServer,
