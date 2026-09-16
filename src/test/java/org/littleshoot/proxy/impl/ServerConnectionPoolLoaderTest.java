@@ -51,6 +51,26 @@ class ServerConnectionPoolLoaderTest {
   }
 
   @Test
+  void shouldChooseCaseInsensitively() {
+    ServerConnectionPool fake = fakePool("MY_CUSTOM_POOL");
+    ServerConnectionPoolLoader loader = new ServerConnectionPoolLoader(Arrays.asList(fake));
+
+    ServerConnectionPool pool = loader.load("my_custom_pool", context);
+
+    assertThat(pool).isSameAs(fake);
+  }
+
+  @Test
+  void shouldThrowWhenNamesDifferOnlyInCase() {
+    ServerConnectionPoolLoader loader =
+        new ServerConnectionPoolLoader(Arrays.asList(fakePool("DUP"), fakePool("dup")));
+
+    assertThatThrownBy(() -> loader.load("DUP", context))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Ambiguous");
+  }
+
+  @Test
   void shouldThrowWhenNamesAreAmbiguous() {
     ServerConnectionPoolLoader loader =
         new ServerConnectionPoolLoader(Arrays.asList(fakePool("DUP"), fakePool("DUP")));

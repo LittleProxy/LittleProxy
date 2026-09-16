@@ -12,13 +12,14 @@ import org.littleshoot.proxy.HttpFilters;
 /**
  * Test-only {@link ServerConnectionPool} registered through the {@link java.util.ServiceLoader} in
  * test resources. Records the options map it was initialized with so tests can assert that options
- * from a properties file or the bootstrap reach the pool context.
+ * from a properties file or the bootstrap reach the pool context. Each instance keeps its own
+ * capture, so concurrent or overlapping pool creations across tests cannot interfere.
  */
 public class OptionsCapturingServerConnectionPool implements ServerConnectionPool {
 
   static final String NAME = "OPTIONS_CAPTURE_POOL";
 
-  static final AtomicReference<Map<String, Object>> capturedOptions = new AtomicReference<>();
+  private final AtomicReference<Map<String, Object>> capturedOptions = new AtomicReference<>();
 
   public OptionsCapturingServerConnectionPool() {}
 
@@ -30,6 +31,11 @@ public class OptionsCapturingServerConnectionPool implements ServerConnectionPoo
   @Override
   public void initialize(ServerConnectionPoolContext context) {
     capturedOptions.set(context.getOptions());
+  }
+
+  /** Returns the options map this instance was initialized with, or {@code null} if not yet. */
+  @Nullable Map<String, Object> getCapturedOptions() {
+    return capturedOptions.get();
   }
 
   @Override

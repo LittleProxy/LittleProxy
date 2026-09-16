@@ -573,19 +573,43 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
 
   /**
    * Collects the properties scoped to the given pool name. Keys of the form {@code
-   * server_connection_pool.<poolName>.<option>} are turned into options under {@code <option>}.
-   * Values are handed over as raw strings; the pool implementation normalizes them with {@link
+   * server_connection_pool.<poolName>.<option>} are turned into options under the relaxed-binding
+   * camelCase form of {@code <option>} (see {@link #snakeToCamelCase(String)}). The prefix is
+   * matched case-insensitively, so the lowercase properties spelling (e.g. {@code concurrent_map})
+   * resolves to whatever capitalization the pool implementation publishes in its name. Values are
+   * handed over as raw strings; the pool implementation normalizes them with {@link
    * PoolConfigUtils}.
    */
   static Map<String, Object> extractPoolOptions(Properties props, String poolName) {
     String prefix = DefaultHttpProxyServer.SERVER_CONNECTION_POOL_OPTIONS_PREFIX + poolName + ".";
     Map<String, Object> options = new LinkedHashMap<>();
     for (String key : props.stringPropertyNames()) {
-      if (key.startsWith(prefix)) {
-        options.put(key.substring(prefix.length()), props.getProperty(key));
+      if (key.regionMatches(true, 0, prefix, 0, prefix.length())) {
+        options.put(snakeToCamelCase(key.substring(prefix.length())), props.getProperty(key));
       }
     }
     return options;
+  }
+
+  /**
+   * Converts a property key to its camelCase option-key form (relaxed binding): the first segment
+   * is kept as-is, each subsequent underscore-separated segment is capitalized. Keys without
+   * underscores are returned unchanged, so already-camelCase option keys pass through verbatim.
+   */
+  static String snakeToCamelCase(String key) {
+    String[] parts = key.split("_");
+    StringBuilder camel = new StringBuilder(parts[0]);
+    for (int i = 1; i < parts.length; i++) {
+      String part = parts[i];
+      if (part.isEmpty()) {
+        continue;
+      }
+      camel.append(Character.toUpperCase(part.charAt(0)));
+      if (part.length() > 1) {
+        camel.append(part.substring(1));
+      }
+    }
+    return camel.toString();
   }
 
   private InetSocketAddress determineListenAddress() {

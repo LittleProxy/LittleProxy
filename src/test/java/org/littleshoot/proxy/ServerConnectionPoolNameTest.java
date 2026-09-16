@@ -14,7 +14,7 @@ class ServerConnectionPoolNameTest {
 
   @Test
   void shouldCreateConcurrentMapPool() {
-    DefaultHttpProxyServer server = startServer("CONCURRENT_MAP", 3, 7);
+    DefaultHttpProxyServer server = startServer("concurrent_map", 3, 7);
     try {
       ServerConnectionPool pool = server.getServerConnectionPool();
       assertThat(pool).isInstanceOf(ConcurrentMapServerConnectionPool.class);

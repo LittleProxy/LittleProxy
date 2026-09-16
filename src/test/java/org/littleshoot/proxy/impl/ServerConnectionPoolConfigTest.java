@@ -21,8 +21,8 @@ class ServerConnectionPoolConfigTest {
 
   @Test
   void setPoolNameAcceptsValidValue() {
-    config.setPoolName("CONCURRENT_MAP");
-    assertThat(config.getPoolName()).isEqualTo("CONCURRENT_MAP");
+    config.setPoolName("concurrent_map");
+    assertThat(config.getPoolName()).isEqualTo("concurrent_map");
   }
 
   @Test
@@ -73,7 +73,7 @@ class ServerConnectionPoolConfigTest {
   @Test
   void defaults() {
     assertThat(config.isEnabled()).isFalse();
-    assertThat(config.getPoolName()).isEqualTo("CONCURRENT_MAP");
+    assertThat(config.getPoolName()).isEqualTo("concurrent_map");
     assertThat(config.getMaxConnectionsPerHost()).isEqualTo(10);
     assertThat(config.getMaxConnections()).isEqualTo(200);
     assertThat(config.getIdleTimeout()).isNull();

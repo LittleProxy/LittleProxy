@@ -48,8 +48,8 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
-- `server_connection_pool_name` : name of the pool implementation loaded via the Java ServiceLoader (`CONCURRENT_MAP`) (default : `CONCURRENT_MAP`) -- only effective when `use_shared_server_connection_pool=true`
-- `server_connection_pool.<poolName>.<key>` : implementation-specific option for the pool named `<poolName>`; de-prefixed and passed as a raw string in the pool context options (e.g. `server_connection_pool.MY_POOL.maxRetries=4`)
+- `server_connection_pool_name` : name of the pool implementation loaded via the Java ServiceLoader (default : `concurrent_map`), matched case-insensitively -- only effective when `use_shared_server_connection_pool=true`
+- `server_connection_pool.<poolName>.<key>` : implementation-specific option for the pool named `<poolName>` (name and key matched case-insensitively); de-prefixed, its snake_case suffix converted to a camelCase option key (ex. `server_connection_pool.concurrent_map.max_retries=4` → option `maxRetries`), and passed as a raw string in the pool context options
 - `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`) -- only effective when `use_shared_server_connection_pool=true`
 - `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`) -- only effective when `use_shared_server_connection_pool=true`
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
@@ -85,7 +85,8 @@ connect_timeout=30
 max_initial_line_length=8192
 max_header_size=16384
 max_chunk_size=16384
-server_connection_pool_name=CONCURRENT_MAP
+server_connection_pool_name=concurrent_map
+server_connection_pool.concurrent_map.max_retries=4
 max_total_connections=200
 max_connections_per_host=10
 name=LittleProxy
@@ -372,7 +373,7 @@ HttpProxyServer server =
 
 Available pool implementations (loaded through the Java ServiceLoader, selected by name):
 
-- `CONCURRENT_MAP`: lightweight default implementation
+- `concurrent_map`: lightweight default implementation
 
 #### Pool metrics
 
@@ -382,7 +383,7 @@ Each server connection pool implementation exposes runtime metrics through `Pool
 
 Implementation details:
 
-- `CONCURRENT_MAP`
+- `concurrent_map`
   - `totalConnections`: current number of tracked pooled server connections
   - `activeConnections`: `totalConnections - idleConnections`
   - `idleConnections`: connections currently waiting in the available queue

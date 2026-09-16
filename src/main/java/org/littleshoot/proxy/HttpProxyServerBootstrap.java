@@ -235,7 +235,7 @@ public interface HttpProxyServerBootstrap {
    * name.
    *
    * <p>Implementations are discovered through the Java {@link java.util.ServiceLoader} and expose
-   * their name via {@code ServerConnectionPool#getName()}. Default is {@code CONCURRENT_MAP}.
+   * their name via {@code ServerConnectionPool#getName()}. Default is {@code concurrent_map}.
    *
    * @param poolName the name of the pool implementation
    */

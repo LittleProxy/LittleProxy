@@ -24,13 +24,13 @@ public final class ServerConnectionPoolContext {
   public static final String OPTION_MAX_CONNECTIONS_PER_HOST = "maxConnectionsPerHost";
 
   /** Standard option key: maximum total number of connections ({@link Integer}). */
-  public static final String OPTION_MAX_CONNECTIONS = "maxConnections";
+  public static final String OPTION_MAX_CONNECTIONS = "maxTotalConnections";
 
   /**
    * Standard option key: idle timeout before a pooled connection is evicted, as a {@link
    * java.time.Duration} or absent when eviction is disabled.
    */
-  public static final String OPTION_IDLE_TIMEOUT = "idleTimeout";
+  public static final String OPTION_IDLE_TIMEOUT = "poolIdleTimeout";
 
   private final HttpProxyServer server;
   @Nullable private final GlobalTrafficShapingHandler globalTrafficShapingHandler;

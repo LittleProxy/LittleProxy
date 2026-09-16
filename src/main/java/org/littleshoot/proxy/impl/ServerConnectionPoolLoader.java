@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
@@ -16,13 +17,15 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Implementations are registered in {@code META-INF/services/...ServerConnectionPool} and must
  * expose a public no-argument constructor. One is selected by the name returned by {@link
- * ServerConnectionPool#getName()}. When the requested name is not found, or no implementation is
+ * ServerConnectionPool#getName()}; names are matched case-insensitively, so the lowercase
+ * properties-file spelling (e.g. {@code concurrent_map}) resolves to the implementation however it
+ * capitalizes its {@code getName()}. When the requested name is not found, or no implementation is
  * registered at all, the built-in {@link ConcurrentMapServerConnectionPool} is used as a fallback.
  */
 public final class ServerConnectionPoolLoader {
 
   /** Name of the built-in {@link ConcurrentMapServerConnectionPool} implementation. */
-  public static final String DEFAULT_POOL_NAME = "CONCURRENT_MAP";
+  public static final String DEFAULT_POOL_NAME = "concurrent_map";
 
   private static final Logger LOG = LoggerFactory.getLogger(ServerConnectionPoolLoader.class);
 
@@ -43,8 +46,8 @@ public final class ServerConnectionPoolLoader {
    * @param poolName the requested pool implementation name
    * @param context the context to initialize the pool with
    * @return the initialized pool implementation
-   * @throws IllegalArgumentException if several implementations share the requested name, or if the
-   *     implementation factory publishes a blank name
+   * @throws IllegalArgumentException if several implementations share the requested name
+   *     (case-insensitively), or if the implementation factory publishes a blank name
    * @throws IllegalStateException if a registered implementation could not be instantiated
    */
   public ServerConnectionPool load(String poolName, ServerConnectionPoolContext context) {
@@ -63,7 +66,7 @@ public final class ServerConnectionPoolLoader {
                   + " must expose a non-blank name via getName()");
         }
         availableNames.add(name);
-        if (poolsByName.putIfAbsent(name, pool) != null) {
+        if (poolsByName.putIfAbsent(name.toLowerCase(Locale.ROOT), pool) != null) {
           throw new IllegalArgumentException(
               "Ambiguous server connection pool implementations named '" + name + "'");
         }
@@ -73,7 +76,7 @@ public final class ServerConnectionPoolLoader {
           "Failed to load server connection pool implementations via ServiceLoader", e);
     }
 
-    ServerConnectionPool selected = poolsByName.get(poolName);
+    ServerConnectionPool selected = poolsByName.get(poolName.toLowerCase(Locale.ROOT));
     if (selected == null) {
       LOG.warn(
           "No server connection pool implementation named '{}' found (available: {})."
@@ -81,7 +84,7 @@ public final class ServerConnectionPoolLoader {
           poolName,
           availableNames,
           DEFAULT_POOL_NAME);
-      selected = poolsByName.get(DEFAULT_POOL_NAME);
+      selected = poolsByName.get(DEFAULT_POOL_NAME.toLowerCase(Locale.ROOT));
     }
     if (selected == null) {
       LOG.warn(
