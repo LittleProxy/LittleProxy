@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ServerConnectionPoolConfigTest {
@@ -119,5 +121,30 @@ class ServerConnectionPoolConfigTest {
     // but the config itself doesn't enforce this invariant.
     config.setPoolSharedMitmConnections(false).setPoolPerRequestInMitm(true);
     assertThat(config.isPoolPerRequestInMitm()).isTrue();
+  }
+
+  @Test
+  void optionsDefaultToEmpty() {
+    assertThat(new ServerConnectionPoolConfig().getOptions()).isEmpty();
+  }
+
+  @Test
+  void optionsSetterAndGetter() {
+    Map<String, Object> options = new LinkedHashMap<>();
+    options.put("maxRetries", "4");
+    options.put("batchSize", 42);
+
+    assertThat(config.setOptions(options)).isSameAs(config);
+    assertThat(config.getOptions()).containsEntry("maxRetries", "4").containsEntry("batchSize", 42);
+  }
+
+  @Test
+  void optionsAreCopiedImmutable() {
+    Map<String, Object> mutable = new LinkedHashMap<>();
+    mutable.put("retryDelay", "PT5S");
+    config.setOptions(mutable);
+    mutable.put("addedAfterSet", true);
+
+    assertThat(config.getOptions()).containsOnlyKeys("retryDelay").isUnmodifiable();
   }
 }

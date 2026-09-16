@@ -3,6 +3,9 @@ package org.littleshoot.proxy.impl;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /** Configuration for the server connection pool. */
@@ -15,6 +18,7 @@ public class ServerConnectionPoolConfig {
   @Nullable private Duration idleTimeout;
   private boolean poolSharedMitmConnections = false;
   private boolean poolPerRequestInMitm = false;
+  private Map<String, Object> options = Collections.emptyMap();
 
   public boolean isEnabled() {
     return enabled;
@@ -85,6 +89,20 @@ public class ServerConnectionPoolConfig {
 
   public ServerConnectionPoolConfig setPoolPerRequestInMitm(boolean poolPerRequestInMitm) {
     this.poolPerRequestInMitm = poolPerRequestInMitm;
+    return this;
+  }
+
+  /**
+   * Returns the implementation-specific options handed to the pool on initialization, keyed by the
+   * name each pool implementation documents.
+   */
+  public Map<String, Object> getOptions() {
+    return options;
+  }
+
+  public ServerConnectionPoolConfig setOptions(Map<String, Object> options) {
+    this.options =
+        Collections.unmodifiableMap(new LinkedHashMap<>(requireNonNull(options, "options")));
     return this;
   }
 }

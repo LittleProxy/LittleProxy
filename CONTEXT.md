@@ -17,7 +17,7 @@ The object carried at initialization: the `HttpProxyServer`, the optional `Globa
 _Avoid_: pool config carrier (implementation detail), pool environment
 
 **Option key**:
-A single key inside the context option map. Standard keys (`maxConnectionsPerHost`, `maxConnections`, `idleTimeout`) are typed by the bootstrap; implementation-specific keys are interpreted by the implementation itself.
+A single key inside the context option map. Standard keys (`maxConnectionsPerHost`, `maxConnections`, `idleTimeout`) are typed by the bootstrap; implementation-specific keys are interpreted by the implementation itself. From a properties file, options scoped to a pool are declared as `server_connection_pool.<poolName>.<option>` and handed over as raw strings; programmatically they are added with `withServerConnectionPoolOption(...)`.
 _Avoid_: pool property (reserved for the properties file), pool setting
 
 **ServerConnectionPoolLoader**:

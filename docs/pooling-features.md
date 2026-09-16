@@ -135,6 +135,7 @@ is dequeued and routed.
 .withMaxConnectionsPerHost(int)                 // default 10
 .withMaxConnections(int)                        // default 200
 .withPoolIdleTimeout(Duration)                  // null = no idle eviction
+.withServerConnectionPoolOption(String, Object) // implementation-specific option
 ```
 
 ### How Pool Configuration Reaches the Server
@@ -148,14 +149,25 @@ The configuration flows through three layers:
    selected implementation
 
 Properties file parsing in `DefaultHttpProxyServerBootstrap(Properties props)` maps
-each key:
+each key. Implementation-specific options are collected separately: any key prefixed
+with `server_connection_pool.<poolName>.` is de-prefixed and handed to the selected pool
+as an option, alongside the typed standard options.
 
 ```properties
 use_shared_server_connection_pool=true
-server_connection_pool_name=CONCURRENT_MAP
+server_connection_pool_name=MY_POOL
 max_connections_per_host=10
 max_total_connections=200
+
+# implementation-specific options for MY_POOL (values are passed as raw strings)
+server_connection_pool.MY_POOL.maxRetries=4
+server_connection_pool.MY_POOL.retryDelay=PT5S
 ```
+
+The same options can be supplied programmatically with
+`.withServerConnectionPoolOption("maxRetries", 4)`; both sources are merged at `build()`.
+The pool reads them from the `ServerConnectionPoolContext.getOptions()` map and normalizes
+them with `PoolConfigUtils`.
 
 ### Loading a custom pool implementation (SPI)
 
@@ -168,9 +180,10 @@ max_total_connections=200
 4. Select it with `.withServerConnectionPoolName("YOUR_NAME")` or
    `server_connection_pool_name=YOUR_NAME`.
 
-Loading is fail-fast: an unknown or ambiguous name, a blank `getName()`, or an exception thrown
-by a constructor/initializer aborts startup. If no implementation is registered at all, startup
-falls back to `CONCURRENT_MAP` with a warning.
+Loading is fail-fast on hard errors: an ambiguous or blank name, or an exception thrown
+by a constructor/initializer aborts startup. An *unknown* name falls back to
+`CONCURRENT_MAP` with a warning; if no implementation is registered at all, the same
+fallback is used.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 
@@ -615,6 +628,7 @@ effect — per-request mode requires the shared pool for MITM.)
 .withMaxConnectionsPerHost(int)
 .withMaxConnections(int)
 .withPoolIdleTimeout(Duration)
+.withServerConnectionPoolOption(String, Object) // implementation-specific option
 
 // MITM-specific (this branch)
 .withPoolSharedMitmConnections(boolean)      // default false
@@ -629,6 +643,9 @@ use_shared_server_connection_pool=true
 server_connection_pool_name=CONCURRENT_MAP
 max_connections_per_host=10
 max_total_connections=200
+
+# Implementation-specific options, prefixed with the pool name
+server_connection_pool.CONCURRENT_MAP.myKey=myValue
 
 # MITM-specific
 pool_shared_mitm_connections=true
@@ -660,6 +677,7 @@ pool_per_request_in_mitm=true
 | `ServerConnectionPoolNameTest` | 5 | Pool selection by name, unknown-name fallback |
 | `ServerConnectionPoolLoaderTest` | 7 | ServiceLoader selection, ambiguity, fallback, double-init |
 | `PoolConfigUtilsTest` | 6 | Option value conversion (int/boolean/duration) |
+| `ServerConnectionPoolOptionsTest` | 4 | Pool-scoped properties + programmatic options reach the pool context |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |
 

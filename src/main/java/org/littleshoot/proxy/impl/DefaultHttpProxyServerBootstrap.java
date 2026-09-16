@@ -1,10 +1,13 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElseGet;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.jspecify.annotations.NullMarked;
@@ -75,10 +78,13 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   @Nullable private Duration poolIdleTimeout;
   private boolean poolSharedMitmConnections = false;
   private boolean poolPerRequestInMitm = false;
+  @Nullable private Properties props;
+  private final Map<String, Object> poolOptions = new LinkedHashMap<>();
 
   DefaultHttpProxyServerBootstrap() {}
 
   DefaultHttpProxyServerBootstrap(Properties props) {
+    this.props = props;
     withUseDnsSec(ProxyUtils.extractBooleanDefaultFalse(props, "dnssec"));
     transparent = ProxyUtils.extractBooleanDefaultFalse(props, DefaultHttpProxyServer.TRANSPARENT);
     idleConnectionTimeout =
@@ -260,6 +266,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
     this.poolIdleTimeout = poolConfig.getIdleTimeout();
     this.poolSharedMitmConnections = poolConfig.isPoolSharedMitmConnections();
     this.poolPerRequestInMitm = poolConfig.isPoolPerRequestInMitm();
+    this.poolOptions.putAll(poolConfig.getOptions());
   }
 
   @Override
@@ -451,6 +458,12 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   }
 
   @Override
+  public HttpProxyServerBootstrap withServerConnectionPoolOption(String key, Object value) {
+    poolOptions.put(requireNonNull(key, "option key must not be null"), value);
+    return this;
+  }
+
+  @Override
   public HttpProxyServerBootstrap withSharedServerConnectionPool(
       boolean useSharedServerConnectionPool) {
     this.useSharedServerConnectionPool = useSharedServerConnectionPool;
@@ -512,6 +525,11 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
                     clientToProxyWorkerThreads,
                     proxyToServerWorkerThreads));
 
+    Map<String, Object> resolvedPoolOptions = new LinkedHashMap<>(poolOptions);
+    if (props != null) {
+      resolvedPoolOptions.putAll(extractPoolOptions(props, serverConnectionPoolName));
+    }
+
     ServerConnectionPoolConfig poolConfig =
         new ServerConnectionPoolConfig()
             .setEnabled(useSharedServerConnectionPool)
@@ -520,7 +538,8 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
             .setMaxConnections(maxConnections)
             .setIdleTimeout(poolIdleTimeout)
             .setPoolSharedMitmConnections(poolSharedMitmConnections)
-            .setPoolPerRequestInMitm(poolPerRequestInMitm);
+            .setPoolPerRequestInMitm(poolPerRequestInMitm)
+            .setOptions(resolvedPoolOptions);
 
     DefaultHttpProxyServerConfig serverConfig =
         new DefaultHttpProxyServerConfig()
@@ -550,6 +569,23 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
             .setServerConnectionPoolConfig(poolConfig);
 
     return new DefaultHttpProxyServer(selectedServerGroup, serverConfig);
+  }
+
+  /**
+   * Collects the properties scoped to the given pool name. Keys of the form {@code
+   * server_connection_pool.<poolName>.<option>} are turned into options under {@code <option>}.
+   * Values are handed over as raw strings; the pool implementation normalizes them with {@link
+   * PoolConfigUtils}.
+   */
+  static Map<String, Object> extractPoolOptions(Properties props, String poolName) {
+    String prefix = DefaultHttpProxyServer.SERVER_CONNECTION_POOL_OPTIONS_PREFIX + poolName + ".";
+    Map<String, Object> options = new LinkedHashMap<>();
+    for (String key : props.stringPropertyNames()) {
+      if (key.startsWith(prefix)) {
+        options.put(key.substring(prefix.length()), props.getProperty(key));
+      }
+    }
+    return options;
   }
 
   private InetSocketAddress determineListenAddress() {
