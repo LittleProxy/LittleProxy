@@ -82,9 +82,8 @@ public enum StandardField implements LogField {
         return clientConnId != null ? clientConnId : "-";
 
       case SERVER_CONNECTION_ID:
-        Long serverConnId =
-            requestTimingData != null ? requestTimingData.get("server_connection_id") : null;
-        return serverConnId != null ? String.valueOf(serverConnId) : "-";
+        String serverConnId = timedRequest.getServerConnectionId();
+        return serverConnId != null ? serverConnId : "-";
 
       case REQUEST_ID:
         String reqId = timedRequest.getRequestId();

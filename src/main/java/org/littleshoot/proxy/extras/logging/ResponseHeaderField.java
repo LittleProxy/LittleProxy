@@ -12,6 +12,8 @@ import org.littleshoot.proxy.FlowContext;
  */
 public class ResponseHeaderField implements LogField {
 
+  private static final Function<String, String> IDENTITY = Function.identity();
+
   private final String headerName;
   private final String fieldName;
   private final String description;
@@ -36,7 +38,7 @@ public class ResponseHeaderField implements LogField {
       throw new IllegalArgumentException("headerName/fieldName must not be blank");
     }
     this.description = "Response header: " + this.headerName;
-    this.valueTransformer = valueTransformer != null ? valueTransformer : (v -> v);
+    this.valueTransformer = valueTransformer != null ? valueTransformer : IDENTITY;
   }
 
   @Override
@@ -68,12 +70,14 @@ public class ResponseHeaderField implements LogField {
     if (this == obj) return true;
     if (obj == null || getClass() != obj.getClass()) return false;
     ResponseHeaderField that = (ResponseHeaderField) obj;
-    return headerName.equals(that.headerName) && fieldName.equals(that.fieldName);
+    return headerName.equals(that.headerName)
+        && fieldName.equals(that.fieldName)
+        && Objects.equals(valueTransformer, that.valueTransformer);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(headerName, fieldName);
+    return Objects.hash(headerName, fieldName, valueTransformer);
   }
 
   @Override

@@ -536,9 +536,9 @@ flowchart TB
 
 ## Key Architecture Points
 
-1. **Separation of Concerns**: The [`ClientToProxyConnection`](src/main/java/org/littleshoot/proxy/impl/ClientToProxyConnection.java:88) class manages the client side, while [`ProxyToServerConnection`](src/main/java/org/littleshoot/proxy/impl/ProxyToServerConnection.java:104) manages the server side.
+1. **Separation of Concerns**: The [`ClientToProxyConnection`](src/main/java/org/littleshoot/proxy/impl/ClientToProxyConnection.java) class manages the client side, while [`ProxyToServerConnection`](src/main/java/org/littleshoot/proxy/impl/ProxyToServerConnection.java) manages the server side.
 
-2. **Connection Reuse**: Only one [`ProxyToServerConnection`](src/main/java/org/littleshoot/proxy/impl/ProxyToServerConnection.java:104) per host:port is maintained and reused for HTTP requests.
+2. **Connection Reuse**: Only one [`ProxyToServerConnection`](src/main/java/org/littleshoot/proxy/impl/ProxyToServerConnection.java) per host:port is maintained and reused for HTTP requests.
 
 3. **Tunnel Mode**: For CONNECT requests (HTTPS), HTTP encoders/decoders are removed and data passes through in raw bytes mode.
 

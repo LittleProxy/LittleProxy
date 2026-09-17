@@ -13,6 +13,8 @@ import org.littleshoot.proxy.FlowContext;
  */
 public class RequestHeaderField implements LogField {
 
+  private static final Function<String, String> IDENTITY = Function.identity();
+
   private final String headerName;
   private final String fieldName;
   private final String description;
@@ -37,7 +39,7 @@ public class RequestHeaderField implements LogField {
       throw new IllegalArgumentException("headerName/fieldName must not be blank");
     }
     this.description = "Request header: " + this.headerName;
-    this.valueTransformer = valueTransformer != null ? valueTransformer : (v -> v);
+    this.valueTransformer = valueTransformer != null ? valueTransformer : IDENTITY;
   }
 
   @Override

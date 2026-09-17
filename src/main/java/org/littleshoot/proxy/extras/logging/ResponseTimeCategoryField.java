@@ -1,7 +1,6 @@
 package org.littleshoot.proxy.extras.logging;
 
 import io.netty.handler.codec.http.HttpResponse;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.littleshoot.proxy.FlowContext;
@@ -15,7 +14,7 @@ public class ResponseTimeCategoryField implements LogField {
   private static final String FIELD_NAME = "response_time_category";
   private static final String DESCRIPTION =
       "Category based on response time (configurable thresholds)";
-  private static final List<Long> DEFAULT_THRESHOLDS = Arrays.asList(100L, 500L, 2000L);
+  private static final List<Long> DEFAULT_THRESHOLDS = List.of(100L, 500L, 2000L);
   private static final String[] DEFAULT_CATEGORY_NAMES = {"fast", "medium", "slow", "very_slow"};
 
   private final List<Long> thresholds;
@@ -107,7 +106,7 @@ public class ResponseTimeCategoryField implements LogField {
         throw new IllegalArgumentException("Thresholds must be in ascending order");
       }
     }
-    return thresholds;
+    return List.copyOf(thresholds);
   }
 
   private String[] generateCategoryNames(int thresholdCount) {

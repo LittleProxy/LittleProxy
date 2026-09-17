@@ -410,6 +410,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
 
     LOG.debug("Writing request to ProxyToServerConnection");
+    // Propagate the current request id so the server side can correlate the response with the
+    // request (the requestId attribute lives on the client channel only).
+    if (ctx != null && ctx.channel() != null) {
+      String requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
+      if (requestId != null) {
+        currentServerConnection.setCurrentRequestId(requestId);
+      }
+    }
     requireNonNull(currentServerConnection).write(httpRequest, currentFilters);
 
     // Figure out our next state
@@ -1746,16 +1754,16 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         CLIENT_CONNECTED_NOT_YET_RECORDED, CLIENT_CONNECTED_RECORDED)) {
       return;
     }
-    try {
-      FlowContext flowContext = flowContext();
-      // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real
-      // client IP, not the TCP peer.
-      clientDetails.setClientAddress(flowContext.getClientAddress());
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FlowContext flowContext = flowContext();
+    // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real
+    // client IP, not the TCP peer.
+    clientDetails.setClientAddress(flowContext.getClientAddress());
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.clientConnected(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientConnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientConnected", e);
     }
   }
 

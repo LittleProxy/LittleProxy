@@ -97,8 +97,7 @@ public class FullFlowContext extends FlowContext {
     Objects.requireNonNull(key, "timing key must not be null");
     Long superValue = super.getTimingData(key);
     long base = superValue != null ? superValue : 0L;
-    long newValue = timingData.compute(key, (ignored, v) -> (v != null ? v : 0L) + delta);
-    return base + newValue;
+    return timingData.compute(key, (ignored, value) -> (value != null ? value : base) + delta);
   }
 
   /**

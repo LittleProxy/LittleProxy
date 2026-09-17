@@ -27,9 +27,9 @@ public interface LogField {
    * Extracts the value for this field from the given request/response context.
    *
    * @param flowContext the flow context
-   * @param request the HTTP request
+   * @param timedRequest the timed request containing the HTTP request and timing data
    * @param response the HTTP response
    * @return the extracted value, or "-" if not available
    */
-  String extractValue(FlowContext flowContext, TimedRequest request, HttpResponse response);
+  String extractValue(FlowContext flowContext, TimedRequest timedRequest, HttpResponse response);
 }

@@ -299,7 +299,7 @@ Timing data is stored in the `FlowContext`. You can access it within your `HttpF
 
 ```java
 @Override
-public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
+public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse, String requestId) {
     Long requestTime = flowContext.getTimingData("http_request_processing_time_ms");
     Long sslTime = flowContext.getTimingData("ssl_handshake_time_ms");
     

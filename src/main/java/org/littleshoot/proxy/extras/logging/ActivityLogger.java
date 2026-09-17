@@ -35,7 +35,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   public static final String UTC = "UTC";
   public static final ZoneId UTC_ZONE_ID = ZoneId.of(UTC);
 
-  private final LogFormat logFormat;
   private final LogFieldConfiguration fieldConfiguration;
   private final LogEntryFormatter formatter;
   private final TimingMode timingMode;
@@ -77,12 +76,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   public ActivityLogger(
       LogFormat logFormat, LogFieldConfiguration fieldConfiguration, TimingMode timingMode) {
-    this.logFormat = logFormat;
     this.fieldConfiguration =
         fieldConfiguration != null ? fieldConfiguration : LogFieldConfiguration.defaultConfig();
     this.formatter = LogEntryFormatterFactory.getFormatter(logFormat);
     this.timingMode = timingMode != null ? timingMode : TimingMode.MINIMAL;
-    validateStandardsCompliance();
   }
 
   // ==================== REQUEST/RESPONSE TRACKING ====================
@@ -107,8 +104,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       String serverConnId = ((FullFlowContext) flowContext).getServerConnectionId();
       if (serverConnId != null) {
         timedRequest.setServerConnectionId(serverConnId);
-        timedRequest.setTimingData(
-            "server_connection_id", Long.parseLong(serverConnId.substring(0, 10), 36));
       }
     }
 
@@ -209,7 +204,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     // DEBUG: Structured formatting for response received from server
     var responseAttributes = new java.util.HashMap<String, Object>();
     responseAttributes.put("status", httpResponse.status().code());
-    responseAttributes.put("server_host", fullFlowContext.getServerHostAndPort());
+    if (fullFlowContext.getServerHostAndPort() != null) {
+      responseAttributes.put("server_host", fullFlowContext.getServerHostAndPort());
+    }
     if (timingMode != TimingMode.OFF) {
       Long latency =
           timedRequest != null ? timedRequest.getTimingData("response_latency_ms") : null;
@@ -406,6 +403,9 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.remove(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
+    // Clean up any in-flight requests that never reached a completed response
+    removeRequestsForFlow(flowId);
+
     // Store client connection end time in FlowContext
     flowContext.setTimingData("tcp_client_connection_end_time_ms", now);
 
@@ -499,18 +499,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     attributes.put("timestamp", formatTimestamp(now));
     if (timingMode != TimingMode.OFF) {
       if (includeTimings) {
-        Long duration = flowContext.getTimingData("tcp_server_connection_duration_ms");
-        if (duration != null) {
-          flowContext.setTimingData("tcp_server_connection_duration_ms", duration);
-        }
         Long serverStart = flowContext.getTimingData("tcp_server_connection_start_time_ms");
         if (serverStart != null) {
           flowContext.setTimingData("time_since_server_connect_ms", now - serverStart);
         }
-      }
-      Long dnsDuration = flowContext.getTimingData("dns_resolution_time_ms");
-      if (dnsDuration != null) {
-        flowContext.setTimingData("dns_resolution_time_ms", dnsDuration);
       }
       Long requestStart = flowContext.getTimingData("request_start_time");
       if (requestStart == null) {
@@ -541,10 +533,6 @@ public class ActivityLogger extends ActivityTrackerAdapter {
       Long lastRequestTime = flowContext.getTimingData("last_request_start_time_ms");
       if (lastRequestTime != null) {
         flowContext.setTimingData("time_since_last_request_ms", now - lastRequestTime);
-      }
-      Long establishment = flowContext.getTimingData("tcp_connection_establishment_time_ms");
-      if (establishment != null) {
-        flowContext.setTimingData("tcp_connection_establishment_time_ms", establishment);
       }
     }
     attributes.putAll(flowContext.getTimings());
@@ -607,9 +595,7 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     String flowId = state != null ? state.flowId : "unknown";
 
     // Increment saturation count in FlowContext
-    Long currentCount = flowContext.getTimingData("client_saturation_count");
-    long newCount = (currentCount != null ? currentCount : 0) + 1;
-    flowContext.setTimingData("client_saturation_count", newCount);
+    long newCount = flowContext.incrementTimingData("client_saturation_count", 1);
 
     Map<String, Object> attributes = new HashMap<>();
     attributes.put("saturation_count", newCount);
@@ -640,6 +626,8 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
+    removeRequestsForFlow(flowId);
+
     Map<String, Object> attributes = new HashMap<>();
     if (clientAddress != null) {
       attributes.put("client_address", clientAddress);
@@ -654,10 +642,10 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     ClientState state = clientAddress != null ? clientStates.get(clientAddress) : null;
     String flowId = state != null ? state.flowId : "unknown";
 
+    removeRequestsForFlow(flowId);
+
     // Increment exception count in FlowContext
-    Long currentCount = flowContext.getTimingData("client_exception_count");
-    long newCount = (currentCount != null ? currentCount : 0) + 1;
-    flowContext.setTimingData("client_exception_count", newCount);
+    long newCount = flowContext.incrementTimingData("client_exception_count", 1);
 
     // Get exception type for logging
     String exceptionType = cause != null ? cause.getClass().getSimpleName() : "Unknown";
@@ -671,24 +659,19 @@ public class ActivityLogger extends ActivityTrackerAdapter {
     logLifecycleEvent(LifecycleEvent.CONNECTION_EXCEPTION_CAUGHT, flowContext, attributes, flowId);
   }
 
-  // ==================== VALIDATION ====================
-
   /**
-   * Validates that the field configuration complies with standards. This method checks for required
-   * fields and proper configuration.
+   * Removes all in-flight requests belonging to the given flow. These callbacks fire on terminal
+   * paths (disconnects, timeouts, exceptions) where the matching {@code responseSentToClient} never
+   * runs, so the entries would otherwise leak.
+   *
+   * @param flowId the client flow identifier
    */
-  private void validateStandardsCompliance() {
-    if (fieldConfiguration == null) {
+  private void removeRequestsForFlow(String flowId) {
+    if (flowId == null) {
       return;
     }
-
-    // Validate that required fields are present for the selected format
-    if (logFormat == LogFormat.CLF) {
-      // CLF format requires specific fields
-      LOG.trace("Validating CLF format compliance");
-    } else if (logFormat == LogFormat.W3C) {
-      // W3C format requires specific fields
-      LOG.trace("Validating W3C format compliance");
-    }
+    requestMap
+        .entrySet()
+        .removeIf(entry -> flowId.equals(entry.getValue().getClientConnectionId()));
   }
 }

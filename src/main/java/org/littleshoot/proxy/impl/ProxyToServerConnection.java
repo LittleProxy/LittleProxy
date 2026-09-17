@@ -187,6 +187,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   @Nullable private volatile ClientToProxyConnection currentClientConnectionForRequest;
 
+  /**
+   * The request identifier of the request currently being proxied to the server. It is set on the
+   * client side before the request is forwarded and consumed to correlate the server response with
+   * its originating request.
+   */
+  @Nullable private volatile String currentRequestId;
+
   /** Limits bandwidth when throttling is enabled. */
   private final GlobalTrafficShapingHandler trafficHandler;
 
@@ -419,8 +426,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         connectionFlow.read(msg);
       }
     } else {
-      // Check if we need to perform TLS detection in MITM mode
-      checkAndPerformTlsDetection(msg);
       super.read(msg);
     }
   }
@@ -817,6 +822,16 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentClientConnectionForRequest = clientConnection;
   }
 
+  /**
+   * Associates the given request identifier with the request about to be forwarded to the server.
+   * The identifier is consumed when the corresponding response is read from the server.
+   *
+   * @param requestId the per-request identifier
+   */
+  void setCurrentRequestId(@Nullable String requestId) {
+    this.currentRequestId = requestId;
+  }
+
   void setRemoteAddress(InetSocketAddress remoteAddress) {
     this.remoteAddress = remoteAddress;
   }
@@ -824,6 +839,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   void releaseToPool() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
+    this.currentRequestId = null;
     if (connectionPool != null) {
       this.currentHttpRequest = null;
       connectionPool.releaseConnection(this);
@@ -986,8 +1002,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               .then(getClientConnection().RespondCONNECTSuccessful)
               .then(serverConnection.MitmEncryptClientChannel);
         } else {
-          // For non-SSL servers, just respond CONNECT successful.
-          // ClientToProxyConnection will call encryptForMitm() if client sends TLS.
+          // For non-SSL servers, just respond CONNECT successful without MITM encryption.
           connectionFlow.then(getClientConnection().RespondCONNECTSuccessful);
         }
       } else {
@@ -1028,129 +1043,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           flow.advance();
         }
       };
-
-  /**
-   * A connection flow step that waits for the first bytes from the client to determine if SSL/TLS
-   * is needed. This inspects the first byte to detect TLS handshake.
-   */
-  private final ConnectionFlowStep<HttpResponse> MitmDetectTlsAndEncrypt =
-      new ConnectionFlowStep<>(this, ConnectionState.NEGOTIATING_CONNECT) {
-        @Override
-        boolean shouldSuppressInitialRequest() {
-          return true;
-        }
-
-        @Override
-        protected Future<?> execute() {
-          // Don't complete yet - wait for first data from client in read()
-          return channel.newSucceededFuture();
-        }
-
-        @Override
-        public void read(ConnectionFlow flow, Object msg) {
-          // First data from client - inspect for TLS
-          if (msg instanceof ByteBuf) {
-            ByteBuf buf = (ByteBuf) msg;
-            if (buf.readableBytes() > 0) {
-              byte firstByte = buf.getByte(buf.readerIndex());
-              boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
-
-              LOG.debug(
-                  "Inspecting first byte from client: 0x{} - TLS handshake: {}",
-                  Integer.toHexString(firstByte & 0xFF),
-                  isTlsHandshake);
-
-              if (isTlsHandshake) {
-                // This is a TLS connection - encrypt both server and client connections
-                encryptForMitm();
-              }
-
-              tlsInspectionDone = true;
-              flow.advance();
-              return;
-            }
-          }
-          // If not a ByteBuf or no readable bytes, just advance
-          tlsInspectionDone = true;
-          flow.advance();
-        }
-      };
-
-  /** Flag to track whether we've inspected the first bytes for TLS detection in MITM mode. */
-  private volatile boolean tlsInspectionDone = false;
-
-  /**
-   * Checks if we need to perform TLS detection for MITM mode and does so if needed. This inspects
-   * the first bytes from the client to determine if SSL/TLS is needed.
-   */
-  private void checkAndPerformTlsDetection(Object msg) {
-    MitmManager mitmManager = proxyServer.getMitmManager();
-    boolean isMitmEnabled = currentFilters.proxyToServerAllowMitm() && mitmManager != null;
-
-    // Only do TLS detection once, and only when in MITM mode
-    if (isMitmEnabled && !tlsInspectionDone && msg instanceof ByteBuf) {
-      ByteBuf buf = (ByteBuf) msg;
-      if (buf.readableBytes() > 0) {
-        // Peek at the first byte to determine if this is a TLS handshake
-        // TLS handshake always starts with 0x16 (decimal 22)
-        byte firstByte = buf.getByte(buf.readerIndex());
-        boolean isTlsHandshake = (firstByte & 0xFF) == 0x16;
-
-        LOG.debug(
-            "Inspecting first byte from client: 0x{} - TLS handshake: {}",
-            Integer.toHexString(firstByte & 0xFF),
-            isTlsHandshake);
-
-        if (isTlsHandshake) {
-          // This is a TLS connection - encrypt both server and client connections
-          encryptForMitm();
-        }
-
-        tlsInspectionDone = true;
-      }
-    }
-  }
-
-  /** Encrypts both server and client connections for MITM. */
-  private void encryptForMitm() {
-    HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
-    int port = parsedHostAndPort.getPort();
-
-    // Encrypt the server connection (for MITM)
-    Future<?> serverEncryptFuture;
-    if (disableSni) {
-      serverEncryptFuture = encrypt(proxyServer.getMitmManager().serverSslEngine(), true);
-    } else {
-      serverEncryptFuture =
-          encrypt(
-              proxyServer.getMitmManager().serverSslEngine(parsedHostAndPort.getHost(), port),
-              true);
-    }
-
-    // Encrypt the client connection for MITM, but wait for server encryption first
-    serverEncryptFuture.addListener(
-        future -> {
-          if (future.isSuccess()) {
-            ClientToProxyConnection targetClient = getClientConnection();
-            targetClient
-                .encrypt(
-                    proxyServer
-                        .getMitmManager()
-                        .clientSslEngineFor(initialRequest, sslEngine.getSession()),
-                    false)
-                .addListener(
-                    clientFuture -> {
-                      if (clientFuture.isSuccess()) {
-                        targetClient.setMitming(true);
-                      } else {
-                        LOG.warn("Failed to encrypt client connection for MITM");
-                      }
-                    });
-          } else {
-            LOG.warn("Failed to encrypt server connection for MITM");
-          }
-        });
-  }
 
   SSLEngine newChainedProxySslEngine() {
     if (remoteAddress != null) {
@@ -1903,6 +1795,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       new ResponseReadMonitor() {
         @Override
         protected void responseRead(HttpResponse httpResponse, String requestId) {
+          // The requestId attribute is stored on the client channel; on the server side it is not
+          // available, so fall back to the request id propagated when the request was forwarded.
+          if (requestId == null) {
+            requestId = currentRequestId;
+          }
+          currentRequestId = null;
           FullFlowContext flowContext =
               getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
