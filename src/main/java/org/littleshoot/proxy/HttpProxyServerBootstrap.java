@@ -158,7 +158,6 @@ public interface HttpProxyServerBootstrap {
    * @param inetSocketAddress to be used for outgoing communication
    */
   @CanIgnoreReturnValue
-  @NullMarked
   HttpProxyServerBootstrap withNetworkInterface(InetSocketAddress inetSocketAddress);
 
   HttpProxyServerBootstrap withMaxInitialLineLength(int maxInitialLineLength);
@@ -232,13 +231,28 @@ public interface HttpProxyServerBootstrap {
   HttpProxyServerBootstrap withSharedServerConnectionPool(boolean useSharedServerConnectionPool);
 
   /**
-   * Selects the server connection pool implementation to use when the shared pool is enabled.
+   * Selects the server connection pool implementation to use when the shared pool is enabled, by
+   * name.
    *
-   * <p>Default is {@link ServerConnectionPoolType#CONCURRENT_MAP}.
+   * <p>Implementations are discovered through the Java {@link java.util.ServiceLoader} and expose
+   * their name via {@code ServerConnectionPool#getName()}. Default is {@code concurrent_map}.
    *
-   * @param poolType the pool implementation to use
+   * @param poolName the name of the pool implementation
    */
-  HttpProxyServerBootstrap withServerConnectionPoolType(ServerConnectionPoolType poolType);
+  HttpProxyServerBootstrap withServerConnectionPoolName(String poolName);
+
+  /**
+   * Passes an implementation-specific option to the selected server connection pool.
+   *
+   * <p>The option is added to the {@code ServerConnectionPoolContext} options map under the given
+   * key, alongside the standard options. Implementation-specific keys are interpreted by the pool
+   * implementation itself. When a {@code Properties} file is used, keys prefixed with {@code
+   * server_connection_pool.<poolName>.} are handed over the same way.
+   *
+   * @param key the option key, as documented by the pool implementation
+   * @param value the option value; may be a typed object or a raw {@link String}
+   */
+  HttpProxyServerBootstrap withServerConnectionPoolOption(String key, Object value);
 
   /**
    * Sets the maximum number of connections per host:port when using the shared connection pool.

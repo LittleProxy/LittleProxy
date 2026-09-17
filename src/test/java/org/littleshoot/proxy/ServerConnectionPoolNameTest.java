@@ -10,11 +10,11 @@ import org.littleshoot.proxy.impl.ConcurrentMapServerConnectionPool;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.littleshoot.proxy.impl.ServerConnectionPool;
 
-class ServerConnectionPoolTypeTest {
+class ServerConnectionPoolNameTest {
 
   @Test
   void shouldCreateConcurrentMapPool() {
-    DefaultHttpProxyServer server = startServer(ServerConnectionPoolType.CONCURRENT_MAP, 3, 7);
+    DefaultHttpProxyServer server = startServer("concurrent_map", 3, 7);
     try {
       ServerConnectionPool pool = server.getServerConnectionPool();
       assertThat(pool).isInstanceOf(ConcurrentMapServerConnectionPool.class);
@@ -41,8 +41,19 @@ class ServerConnectionPoolTypeTest {
   }
 
   @Test
+  void shouldFallBackToConcurrentMapForUnknownName() {
+    DefaultHttpProxyServer server = startServer("NO_SUCH_POOL", 3, 7);
+    try {
+      ServerConnectionPool pool = server.getServerConnectionPool();
+      assertThat(pool).isInstanceOf(ConcurrentMapServerConnectionPool.class);
+    } finally {
+      server.abort();
+    }
+  }
+
+  @Test
   void shouldReturnSameInstanceOnRepeatedCalls() {
-    DefaultHttpProxyServer server = startServer(ServerConnectionPoolType.CONCURRENT_MAP, 3, 7);
+    DefaultHttpProxyServer server = startServer("CONCURRENT_MAP", 3, 7);
     try {
       ServerConnectionPool first = server.getServerConnectionPool();
       ServerConnectionPool second = server.getServerConnectionPool();
@@ -54,7 +65,7 @@ class ServerConnectionPoolTypeTest {
 
   @Test
   void shouldReturnSameInstanceUnderConcurrentAccess() throws Exception {
-    DefaultHttpProxyServer server = startServer(ServerConnectionPoolType.CONCURRENT_MAP, 3, 7);
+    DefaultHttpProxyServer server = startServer("CONCURRENT_MAP", 3, 7);
     try {
       int threadCount = 10;
       CountDownLatch latch = new CountDownLatch(threadCount);
@@ -80,12 +91,12 @@ class ServerConnectionPoolTypeTest {
   }
 
   private static DefaultHttpProxyServer startServer(
-      ServerConnectionPoolType poolType, int maxConnectionsPerHost, int maxConnections) {
+      String poolName, int maxConnectionsPerHost, int maxConnections) {
     return (DefaultHttpProxyServer)
         DefaultHttpProxyServer.bootstrap()
             .withPort(0)
             .withSharedServerConnectionPool(true)
-            .withServerConnectionPoolType(poolType)
+            .withServerConnectionPoolName(poolName)
             .withMaxConnectionsPerHost(maxConnectionsPerHost)
             .withMaxConnections(maxConnections)
             .start();

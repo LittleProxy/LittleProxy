@@ -1,12 +1,16 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElseGet;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxyManager;
@@ -20,7 +24,6 @@ import org.littleshoot.proxy.HttpProxyServerBootstrap;
 import org.littleshoot.proxy.Launcher;
 import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.ProxyAuthenticator;
-import org.littleshoot.proxy.ServerConnectionPoolType;
 import org.littleshoot.proxy.SslEngineSource;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.extras.ActivityLogger;
@@ -28,6 +31,7 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@NullMarked
 class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   private static final Logger LOG = LoggerFactory.getLogger(DefaultHttpProxyServerBootstrap.class);
 
@@ -70,15 +74,17 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   private boolean useSharedServerConnectionPool = false;
   private int maxConnectionsPerHost = 10;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
-  private ServerConnectionPoolType serverConnectionPoolType =
-      ServerConnectionPoolType.CONCURRENT_MAP;
+  private String serverConnectionPoolName = ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
   @Nullable private Duration poolIdleTimeout;
   private boolean poolSharedMitmConnections = false;
   private boolean poolPerRequestInMitm = false;
+  @Nullable private Properties props;
+  private final Map<String, Object> poolOptions = new LinkedHashMap<>();
 
   DefaultHttpProxyServerBootstrap() {}
 
   DefaultHttpProxyServerBootstrap(Properties props) {
+    this.props = props;
     withUseDnsSec(ProxyUtils.extractBooleanDefaultFalse(props, "dnssec"));
     transparent = ProxyUtils.extractBooleanDefaultFalse(props, DefaultHttpProxyServer.TRANSPARENT);
     idleConnectionTimeout =
@@ -169,15 +175,13 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
       sendProxyProtocol =
           ProxyUtils.extractBooleanDefaultFalse(props, DefaultHttpProxyServer.SEND_PROXY_PROTOCOL);
     }
-    if (props.containsKey(DefaultHttpProxyServer.SERVER_CONNECTION_POOL_TYPE)) {
-      String poolTypeValue =
-          props.getProperty(DefaultHttpProxyServer.SERVER_CONNECTION_POOL_TYPE, "CONCURRENT_MAP");
-      try {
-        serverConnectionPoolType =
-            ServerConnectionPoolType.valueOf(poolTypeValue.trim().toUpperCase());
-      } catch (IllegalArgumentException e) {
-        LOG.warn("Unknown server connection pool type: {}", poolTypeValue);
-      }
+    if (props.containsKey(DefaultHttpProxyServer.SERVER_CONNECTION_POOL_NAME)) {
+      serverConnectionPoolName =
+          props
+              .getProperty(
+                  DefaultHttpProxyServer.SERVER_CONNECTION_POOL_NAME,
+                  ServerConnectionPoolLoader.DEFAULT_POOL_NAME)
+              .trim();
     }
     if (props.containsKey(DefaultHttpProxyServer.USE_SHARED_SERVER_CONNECTION_POOL)) {
       useSharedServerConnectionPool =
@@ -257,11 +261,12 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
     ServerConnectionPoolConfig poolConfig = config.getServerConnectionPoolConfig();
     this.useSharedServerConnectionPool = poolConfig.isEnabled();
     this.maxConnectionsPerHost = poolConfig.getMaxConnectionsPerHost();
-    this.serverConnectionPoolType = poolConfig.getPoolType();
+    this.serverConnectionPoolName = poolConfig.getPoolName();
     this.maxConnections = poolConfig.getMaxConnections();
     this.poolIdleTimeout = poolConfig.getIdleTimeout();
     this.poolSharedMitmConnections = poolConfig.isPoolSharedMitmConnections();
     this.poolPerRequestInMitm = poolConfig.isPoolPerRequestInMitm();
+    this.poolOptions.putAll(poolConfig.getOptions());
   }
 
   @Override
@@ -447,9 +452,14 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   }
 
   @Override
-  public HttpProxyServerBootstrap withServerConnectionPoolType(ServerConnectionPoolType poolType) {
-    this.serverConnectionPoolType =
-        poolType != null ? poolType : ServerConnectionPoolType.CONCURRENT_MAP;
+  public HttpProxyServerBootstrap withServerConnectionPoolName(String poolName) {
+    this.serverConnectionPoolName = poolName;
+    return this;
+  }
+
+  @Override
+  public HttpProxyServerBootstrap withServerConnectionPoolOption(String key, Object value) {
+    poolOptions.put(requireNonNull(key, "option key must not be null"), value);
     return this;
   }
 
@@ -515,15 +525,21 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
                     clientToProxyWorkerThreads,
                     proxyToServerWorkerThreads));
 
+    Map<String, Object> resolvedPoolOptions = new LinkedHashMap<>(poolOptions);
+    if (props != null) {
+      resolvedPoolOptions.putAll(extractPoolOptions(props, serverConnectionPoolName));
+    }
+
     ServerConnectionPoolConfig poolConfig =
         new ServerConnectionPoolConfig()
             .setEnabled(useSharedServerConnectionPool)
-            .setPoolType(serverConnectionPoolType)
+            .setPoolName(serverConnectionPoolName)
             .setMaxConnectionsPerHost(maxConnectionsPerHost)
             .setMaxConnections(maxConnections)
             .setIdleTimeout(poolIdleTimeout)
             .setPoolSharedMitmConnections(poolSharedMitmConnections)
-            .setPoolPerRequestInMitm(poolPerRequestInMitm);
+            .setPoolPerRequestInMitm(poolPerRequestInMitm)
+            .setOptions(resolvedPoolOptions);
 
     DefaultHttpProxyServerConfig serverConfig =
         new DefaultHttpProxyServerConfig()
@@ -553,6 +569,47 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
             .setServerConnectionPoolConfig(poolConfig);
 
     return new DefaultHttpProxyServer(selectedServerGroup, serverConfig);
+  }
+
+  /**
+   * Collects the properties scoped to the given pool name. Keys of the form {@code
+   * server_connection_pool.<poolName>.<option>} are turned into options under the relaxed-binding
+   * camelCase form of {@code <option>} (see {@link #snakeToCamelCase(String)}). The prefix is
+   * matched case-insensitively, so the lowercase properties spelling (e.g. {@code concurrent_map})
+   * resolves to whatever capitalization the pool implementation publishes in its name. Values are
+   * handed over as raw strings; the pool implementation normalizes them with {@link
+   * PoolConfigUtils}.
+   */
+  static Map<String, Object> extractPoolOptions(Properties props, String poolName) {
+    String prefix = DefaultHttpProxyServer.SERVER_CONNECTION_POOL_OPTIONS_PREFIX + poolName + ".";
+    Map<String, Object> options = new LinkedHashMap<>();
+    for (String key : props.stringPropertyNames()) {
+      if (key.regionMatches(true, 0, prefix, 0, prefix.length())) {
+        options.put(snakeToCamelCase(key.substring(prefix.length())), props.getProperty(key));
+      }
+    }
+    return options;
+  }
+
+  /**
+   * Converts a property key to its camelCase option-key form (relaxed binding): the first segment
+   * is kept as-is, each subsequent underscore-separated segment is capitalized. Keys without
+   * underscores are returned unchanged, so already-camelCase option keys pass through verbatim.
+   */
+  static String snakeToCamelCase(String key) {
+    String[] parts = key.split("_");
+    StringBuilder camel = new StringBuilder(parts[0]);
+    for (int i = 1; i < parts.length; i++) {
+      String part = parts[i];
+      if (part.isEmpty()) {
+        continue;
+      }
+      camel.append(Character.toUpperCase(part.charAt(0)));
+      if (part.length() > 1) {
+        camel.append(part.substring(1));
+      }
+    }
+    return camel.toString();
   }
 
   private InetSocketAddress determineListenAddress() {

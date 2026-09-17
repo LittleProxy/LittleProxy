@@ -3,19 +3,22 @@ package org.littleshoot.proxy.impl;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
-import org.littleshoot.proxy.ServerConnectionPoolType;
 
 /** Configuration for the server connection pool. */
 public class ServerConnectionPoolConfig {
   private boolean enabled = false;
-  private ServerConnectionPoolType poolType = ServerConnectionPoolType.CONCURRENT_MAP;
+  private String poolName = ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
   private int maxConnectionsPerHost =
       ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
   @Nullable private Duration idleTimeout;
   private boolean poolSharedMitmConnections = false;
   private boolean poolPerRequestInMitm = false;
+  private Map<String, Object> options = Collections.emptyMap();
 
   public boolean isEnabled() {
     return enabled;
@@ -26,12 +29,12 @@ public class ServerConnectionPoolConfig {
     return this;
   }
 
-  public ServerConnectionPoolType getPoolType() {
-    return poolType;
+  public String getPoolName() {
+    return poolName;
   }
 
-  public ServerConnectionPoolConfig setPoolType(ServerConnectionPoolType poolType) {
-    this.poolType = requireNonNull(poolType, "poolType must not be null");
+  public ServerConnectionPoolConfig setPoolName(String poolName) {
+    this.poolName = requireNonNull(poolName, "poolName must not be null");
     return this;
   }
 
@@ -86,6 +89,20 @@ public class ServerConnectionPoolConfig {
 
   public ServerConnectionPoolConfig setPoolPerRequestInMitm(boolean poolPerRequestInMitm) {
     this.poolPerRequestInMitm = poolPerRequestInMitm;
+    return this;
+  }
+
+  /**
+   * Returns the implementation-specific options handed to the pool on initialization, keyed by the
+   * name each pool implementation documents.
+   */
+  public Map<String, Object> getOptions() {
+    return options;
+  }
+
+  public ServerConnectionPoolConfig setOptions(Map<String, Object> options) {
+    this.options =
+        Collections.unmodifiableMap(new LinkedHashMap<>(requireNonNull(options, "options")));
     return this;
   }
 }
