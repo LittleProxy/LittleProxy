@@ -697,7 +697,8 @@ pool_per_request_in_mitm=true
 | `SharedConnectionPoolTest` | 13 | Integrated shared pool for plain HTTP |
 | `ServerConnectionPoolNameTest` | 5 | Pool selection by name, unknown-name fallback |
 | `ServerConnectionPoolLoaderTest` | 9 | ServiceLoader selection, case-insensitive matching, ambiguity (incl. case-only), fallback, double-init |
-| `PoolConfigUtilsTest` | 6 | Option value conversion (int/boolean/duration) |
+| `PoolConfigUtilsTest` | 9 | Option value conversion (int/boolean/duration) with strict validation |
+| `ServerConnectionPoolContextTest` | 2 | Options map visibility/immutability, fail-fast on missing server |
 | `ServerConnectionPoolOptionsTest` | 7 | Pool-scoped properties (case-insensitive prefix, snake_case→camelCase, standards) + programmatic options reach the pool context |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |

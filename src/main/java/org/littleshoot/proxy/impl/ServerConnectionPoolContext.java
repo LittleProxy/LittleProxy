@@ -37,7 +37,7 @@ public final class ServerConnectionPoolContext {
   private final Map<String, Object> options;
 
   private ServerConnectionPoolContext(Builder builder) {
-    this.server = builder.server;
+    this.server = requireNonNull(builder.server, "server must not be null");
     this.globalTrafficShapingHandler = builder.globalTrafficShapingHandler;
     this.options = Collections.unmodifiableMap(new LinkedHashMap<>(builder.options));
   }
