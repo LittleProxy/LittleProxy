@@ -509,14 +509,13 @@ existingServer.clone().withPort(8081).start()
 
 ### Logging Activity Tracker
 
-LittleProxy includes a `LoggingActivityTracker` that can log detailed information about each request and response handled by the proxy. It supports multiple standard log formats, which can be useful for integration with log analysis tools.
+LittleProxy includes an `ActivityLogger` that can log detailed information about each request and response handled by the proxy. It supports multiple standard log formats, which can be useful for integration with log analysis tools.
 
 To use it, wrap your functionality or simply add it to your server bootstrap:
 
 ```java
 import org.littleshoot.proxy.extras.ActivityLogger;
-import org.littleshoot.proxy.extras.LoggingActivityTracker;
-import org.littleshoot.proxy.extras.LogFormat;
+import org.littleshoot.proxy.extras.logging.LogFormat;
 
 // ...
 
