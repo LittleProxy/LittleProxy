@@ -360,6 +360,9 @@ HttpProxyServer server =
 LittleProxy supports pluggable shared server connection pools. This allows multiple client
 connections to reuse upstream connections and helps prevent connection explosion under load.
 
+> **Note**: For the full design, SPI contract, options (incl. the `server_connection_pool.<poolName>.<key>`
+> properties convention) and architecture, see the [Server Connection Pool guide](docs/pooling-features.md).
+
 ```java
 HttpProxyServer server =
         DefaultHttpProxyServer.bootstrap()
