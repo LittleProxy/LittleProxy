@@ -119,6 +119,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static final String SOCKS_ENCODER_NAME = "socksEncoder";
   private static final String SOCKS_DECODER_NAME = "socksDecoder";
   private static final String MAIN_HANDLER_NAME = "handler";
+  public static final int CONNECT_LOCK_TIMEOUT_MILLIS = 30000;
   private final ClientToProxyConnection clientConnection;
   @Nullable private final ServerConnectionPool connectionPool;
   private final ProxyToServerConnection serverConnection = this;
@@ -560,7 +561,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                 "Attempted to write while still in the process of connecting, waiting for connection.");
             getClientConnection().stopReading();
             try {
-              connectLock.wait(30000);
+              connectLock.wait(CONNECT_LOCK_TIMEOUT_MILLIS);
             } catch (InterruptedException ie) {
               LOG.warn("Interrupted while waiting for connect monitor");
             }
@@ -1901,11 +1902,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private final ResponseReadMonitor responseReadMonitor =
       new ResponseReadMonitor() {
         @Override
-        protected void responseRead(HttpResponse httpResponse) {
+        protected void responseRead(HttpResponse httpResponse, String requestId) {
           FullFlowContext flowContext =
               getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseReceivedFromServer(flowContext, httpResponse);
+            tracker.responseReceivedFromServer(flowContext, httpResponse, requestId);
           }
         }
       };

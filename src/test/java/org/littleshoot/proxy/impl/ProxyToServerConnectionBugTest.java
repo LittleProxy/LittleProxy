@@ -161,7 +161,8 @@ class ProxyToServerConnectionBugTest {
           }
 
           @Override
-          public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
+          public void requestReceivedFromClient(
+              FlowContext flowContext, HttpRequest httpRequest, String requestId) {
             eventOrder.add("requestReceivedFromClient");
           }
         };
