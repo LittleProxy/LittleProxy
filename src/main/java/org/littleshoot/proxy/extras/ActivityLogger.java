@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.littleshoot.proxy.ActivityTrackerAdapter;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
+import org.littleshoot.proxy.extras.logging.LogFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,12 +44,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
-  public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
+  public void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId) {
     requestMap.put(flowContext, new TimedRequest(httpRequest, System.currentTimeMillis()));
   }
 
   @Override
-  public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
+  public void responseSentToClient(
+      FlowContext flowContext, HttpResponse httpResponse, String requestId) {
     TimedRequest timedRequest = requestMap.remove(flowContext);
     if (timedRequest == null) {
       return;
