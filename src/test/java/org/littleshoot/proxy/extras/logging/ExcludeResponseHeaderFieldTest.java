@@ -1,0 +1,174 @@
+package org.littleshoot.proxy.extras.logging;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.littleshoot.proxy.FlowContext;
+
+class ExcludeResponseHeaderFieldTest {
+
+  private FlowContext flowContext;
+  private TimedRequest timedRequest;
+  private HttpRequest request;
+  private HttpResponse response;
+  private HttpHeaders headers;
+
+  @BeforeEach
+  void setUp() {
+    flowContext = mock(FlowContext.class);
+    timedRequest = mock(TimedRequest.class);
+    request = mock(HttpRequest.class);
+    response = mock(HttpResponse.class);
+    headers = mock(HttpHeaders.class);
+
+    when(timedRequest.getRequest()).thenReturn(request);
+    when(response.headers()).thenReturn(headers);
+  }
+
+  @Test
+  void testConstructorWithString() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Set-Cookie|Authorization");
+
+    assertThat(field.getName()).isEqualTo("resp_all_except_set_cookie_authorization");
+    assertThat(field.getDescription())
+        .isEqualTo("Response headers excluding pattern: Set-Cookie|Authorization");
+  }
+
+  @Test
+  void testConstructorWithTransformers() {
+    ExcludeResponseHeaderField field =
+        new ExcludeResponseHeaderField(
+            "Set-Cookie", headerName -> "custom_" + headerName, value -> value.toUpperCase());
+
+    assertThat(field.getName()).isEqualTo("resp_all_except_set_cookie");
+  }
+
+  @Test
+  void testGetName() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("X-.*");
+
+    assertThat(field.getName()).isEqualTo("resp_all_except_x___");
+  }
+
+  @Test
+  void testGetDescription() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Cache-Control");
+
+    assertThat(field.getDescription())
+        .isEqualTo("Response headers excluding pattern: Cache-Control");
+  }
+
+  @Test
+  void testExtractValue() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Set-Cookie");
+
+    String value = field.extractValue(flowContext, timedRequest, response);
+
+    assertThat(value).isEqualTo("-");
+  }
+
+  @Test
+  void testExtractMatchingHeaders() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Set-Cookie|Authorization");
+
+    when(headers.names())
+        .thenReturn(Set.of("Content-Type", "Set-Cookie", "X-Request-ID", "Authorization"));
+    when(headers.getAll("Content-Type")).thenReturn(List.of("application/json"));
+    when(headers.getAll("X-Request-ID")).thenReturn(List.of("resp-123"));
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).hasSize(2);
+    assertThat(matches).containsEntry("resp_content_type", "application/json");
+    assertThat(matches).containsEntry("resp_x_request_id", "resp-123");
+    assertThat(matches).doesNotContainKey("resp_set_cookie");
+    assertThat(matches).doesNotContainKey("resp_authorization");
+  }
+
+  @Test
+  void testExtractMatchingHeadersNoExclusions() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("NonExistent.*");
+
+    when(headers.names()).thenReturn(Set.of("Content-Type", "Accept"));
+    when(headers.getAll("Content-Type")).thenReturn(List.of("application/json"));
+    when(headers.getAll("Accept")).thenReturn(List.of("*/*"));
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).hasSize(2);
+    assertThat(matches).containsEntry("resp_content_type", "application/json");
+    assertThat(matches).containsEntry("resp_accept", "*/*");
+  }
+
+  @Test
+  void testExtractMatchingHeadersAllExcluded() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField(".*");
+
+    when(headers.names()).thenReturn(Set.of("Content-Type", "Accept"));
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).isEmpty();
+  }
+
+  @Test
+  void testExtractMatchingHeadersWithTransformer() {
+    ExcludeResponseHeaderField field =
+        new ExcludeResponseHeaderField(
+            "Set-Cookie", headerName -> "custom_" + headerName, value -> value.toUpperCase());
+
+    when(headers.names()).thenReturn(Set.of("Content-Type"));
+    when(headers.getAll("Content-Type")).thenReturn(List.of("json"));
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).containsEntry("custom_Content-Type", "JSON");
+  }
+
+  @Test
+  void testExtractMatchingHeadersWithNullValue() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Set-Cookie");
+
+    when(headers.names()).thenReturn(Set.of("X-Header"));
+    when(headers.getAll("X-Header")).thenReturn(Collections.emptyList());
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).containsEntry("resp_x_header", "-");
+  }
+
+  @Test
+  void testExtractMatchingHeadersEmpty() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("Set-Cookie");
+
+    when(headers.names()).thenReturn(Set.of());
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).isEmpty();
+  }
+
+  @Test
+  void testExtractMatchingHeadersCaseInsensitive() {
+    ExcludeResponseHeaderField field = new ExcludeResponseHeaderField("content-type");
+
+    when(headers.names()).thenReturn(Set.of("Content-Type", "X-Header"));
+    when(headers.getAll("Content-Type")).thenReturn(List.of("json"));
+    when(headers.getAll("X-Header")).thenReturn(List.of("value"));
+
+    Map<String, String> matches = field.extractMatchingHeaders(headers);
+
+    assertThat(matches).hasSize(1);
+    assertThat(matches).containsKey("resp_x_header");
+  }
+}
