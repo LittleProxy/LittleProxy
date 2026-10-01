@@ -123,6 +123,15 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /** This is the current server connection that we're using while transferring chunked data. */
   @Nullable private volatile ProxyToServerConnection currentServerConnection;
 
+  /** Most recent request target, independent of the operational upstream connection pointer. */
+  @Nullable private volatile String logTarget;
+
+  @Override
+  @Nullable
+  protected String getLogTarget() {
+    return logTarget;
+  }
+
   private final Map<ProxyToServerConnection, FullFlowContext> serverFlowContexts =
       new ConcurrentHashMap<>();
 
@@ -181,6 +190,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Override
   ConnectionState readHTTPInitial(HttpRequest httpRequest) {
+    // Refresh before authentication, decoder errors, or filters can reject the request. This is
+    // diagnostic metadata only: a rejection must not retain the previous upstream's target.
+    logTarget =
+        httpRequest.uri().startsWith("/") || "*".equals(httpRequest.uri())
+            ? httpRequest.headers().get(HttpHeaderNames.HOST)
+            : ProxyUtils.parseHostAndPort(httpRequest);
     LOG.debug("Received raw request: {}", httpRequest);
 
     // Earliest point to report connected for connections with no PROXY header (guarded; no-op if

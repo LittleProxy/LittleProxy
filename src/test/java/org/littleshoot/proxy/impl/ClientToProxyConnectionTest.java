@@ -7,15 +7,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import java.util.List;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
+import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpFiltersAdapter;
 import org.littleshoot.proxy.HttpFiltersSource;
+import org.littleshoot.proxy.HttpFiltersSourceAdapter;
 
 class ClientToProxyConnectionTest {
 
@@ -30,6 +43,42 @@ class ClientToProxyConnectionTest {
     when(proxyServer.getActivityTrackers()).thenReturn(List.of(trackers));
 
     return new ClientToProxyConnection(proxyServer, null, false, mock(ChannelPipeline.class), null);
+  }
+
+  @Test
+  void rejectedRequestsRefreshDiagnosticTargetWithoutAnUpstreamConnection() {
+    ClientToProxyConnection connection = createConnection();
+    when(proxyServer.getFiltersSource())
+        .thenReturn(
+            new HttpFiltersSourceAdapter() {
+              @Override
+              public HttpFilters filterRequest(HttpRequest request, ChannelHandlerContext ctx) {
+                return new HttpFiltersAdapter(request, ctx) {
+                  @Override
+                  public HttpResponse clientToProxyRequest(HttpObject object) {
+                    return new DefaultFullHttpResponse(
+                        HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+                  }
+                };
+              }
+            });
+    EmbeddedChannel channel = new EmbeddedChannel(connection);
+    try {
+      connection.readHTTPInitial(
+          new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "http://first.test/old"));
+      assertThat(connection.getLogTarget()).isEqualTo("first.test");
+      connection.readHTTPInitial(
+          new DefaultHttpRequest(
+              HttpVersion.HTTP_1_1, HttpMethod.GET, "http://second.test:8080/new"));
+      assertThat(connection.getLogTarget()).isEqualTo("second.test:8080");
+      DefaultHttpRequest relative =
+          new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/origin-form");
+      relative.headers().set(HttpHeaderNames.HOST, "third.test:8081");
+      connection.readHTTPInitial(relative);
+      assertThat(connection.getLogTarget()).isEqualTo("third.test:8081");
+    } finally {
+      channel.finishAndReleaseAll();
+    }
   }
 
   @Test
