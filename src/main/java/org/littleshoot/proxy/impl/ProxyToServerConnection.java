@@ -623,20 +623,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void become(ConnectionState newState) {
     // Report connection status to HttpFilters
-    if (getCurrentState() == DISCONNECTED && newState == CONNECTING) {
+    if (newState == AWAITING_INITIAL && getCurrentState().isPartOfConnectionFlow()) {
+      // CONNECT flows finish in NEGOTIATING_CONNECT (or AWAITING_CONNECT_OK), not CONNECTING.
+      currentFilters.proxyToServerConnectionSucceeded(ctx);
+    } else if (getCurrentState() == DISCONNECTED && newState == CONNECTING) {
       currentFilters.proxyToServerConnectionStarted();
     } else if (getCurrentState() == CONNECTING) {
       if (newState == HANDSHAKING) {
         currentFilters.proxyToServerConnectionSSLHandshakeStarted();
-      } else if (newState == AWAITING_INITIAL) {
-        currentFilters.proxyToServerConnectionSucceeded(ctx);
       } else if (newState == DISCONNECTED) {
         currentFilters.proxyToServerConnectionFailed();
       }
     } else if (getCurrentState() == HANDSHAKING) {
-      if (newState == AWAITING_INITIAL) {
-        currentFilters.proxyToServerConnectionSucceeded(ctx);
-      } else if (newState == DISCONNECTED) {
+      if (newState == DISCONNECTED) {
         currentFilters.proxyToServerConnectionFailed();
       }
     } else if (getCurrentState() == AWAITING_CHUNK && newState != AWAITING_CHUNK) {
@@ -748,6 +747,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   public String getServerHostAndPort() {
+    return serverHostAndPort;
+  }
+
+  @Override
+  protected String getLogTarget() {
     return serverHostAndPort;
   }
 
