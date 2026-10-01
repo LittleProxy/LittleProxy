@@ -31,12 +31,12 @@ per-client `serverConnectionsByHostAndPort` map.
 
 | Type | File | Purpose |
 |---|---|---|
-| Interface | `ServerConnectionPool` | Contract for pooling server connections; also the ServiceLoader SPI (`getName()` + `initialize(ServerConnectionPoolContext)`) |
+| Interface | `ServerConnectionPool` | Contract for pooling server connections; also the ServiceLoader SPI (`getName()` + `initialize(server, trafficHandler, options)`) |
+| Interface | `NamedService` | Generic contract for a ServiceLoader-discovered service selected by name |
 | Config | `ServerConnectionPoolConfig` | Configuration bean (pool name, sizes, timeouts) |
-| Config | `ServerConnectionPoolContext` | Dependencies + option map handed to a pool at initialization |
 | Metrics | `PoolMetrics` | Active/idle/borrow/return/eviction counters |
 | Model | `PendingRequest` | Tracks a request awaiting a response (for HTTP pipelining) |
-| Loader | `ServerConnectionPoolLoader` | ServiceLoader-based selection by name (case-insensitive), with fallback to `concurrent_map` |
+| Loader | `NamedServiceLoader<T extends NamedService>` | Generic ServiceLoader-based selection by name (case-insensitive); fails fast on an unknown or ambiguous name |
 | Utils | `PoolConfigUtils` | Typed/string converters for pool option values |
 
 ### Pool Implementations
@@ -144,9 +144,9 @@ The configuration flows through three layers:
 
 1. `DefaultHttpProxyServerBootstrap` stores raw builder fields
 2. `build()` creates a `ServerConnectionPoolConfig` and a `DefaultHttpProxyServerConfig`
-3. `DefaultHttpProxyServer` reads the config on construction, translates it to a
-   `ServerConnectionPoolContext` option map, and asks `ServerConnectionPoolLoader` for the
-   selected implementation
+3. `DefaultHttpProxyServer` reads the config when the pool is resolved, builds the option
+   map, asks the generic `NamedServiceLoader` for the selected implementation, and calls
+   `initialize(server, trafficHandler, options)` on it
 
 Properties file parsing in `DefaultHttpProxyServerBootstrap(Properties props)` maps
 each key. Implementation-specific options are collected separately: any key prefixed
@@ -171,10 +171,11 @@ server_connection_pool.MY_POOL.preCamel=unchanged
 
 The same options can be supplied programmatically with
 `.withServerConnectionPoolOption("maxRetries", 4)` (keys are not case-translated
-programmatically — use the option-key form); both sources are merged at `build()`, and
-typeless keys **override** the typed standard options when they collide. The pool reads
-them from the `ServerConnectionPoolContext.getOptions()` map and normalizes them with
-`PoolConfigUtils`.
+programmatically — use the option-key form); both sources are merged at `build()`: the
+properties file is the base layer and an explicit programmatic option **wins** for the
+same key, so the builder behaves like every other setter (explicit call wins). A typeless
+key **overrides** a typed standard option when it collides. The pool reads the merged
+options map (an unmodifiable copy) and normalizes values with `PoolConfigUtils`.
 
 ### Standard options
 
@@ -190,7 +191,7 @@ dashed) are also accepted:
 
 ### Loading a custom pool implementation (SPI)
 
-1. Implement `ServerConnectionPool` (`getName()` + `initialize(ServerConnectionPoolContext)` +
+1. Implement `ServerConnectionPool` (`getName()` + `initialize(server, trafficHandler, options)` +
    the pooling methods).
 2. Expose a public no-argument constructor; parse your options in `initialize` with
    `PoolConfigUtils` (values may be typed objects or strings from the properties file).
@@ -199,11 +200,12 @@ dashed) are also accepted:
 4. Select it with `.withServerConnectionPoolName("YOUR_NAME")` or
    `server_connection_pool_name=YOUR_NAME`.
 
-Loading is fail-fast on hard errors: an ambiguous or blank name, or an exception thrown
-by a constructor/initializer aborts startup. Pool names are matched case-insensitively, so the
-properties file writes them lowercase (`concurrent_map`). An *unknown* name falls back to
-`concurrent_map` with a warning; if no implementation is registered at all, the same
-fallback is used.
+Loading is fail-fast: an unknown or ambiguous name, a blank name, or an exception thrown by
+a constructor or initializer aborts startup with an exception. Pool names are matched
+case-insensitively, so the properties file writes them lowercase (`concurrent_map`). There is no
+silent fallback — a typo'd name or a broken shaded-jar `META-INF/services` entry fails loudly at
+startup rather than quietly using `concurrent_map`. The pool is resolved when the server starts
+(only when `use_shared_server_connection_pool=true`), so a mixed-up name surfaces there.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 
@@ -693,13 +695,12 @@ pool_per_request_in_mitm=true
 
 | Test class | Tests | What it covers |
 |---|---|---|
-| `ConcurrentMapServerConnectionPoolTest` | 24 | Pool implementation: borrow, release, eviction, pending requests |
+| `ConcurrentMapServerConnectionPoolTest` | 27 | Pool implementation: borrow, release, eviction, pending requests, initialize lifecycle/standard options |
 | `SharedConnectionPoolTest` | 13 | Integrated shared pool for plain HTTP |
-| `ServerConnectionPoolNameTest` | 5 | Pool selection by name, unknown-name fallback |
-| `ServerConnectionPoolLoaderTest` | 9 | ServiceLoader selection, case-insensitive matching, ambiguity (incl. case-only), fallback, double-init |
+| `ServerConnectionPoolNameTest` | 5 | Pool selection by name, fail-fast on unknown name, idempotent/concurrent access |
+| `NamedServiceLoaderTest` | 8 | Generic ServiceLoader selection: case-insensitive matching, fail-fast on unknown name, ambiguity (incl. case-only) for the requested name only, blank names |
 | `PoolConfigUtilsTest` | 9 | Option value conversion (int/boolean/duration) with strict validation |
-| `ServerConnectionPoolContextTest` | 2 | Options map visibility/immutability, fail-fast on missing server |
-| `ServerConnectionPoolOptionsTest` | 7 | Pool-scoped properties (case-insensitive prefix, snake_case→camelCase, standards) + programmatic options reach the pool context |
+| `ServerConnectionPoolOptionsTest` | 8 | Pool-scoped properties (case-insensitive prefix, snake_case→camelCase, standards), programmatic options and precedence, options reach the pool |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |
 

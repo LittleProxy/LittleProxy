@@ -8,10 +8,10 @@ import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies that implementation-specific pool options reach the {@link ServerConnectionPoolContext}
- * options map, both when declared as pool-scoped properties and when supplied through the
- * bootstrap. Pool-scoped property keys use relaxed binding: snake_case suffixes are converted to
- * camelCase option keys.
+ * Verifies that implementation-specific pool options reach the options map passed to {@link
+ * ServerConnectionPool#initialize}, both when declared as pool-scoped properties and when supplied
+ * through the bootstrap. Pool-scoped property keys use relaxed binding: snake_case suffixes are
+ * converted to camelCase option keys.
  */
 class ServerConnectionPoolOptionsTest {
 
@@ -91,12 +91,12 @@ class ServerConnectionPoolOptionsTest {
 
     assertThat(options)
         .containsOnlyKeys(
-            ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS_PER_HOST,
-            ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS,
-            ServerConnectionPoolContext.OPTION_IDLE_TIMEOUT)
-        .containsEntry(ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS_PER_HOST, "3")
-        .containsEntry(ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS, "7")
-        .containsEntry(ServerConnectionPoolContext.OPTION_IDLE_TIMEOUT, "PT60S");
+            ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
+            ServerConnectionPool.OPTION_MAX_CONNECTIONS,
+            ServerConnectionPool.OPTION_IDLE_TIMEOUT)
+        .containsEntry(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST, "3")
+        .containsEntry(ServerConnectionPool.OPTION_MAX_CONNECTIONS, "7")
+        .containsEntry(ServerConnectionPool.OPTION_IDLE_TIMEOUT, "PT60S");
   }
 
   @Test
@@ -168,8 +168,9 @@ class ServerConnectionPoolOptionsTest {
       assertThat(options)
           .containsEntry("maxRetries", "4")
           .containsEntry(
-              ServerConnectionPoolContext.OPTION_MAX_CONNECTIONS_PER_HOST,
-              ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST);
+              ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
+              ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST)
+          .isUnmodifiable();
     } finally {
       server.stop();
     }
@@ -190,6 +191,36 @@ class ServerConnectionPoolOptionsTest {
       OptionsCapturingServerConnectionPool pool =
           (OptionsCapturingServerConnectionPool) server.getServerConnectionPool();
       assertThat(pool.getCapturedOptions()).containsEntry("batchSize", 42);
+    } finally {
+      server.stop();
+    }
+  }
+
+  @Test
+  void shouldPreferProgrammaticOptionOverScopedProperty() {
+    Properties props = new Properties();
+    props.setProperty("port", "0");
+    props.setProperty(DefaultHttpProxyServer.USE_SHARED_SERVER_CONNECTION_POOL, "true");
+    props.setProperty(
+        DefaultHttpProxyServer.SERVER_CONNECTION_POOL_NAME,
+        OptionsCapturingServerConnectionPool.NAME);
+    props.setProperty(
+        DefaultHttpProxyServer.SERVER_CONNECTION_POOL_OPTIONS_PREFIX
+            + OptionsCapturingServerConnectionPool.NAME
+            + ".max_retries",
+        "4");
+
+    DefaultHttpProxyServer server =
+        (DefaultHttpProxyServer)
+            new DefaultHttpProxyServerBootstrap(props)
+                .withPort(0)
+                .withServerConnectionPoolOption("maxRetries", 99)
+                .start();
+
+    try {
+      OptionsCapturingServerConnectionPool pool =
+          (OptionsCapturingServerConnectionPool) server.getServerConnectionPool();
+      assertThat(pool.getCapturedOptions()).containsEntry("maxRetries", 99);
     } finally {
       server.stop();
     }

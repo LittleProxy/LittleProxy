@@ -74,7 +74,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   private boolean useSharedServerConnectionPool = false;
   private int maxConnectionsPerHost = 10;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;
-  private String serverConnectionPoolName = ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
+  private String serverConnectionPoolName = ServerConnectionPool.DEFAULT_NAME;
   @Nullable private Duration poolIdleTimeout;
   private boolean poolSharedMitmConnections = false;
   private boolean poolPerRequestInMitm = false;
@@ -180,7 +180,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
           props
               .getProperty(
                   DefaultHttpProxyServer.SERVER_CONNECTION_POOL_NAME,
-                  ServerConnectionPoolLoader.DEFAULT_POOL_NAME)
+                  ServerConnectionPool.DEFAULT_NAME)
               .trim();
     }
     if (props.containsKey(DefaultHttpProxyServer.USE_SHARED_SERVER_CONNECTION_POOL)) {
@@ -453,7 +453,7 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
 
   @Override
   public HttpProxyServerBootstrap withServerConnectionPoolName(String poolName) {
-    this.serverConnectionPoolName = poolName;
+    this.serverConnectionPoolName = requireNonNull(poolName, "poolName must not be null");
     return this;
   }
 
@@ -525,10 +525,13 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
                     clientToProxyWorkerThreads,
                     proxyToServerWorkerThreads));
 
-    Map<String, Object> resolvedPoolOptions = new LinkedHashMap<>(poolOptions);
+    // Properties are the base layer; an explicit programmatic option wins for the same key, so
+    // options call order on the builder behaves like every other setter (explicit call wins).
+    Map<String, Object> resolvedPoolOptions = new LinkedHashMap<>();
     if (props != null) {
       resolvedPoolOptions.putAll(extractPoolOptions(props, serverConnectionPoolName));
     }
+    resolvedPoolOptions.putAll(poolOptions);
 
     ServerConnectionPoolConfig poolConfig =
         new ServerConnectionPoolConfig()

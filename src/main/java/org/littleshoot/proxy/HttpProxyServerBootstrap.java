@@ -244,10 +244,11 @@ public interface HttpProxyServerBootstrap {
   /**
    * Passes an implementation-specific option to the selected server connection pool.
    *
-   * <p>The option is added to the {@code ServerConnectionPoolContext} options map under the given
-   * key, alongside the standard options. Implementation-specific keys are interpreted by the pool
-   * implementation itself. When a {@code Properties} file is used, keys prefixed with {@code
-   * server_connection_pool.<poolName>.} are handed over the same way.
+   * <p>The option is added to the options map passed to {@code
+   * ServerConnectionPool#initialize(...)} under the given key, alongside the standard options, and
+   * overrides a properties-file option with the same key. Implementation-specific keys are
+   * interpreted by the pool implementation itself. When a {@code Properties} file is used, keys
+   * prefixed with {@code server_connection_pool.<poolName>.} are handed over the same way.
    *
    * @param key the option key, as documented by the pool implementation
    * @param value the option value; may be a typed object or a raw {@link String}

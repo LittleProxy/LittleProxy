@@ -6,7 +6,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Helpers for {@link ServerConnectionPool} implementations to read typed values from the option map
- * of a {@link ServerConnectionPoolContext}.
+ * passed to {@link ServerConnectionPool#initialize(org.littleshoot.proxy.HttpProxyServer,
+ * io.netty.handler.traffic.GlobalTrafficShapingHandler, java.util.Map)}.
  *
  * <p>Option values may arrive as typed objects (set programmatically through the bootstrap) or as
  * raw {@link String}s (read from a properties file). Each converter accepts both forms and fails

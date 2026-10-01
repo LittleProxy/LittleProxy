@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
 /** Configuration for the server connection pool. */
 public class ServerConnectionPoolConfig {
   private boolean enabled = false;
-  private String poolName = ServerConnectionPoolLoader.DEFAULT_POOL_NAME;
+  private String poolName = ServerConnectionPool.DEFAULT_NAME;
   private int maxConnectionsPerHost =
       ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST;
   private int maxConnections = ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS;

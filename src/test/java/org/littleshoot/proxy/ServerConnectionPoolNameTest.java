@@ -1,6 +1,7 @@
 package org.littleshoot.proxy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -41,14 +42,10 @@ class ServerConnectionPoolNameTest {
   }
 
   @Test
-  void shouldFallBackToConcurrentMapForUnknownName() {
-    DefaultHttpProxyServer server = startServer("NO_SUCH_POOL", 3, 7);
-    try {
-      ServerConnectionPool pool = server.getServerConnectionPool();
-      assertThat(pool).isInstanceOf(ConcurrentMapServerConnectionPool.class);
-    } finally {
-      server.abort();
-    }
+  void shouldFailStartupForUnknownName() {
+    assertThatThrownBy(() -> startServer("NO_SUCH_POOL", 3, 7))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("NO_SUCH_POOL");
   }
 
   @Test

@@ -48,8 +48,8 @@ The config file is a properties file with the following properties :
 - `max_initial_line_length` : integer value to set the max initial line length in bytes (default : `8192`)
 - `max_header_size` : integer value to set the max header size in bytes (default : `16384`)
 - `max_chunk_size` : integer value to set the max chunk size in bytes (default : `16384`)
-- `server_connection_pool_name` : name of the pool implementation loaded via the Java ServiceLoader (default : `concurrent_map`), matched case-insensitively -- only effective when `use_shared_server_connection_pool=true`
-- `server_connection_pool.<poolName>.<key>` : implementation-specific option for the pool named `<poolName>` (name and key matched case-insensitively); de-prefixed, its snake_case suffix converted to a camelCase option key (ex. `server_connection_pool.concurrent_map.pool_idle_timeout=PT30S` → option `poolIdleTimeout`), and passed as a raw string in the pool context options
+- `server_connection_pool_name` : name of the pool implementation loaded via the Java ServiceLoader (default : `concurrent_map`), matched case-insensitively; an unknown name fails server startup (no silent fallback) -- only effective when `use_shared_server_connection_pool=true`
+- `server_connection_pool.<poolName>.<key>` : implementation-specific option for the pool named `<poolName>` (name and key matched case-insensitively); de-prefixed, its snake_case suffix converted to a camelCase option key (ex. `server_connection_pool.concurrent_map.pool_idle_timeout=PT30S` → option `poolIdleTimeout`), and passed as a raw string in the options handed to the pool
 - `max_total_connections` : integer value to set the maximum total pooled server connections (default : `200`) -- only effective when `use_shared_server_connection_pool=true`
 - `max_connections_per_host` : integer value to set the maximum pooled server connections per host:port (default : `10`) -- only effective when `use_shared_server_connection_pool=true`
 - `name` : string value to set the proxy server name (default : `LittleProxy`)
@@ -374,7 +374,7 @@ HttpProxyServer server =
                 .start();
 ```
 
-Available pool implementations (loaded through the Java ServiceLoader, selected by name):
+Available pool implementations (loaded through the Java ServiceLoader, selected by name; an unknown or ambiguous name fails server startup):
 
 - `concurrent_map`: lightweight default implementation
 

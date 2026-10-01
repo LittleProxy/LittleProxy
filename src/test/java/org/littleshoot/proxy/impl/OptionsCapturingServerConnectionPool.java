@@ -2,12 +2,14 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpProxyServer;
 
 /**
  * Test-only {@link ServerConnectionPool} registered through the {@link java.util.ServiceLoader} in
@@ -29,8 +31,11 @@ public class OptionsCapturingServerConnectionPool implements ServerConnectionPoo
   }
 
   @Override
-  public void initialize(ServerConnectionPoolContext context) {
-    capturedOptions.set(context.getOptions());
+  public void initialize(
+      HttpProxyServer server,
+      @Nullable GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      Map<String, Object> options) {
+    capturedOptions.set(options);
   }
 
   /** Returns the options map this instance was initialized with, or {@code null} if not yet. */
