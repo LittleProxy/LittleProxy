@@ -2,8 +2,10 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -12,11 +14,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpProxyServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +52,12 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
           });
   @Nullable private volatile ScheduledFuture<?> evictionTask;
 
-  private final int maxConnectionsPerHost;
-  private final int maxConnections;
-  private final DefaultHttpProxyServer proxyServer;
-  private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
+  private int maxConnectionsPerHost;
+  private int maxConnections;
+  private DefaultHttpProxyServer proxyServer;
+  private GlobalTrafficShapingHandler globalTrafficShapingHandler;
+
+  private final AtomicBoolean initialized = new AtomicBoolean(false);
 
   private final ConcurrentMap<ProxyToServerConnection, String> connectionKeys =
       new ConcurrentHashMap<>();
@@ -65,38 +71,53 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   private final java.util.concurrent.atomic.AtomicLong validationFailureCount =
       new java.util.concurrent.atomic.AtomicLong(0);
 
-  public ConcurrentMapServerConnectionPool(
-      DefaultHttpProxyServer proxyServer,
-      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler) {
-    this(
-        proxyServer,
-        globalTrafficShapingHandler,
-        DEFAULT_MAX_CONNECTIONS_PER_HOST,
-        DEFAULT_MAX_TOTAL_CONNECTIONS);
+  @Override
+  public String getName() {
+    return ServerConnectionPool.DEFAULT_NAME;
   }
 
-  public ConcurrentMapServerConnectionPool(
-      DefaultHttpProxyServer proxyServer,
-      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
-      int maxConnectionsPerHost) {
-    this(
-        proxyServer,
-        globalTrafficShapingHandler,
-        maxConnectionsPerHost,
-        DEFAULT_MAX_TOTAL_CONNECTIONS);
-  }
+  @Override
+  public void initialize(
+      HttpProxyServer server,
+      @Nullable GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      Map<String, Object> options) {
+    java.util.Objects.requireNonNull(server, "server must not be null");
+    java.util.Objects.requireNonNull(options, "options must not be null");
+    if (!initialized.compareAndSet(false, true)) {
+      throw new IllegalStateException("Server connection pool already initialized: " + getName());
+    }
 
-  public ConcurrentMapServerConnectionPool(
-      DefaultHttpProxyServer proxyServer,
-      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
-      int maxConnectionsPerHost,
-      int maxConnections) {
-    this.proxyServer = proxyServer;
+    if (!(server instanceof DefaultHttpProxyServer)) {
+      throw new IllegalStateException(
+          "DefaultHttpProxyServer expected but got: " + server.getClass().getName());
+    }
+    this.proxyServer = (DefaultHttpProxyServer) server;
     this.globalTrafficShapingHandler = globalTrafficShapingHandler;
+
+    int maxConnPerHost =
+        PoolConfigUtils.intValue(
+            ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
+            options.getOrDefault(
+                ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
+                DEFAULT_MAX_CONNECTIONS_PER_HOST));
+    int maxConn =
+        PoolConfigUtils.intValue(
+            ServerConnectionPool.OPTION_MAX_CONNECTIONS,
+            options.getOrDefault(
+                ServerConnectionPool.OPTION_MAX_CONNECTIONS, DEFAULT_MAX_TOTAL_CONNECTIONS));
     this.maxConnectionsPerHost =
-        maxConnectionsPerHost > 0 ? maxConnectionsPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
-    this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_TOTAL_CONNECTIONS;
+        maxConnPerHost > 0 ? maxConnPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
+    this.maxConnections = maxConn > 0 ? maxConn : DEFAULT_MAX_TOTAL_CONNECTIONS;
+
+    Object idleTimeout = options.get(ServerConnectionPool.OPTION_IDLE_TIMEOUT);
+    if (idleTimeout != null) {
+      setIdleTimeout(
+          PoolConfigUtils.durationValue(ServerConnectionPool.OPTION_IDLE_TIMEOUT, idleTimeout));
+    }
   }
+
+  /** Public no-argument constructor required by the {@link java.util.ServiceLoader} SPI. */
+  public ConcurrentMapServerConnectionPool() {}
 
   @Override
   @Nullable

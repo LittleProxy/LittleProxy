@@ -31,20 +31,21 @@ per-client `serverConnectionsByHostAndPort` map.
 
 | Type | File | Purpose |
 |---|---|---|
-| Interface | `ServerConnectionPool` | Contract for pooling server connections |
-| Config | `ServerConnectionPoolConfig` | Configuration bean (pool type, sizes, timeouts) |
-| Config | `DefaultHttpProxyServerConfig` | Server-level config carrier that includes pool config |
+| Interface | `ServerConnectionPool` | Contract for pooling server connections; also the ServiceLoader SPI (`getName()` + `initialize(server, trafficHandler, options)`) |
+| Interface | `NamedService` | Generic contract for a ServiceLoader-discovered service selected by name |
+| Config | `ServerConnectionPoolConfig` | Configuration bean (pool name, sizes, timeouts) |
 | Metrics | `PoolMetrics` | Active/idle/borrow/return/eviction counters |
 | Model | `PendingRequest` | Tracks a request awaiting a response (for HTTP pipelining) |
-| Enum | `ServerConnectionPoolType` | `CONCURRENT_MAP` |
+| Loader | `NamedServiceLoader<T extends NamedService>` | Generic ServiceLoader-based selection by name (case-insensitive); fails fast on an unknown or ambiguous name |
+| Utils | `PoolConfigUtils` | Typed/string converters for pool option values |
 
 ### Pool Implementations
 
-Single backend implementation:
+Single backend implementation, registered in `META-INF/services/org.littleshoot.proxy.impl.ServerConnectionPool`:
 
-| Pool type | Class | Approach | Dependencies |
+| Pool name | Class | Approach | Dependencies |
 |---|---|---|---|
-| `CONCURRENT_MAP` | `ConcurrentMapServerConnectionPool` | `ConcurrentHashMap` + per-host `Queue` of available connections | None (pure Netty/Java) |
+| `concurrent_map` | `ConcurrentMapServerConnectionPool` | `ConcurrentHashMap` + per-host `Queue` of available connections | None (pure Netty/Java) |
 
 The implementation:
 - Implements `getOrCreateConnection(host, chainedProxyAddr, client, filters, request)` +
@@ -130,10 +131,11 @@ is dequeued and routed.
 
 ```java
 .withSharedServerConnectionPool(boolean)       // master switch
-.withServerConnectionPoolType(ServerConnectionPoolType)  // CONCURRENT_MAP default
+.withServerConnectionPoolName(String)          // concurrent_map default
 .withMaxConnectionsPerHost(int)                 // default 10
 .withMaxConnections(int)                        // default 200
 .withPoolIdleTimeout(Duration)                  // null = no idle eviction
+.withServerConnectionPoolOption(String, Object) // implementation-specific option
 ```
 
 ### How Pool Configuration Reaches the Server
@@ -142,17 +144,68 @@ The configuration flows through three layers:
 
 1. `DefaultHttpProxyServerBootstrap` stores raw builder fields
 2. `build()` creates a `ServerConnectionPoolConfig` and a `DefaultHttpProxyServerConfig`
-3. `DefaultHttpProxyServer` reads the config on construction
+3. `DefaultHttpProxyServer` reads the config when the pool is resolved, builds the option
+   map, asks the generic `NamedServiceLoader` for the selected implementation, and calls
+   `initialize(server, trafficHandler, options)` on it
 
 Properties file parsing in `DefaultHttpProxyServerBootstrap(Properties props)` maps
-each key:
+each key. Implementation-specific options are collected separately: any key prefixed
+with `server_connection_pool.<poolName>.` is de-prefixed and handed to the selected pool
+as an option, alongside the typed standard options. Suffix keys use **relaxed binding**:
+`max_retries` becomes the option key `maxRetries` (and already-camelCase keys pass
+through unchanged), so pool options follow the snake_case convention of this properties
+file.
 
 ```properties
 use_shared_server_connection_pool=true
-server_connection_pool_type=CONCURRENT_MAP
+server_connection_pool_name=MY_POOL
 max_connections_per_host=10
 max_total_connections=200
+
+# implementation-specific options for MY_POOL (values are passed as raw strings)
+server_connection_pool.MY_POOL.max_retries=4
+server_connection_pool.MY_POOL.retry_delay=PT5S
+# an already-camelCase key is passed through unchanged:
+server_connection_pool.MY_POOL.preCamel=unchanged
 ```
+
+The same options can be supplied programmatically with
+`.withServerConnectionPoolOption("maxRetries", 4)` (keys are not case-translated
+programmatically — use the option-key form); both sources are merged at `build()`: the
+properties file is the base layer and an explicit programmatic option **wins** for the
+same key, so the builder behaves like every other setter (explicit call wins). A typeless
+key **overrides** a typed standard option when it collides. The pool reads the merged
+options map (an unmodifiable copy) and normalizes values with `PoolConfigUtils`.
+
+### Standard options
+
+The server always fills the options map with these typed keys (`DefaultHttpProxyServer.createServerConnectionPool()`).
+Implementations read them with `PoolConfigUtils`, so their properties-file spellings (snake_case or
+dashed) are also accepted:
+
+| Property spelling (scoped) | Option key | Map value type | Default | Meaning |
+|---|---|---|---|---|
+| `max_connections_per_host` | `maxConnectionsPerHost` | `Integer` | `10` | Max concurrent connections per `host:port` |
+| `max_total_connections` | `maxTotalConnections` | `Integer` | `200` | Max total pooled connections |
+| `pool_idle_timeout` | `poolIdleTimeout` | `Duration` or absent | `null` (no eviction) | Idle time before eviction |
+
+### Loading a custom pool implementation (SPI)
+
+1. Implement `ServerConnectionPool` (`getName()` + `initialize(server, trafficHandler, options)` +
+   the pooling methods).
+2. Expose a public no-argument constructor; parse your options in `initialize` with
+   `PoolConfigUtils` (values may be typed objects or strings from the properties file).
+3. Register the class in `META-INF/services/org.littleshoot.proxy.impl.ServerConnectionPool`
+   (merge with the built-in entry when shading) and add the jar to the classpath.
+4. Select it with `.withServerConnectionPoolName("YOUR_NAME")` or
+   `server_connection_pool_name=YOUR_NAME`.
+
+Loading is fail-fast: an unknown or ambiguous name, a blank name, or an exception thrown by
+a constructor or initializer aborts startup with an exception. Pool names are matched
+case-insensitively, so the properties file writes them lowercase (`concurrent_map`). There is no
+silent fallback — a typo'd name or a broken shaded-jar `META-INF/services` entry fails loudly at
+startup rather than quietly using `concurrent_map`. The pool is resolved when the server starts
+(only when `use_shared_server_connection_pool=true`), so a mixed-up name surfaces there.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 
@@ -274,9 +327,9 @@ client reads.
 ### Pool sizing for HTTP-only
 
 For HTTP-only workloads, `maxConnectionsPerHost` (default 10) limits concurrent requests
-to any single origin. `maxConnections` (default 200) limits the total across all origins.
+to any single origin. `maxTotalConnections` (default 200) limits the total across all origins.
 If your clients make many concurrent requests to the same server, increase
-`maxConnectionsPerHost`. If you proxy to many different origins, increase `maxConnections`.
+`maxConnectionsPerHost`. If you proxy to many different origins, increase `maxTotalConnections`.
 
 ---
 
@@ -593,10 +646,11 @@ effect — per-request mode requires the shared pool for MITM.)
 ```java
 // Base pooling (PR #724 infrastructure)
 .withSharedServerConnectionPool(boolean)
-.withServerConnectionPoolType(ServerConnectionPoolType)
+.withServerConnectionPoolName(String)          // concurrent_map default
 .withMaxConnectionsPerHost(int)
 .withMaxConnections(int)
 .withPoolIdleTimeout(Duration)
+.withServerConnectionPoolOption(String, Object) // implementation-specific option
 
 // MITM-specific (this branch)
 .withPoolSharedMitmConnections(boolean)      // default false
@@ -608,9 +662,13 @@ effect — per-request mode requires the shared pool for MITM.)
 ```properties
 # Base pooling
 use_shared_server_connection_pool=true
-server_connection_pool_type=CONCURRENT_MAP
+server_connection_pool_name=concurrent_map
 max_connections_per_host=10
 max_total_connections=200
+
+# Implementation-specific options, prefixed with the lowercase pool name
+# (names and keys matched case-insensitively; relaxed binding: my_key -> myKey)
+server_connection_pool.concurrent_map.my_key=myValue
 
 # MITM-specific
 pool_shared_mitm_connections=true
@@ -637,9 +695,12 @@ pool_per_request_in_mitm=true
 
 | Test class | Tests | What it covers |
 |---|---|---|
-| `ConcurrentMapServerConnectionPoolTest` | 24 | Pool implementation: borrow, release, eviction, pending requests |
+| `ConcurrentMapServerConnectionPoolTest` | 27 | Pool implementation: borrow, release, eviction, pending requests, initialize lifecycle/standard options |
 | `SharedConnectionPoolTest` | 13 | Integrated shared pool for plain HTTP |
-| `ServerConnectionPoolTypeTest` | 6 | Pool type selection |
+| `ServerConnectionPoolNameTest` | 5 | Pool selection by name, fail-fast on unknown name, idempotent/concurrent access |
+| `NamedServiceLoaderTest` | 8 | Generic ServiceLoader selection: case-insensitive matching, fail-fast on unknown name, ambiguity (incl. case-only) for the requested name only, blank names |
+| `PoolConfigUtilsTest` | 9 | Option value conversion (int/boolean/duration) with strict validation |
+| `ServerConnectionPoolOptionsTest` | 8 | Pool-scoped properties (case-insensitive prefix, snake_case→camelCase, standards), programmatic options and precedence, options reach the pool |
 | `ClientToProxyConnectionShortCircuitTest` | 5 | Short-circuit filter response with pooled connections |
 | `ClientToProxyConnectionBackpressureTest` | 15 | Backpressure / saturation with pooled connections |
 

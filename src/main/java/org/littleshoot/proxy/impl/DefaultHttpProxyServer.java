@@ -18,6 +18,9 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +73,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   public static final String ACCEPTOR_THREADS = "acceptor_threads";
   public static final String SEND_PROXY_PROTOCOL = "send_proxy_protocol";
   public static final String ALLOW_PROXY_PROTOCOL = "allow_proxy_protocol";
-  public static final String SERVER_CONNECTION_POOL_TYPE = "server_connection_pool_type";
+  public static final String SERVER_CONNECTION_POOL_NAME = "server_connection_pool_name";
+  public static final String SERVER_CONNECTION_POOL_OPTIONS_PREFIX = "server_connection_pool.";
   public static final String USE_SHARED_SERVER_CONNECTION_POOL =
       "use_shared_server_connection_pool";
   public static final String MAX_TOTAL_CONNECTIONS = "max_total_connections";
@@ -156,6 +160,13 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   private volatile ServerConnectionPool serverConnectionPool;
 
   /**
+   * The pool implementation selected at startup but not yet initialized. Resolved eagerly so a
+   * misconfigured name fails server startup; initialized lazily on first use so it observes the
+   * traffic-shaping handler as configured at that point.
+   */
+  @Nullable private volatile ServerConnectionPool selectedServerConnectionPool;
+
+  /**
    * Whether to use the shared server connection pool. Disabled by default for backwards
    * compatibility.
    */
@@ -170,8 +181,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   /** Maximum total connections in the shared pool. */
   private final int maxConnections;
 
-  /** Selected server connection pool implementation. */
-  private final ServerConnectionPoolType serverConnectionPoolType;
+  /** Selected server connection pool implementation name. */
+  private final String serverConnectionPoolName;
 
   /** Configuration for the server connection pool. */
   private final ServerConnectionPoolConfig serverConnectionPoolConfig;
@@ -258,7 +269,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     this.serverConnectionPoolConfig = config.getServerConnectionPoolConfig();
     this.useSharedServerConnectionPool = this.serverConnectionPoolConfig.isEnabled();
     this.maxConnectionsPerHost = this.serverConnectionPoolConfig.getMaxConnectionsPerHost();
-    this.serverConnectionPoolType = this.serverConnectionPoolConfig.getPoolType();
+    this.serverConnectionPoolName = this.serverConnectionPoolConfig.getPoolName();
     this.maxConnections = this.serverConnectionPoolConfig.getMaxConnections();
   }
 
@@ -380,7 +391,8 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
       synchronized (this) {
         pool = serverConnectionPool;
         if (pool == null) {
-          pool = createServerConnectionPool();
+          pool = resolveServerConnectionPool();
+          pool.initialize(this, globalTrafficShapingHandler, buildPoolOptions());
           serverConnectionPool = pool;
         }
       }
@@ -388,21 +400,35 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     return pool;
   }
 
-  private ServerConnectionPool createServerConnectionPool() {
-    ServerConnectionPoolType poolType = serverConnectionPoolConfig.getPoolType();
-    Duration idleTimeout = serverConnectionPoolConfig.getIdleTimeout();
+  /**
+   * Selects the configured pool implementation without initializing it. Called at startup so an
+   * unknown or ambiguous name fails fast; the selected instance is initialized lazily by {@link
+   * #getServerConnectionPool()}.
+   */
+  private ServerConnectionPool resolveServerConnectionPool() {
+    ServerConnectionPool selected = selectedServerConnectionPool;
+    if (selected == null) {
+      selected =
+          new NamedServiceLoader<>(ServerConnectionPool.class)
+              .load(serverConnectionPoolConfig.getPoolName());
+      selectedServerConnectionPool = selected;
+    }
+    return selected;
+  }
+
+  private Map<String, Object> buildPoolOptions() {
     int maxConnPerHost = serverConnectionPoolConfig.getMaxConnectionsPerHost();
     int maxConn = serverConnectionPoolConfig.getMaxConnections();
+    Duration idleTimeout = serverConnectionPoolConfig.getIdleTimeout();
 
-    switch (poolType) {
-      case CONCURRENT_MAP:
-      default:
-        ConcurrentMapServerConnectionPool concurrentMapPool =
-            new ConcurrentMapServerConnectionPool(
-                this, globalTrafficShapingHandler, maxConnPerHost, maxConn);
-        concurrentMapPool.setIdleTimeout(idleTimeout);
-        return concurrentMapPool;
-    }
+    // Standard options first, then implementation-specific ones, so a custom option colliding with
+    // a standard key overrides it for this pool.
+    Map<String, Object> options = new LinkedHashMap<>();
+    options.put(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST, maxConnPerHost);
+    options.put(ServerConnectionPool.OPTION_MAX_CONNECTIONS, maxConn);
+    options.put(ServerConnectionPool.OPTION_IDLE_TIMEOUT, idleTimeout);
+    options.putAll(serverConnectionPoolConfig.getOptions());
+    return Collections.unmodifiableMap(options);
   }
 
   public boolean isPoolSharedMitmConnections() {
@@ -435,12 +461,13 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     ServerConnectionPoolConfig poolConfig =
         new ServerConnectionPoolConfig()
             .setEnabled(useSharedServerConnectionPool)
-            .setPoolType(serverConnectionPoolType)
+            .setPoolName(serverConnectionPoolName)
             .setMaxConnectionsPerHost(maxConnectionsPerHost)
             .setMaxConnections(maxConnections)
             .setIdleTimeout(serverConnectionPoolConfig.getIdleTimeout())
             .setPoolSharedMitmConnections(serverConnectionPoolConfig.isPoolSharedMitmConnections())
-            .setPoolPerRequestInMitm(serverConnectionPoolConfig.isPoolPerRequestInMitm());
+            .setPoolPerRequestInMitm(serverConnectionPoolConfig.isPoolPerRequestInMitm())
+            .setOptions(serverConnectionPoolConfig.getOptions());
 
     DefaultHttpProxyServerConfig serverConfig =
         new DefaultHttpProxyServerConfig()
@@ -576,6 +603,13 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
   HttpProxyServer start() {
     if (!serverGroup.isStopped()) {
       LOG.info("Starting proxy at address: {}", requestedAddress);
+
+      // Resolve the pool implementation before registering/binding so a misconfigured pool name or
+      // a broken ServiceLoader registration fails server startup instead of the first request. The
+      // pool is initialized lazily, on first use, so it sees the current traffic-shaping handler.
+      if (useSharedServerConnectionPool) {
+        resolveServerConnectionPool();
+      }
 
       serverGroup.registerProxyServer(this);
 
