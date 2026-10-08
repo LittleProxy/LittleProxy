@@ -219,8 +219,8 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
     if (props.containsKey(DefaultHttpProxyServer.ACTIVITY_LOG_FORMAT)) {
       String format = props.getProperty(DefaultHttpProxyServer.ACTIVITY_LOG_FORMAT);
       try {
-        org.littleshoot.proxy.extras.LogFormat logFormat =
-            org.littleshoot.proxy.extras.LogFormat.valueOf(format.toUpperCase());
+        org.littleshoot.proxy.extras.logging.LogFormat logFormat =
+            org.littleshoot.proxy.extras.logging.LogFormat.valueOf(format.toUpperCase());
         plusActivityTracker(new ActivityLogger(logFormat));
       } catch (IllegalArgumentException e) {
         LOG.warn("Unknown activity log format requested in properties: {}", format);
