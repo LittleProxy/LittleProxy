@@ -200,12 +200,18 @@ dashed) are also accepted:
 4. Select it with `.withServerConnectionPoolName("YOUR_NAME")` or
    `server_connection_pool_name=YOUR_NAME`.
 
-Loading is fail-fast: an unknown or ambiguous name, a blank name, or an exception thrown by
-a constructor or initializer aborts startup with an exception. Pool names are matched
+Loading is fail-fast: an unknown or ambiguous name, a blank name, or an exception thrown by an
+implementation's constructor aborts startup with an exception. Pool names are matched
 case-insensitively, so the properties file writes them lowercase (`concurrent_map`). There is no
 silent fallback — a typo'd name or a broken shaded-jar `META-INF/services` entry fails loudly at
 startup rather than quietly using `concurrent_map`. The pool is resolved when the server starts
 (only when `use_shared_server_connection_pool=true`), so a mixed-up name surfaces there.
+
+Initialization is lazy, though: `initialize(server, trafficHandler, options)` runs on the first
+pooled request, so an exception thrown there (for example an invalid option value) surfaces then,
+not at startup. Such a failure is not cached: the next request re-resolves a fresh pool instance
+and re-runs initialization instead of retrying the failed one, so the original configuration error
+keeps being reported rather than being masked as an "already initialized" pool.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 

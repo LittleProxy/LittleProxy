@@ -392,7 +392,17 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         pool = serverConnectionPool;
         if (pool == null) {
           pool = resolveServerConnectionPool();
-          pool.initialize(this, globalTrafficShapingHandler, buildPoolOptions());
+          try {
+            pool.initialize(this, globalTrafficShapingHandler, buildPoolOptions());
+          } catch (RuntimeException e) {
+            // A pool whose initialize() threw may be left unusable (e.g. its one-shot init guard
+            // was already taken before the failure), so drop the cached selection instead of
+            // poisoning it. The next request re-resolves and initializes a fresh instance, and the
+            // original initialization error is surfaced now rather than masked as "already
+            // initialized" on retry.
+            selectedServerConnectionPool = null;
+            throw e;
+          }
           serverConnectionPool = pool;
         }
       }

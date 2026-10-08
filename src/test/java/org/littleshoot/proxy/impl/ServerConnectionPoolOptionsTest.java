@@ -1,6 +1,7 @@
 package org.littleshoot.proxy.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.Map;
@@ -97,6 +98,30 @@ class ServerConnectionPoolOptionsTest {
         .containsEntry(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST, "3")
         .containsEntry(ServerConnectionPool.OPTION_MAX_CONNECTIONS, "7")
         .containsEntry(ServerConnectionPool.OPTION_IDLE_TIMEOUT, "PT60S");
+  }
+
+  @Test
+  void shouldLowercaseSnakeCaseSegments() {
+    Properties props = new Properties();
+    props.setProperty(
+        DefaultHttpProxyServer.SERVER_CONNECTION_POOL_OPTIONS_PREFIX
+            + OptionsCapturingServerConnectionPool.NAME
+            + ".MAX_CONNECTIONS_PER_HOST",
+        "3");
+    props.setProperty(
+        DefaultHttpProxyServer.SERVER_CONNECTION_POOL_OPTIONS_PREFIX
+            + OptionsCapturingServerConnectionPool.NAME
+            + ".Max_Retry_Delay",
+        "PT5S");
+
+    Map<String, Object> options =
+        DefaultHttpProxyServerBootstrap.extractPoolOptions(
+            props, OptionsCapturingServerConnectionPool.NAME);
+
+    assertThat(options)
+        .containsOnlyKeys("maxConnectionsPerHost", "maxRetryDelay")
+        .containsEntry("maxConnectionsPerHost", "3")
+        .containsEntry("maxRetryDelay", "PT5S");
   }
 
   @Test
@@ -223,6 +248,33 @@ class ServerConnectionPoolOptionsTest {
       assertThat(pool.getCapturedOptions()).containsEntry("maxRetries", 99);
     } finally {
       server.stop();
+    }
+  }
+
+  @Test
+  void shouldReinitializeFreshPoolAfterFailedInitialization() {
+    DefaultHttpProxyServer server =
+        (DefaultHttpProxyServer)
+            new DefaultHttpProxyServerBootstrap()
+                .withPort(0)
+                .withSharedServerConnectionPool(true)
+                .withServerConnectionPoolName(ServerConnectionPool.DEFAULT_NAME)
+                .withServerConnectionPoolOption(
+                    ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST, "not-a-number")
+                .start();
+
+    try {
+      assertThatThrownBy(server::getServerConnectionPool)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
+
+      // The failed instance must not be cached: the retry re-resolves a fresh pool and reports the
+      // same configuration error instead of the poisoned instance's "already initialized" error.
+      assertThatThrownBy(server::getServerConnectionPool)
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
+    } finally {
+      server.abort();
     }
   }
 }

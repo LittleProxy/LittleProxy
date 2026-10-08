@@ -7,6 +7,7 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -595,15 +596,19 @@ class DefaultHttpProxyServerBootstrap implements HttpProxyServerBootstrap {
   }
 
   /**
-   * Converts a property key to its camelCase option-key form (relaxed binding): the first segment
-   * is kept as-is, each subsequent underscore-separated segment is capitalized. Keys without
-   * underscores are returned unchanged, so already-camelCase option keys pass through verbatim.
+   * Converts a property key to its camelCase option-key form (relaxed binding): each
+   * underscore-separated segment is lowercased ({@link Locale#ROOT}) and, from the second segment
+   * on, capitalized. Keys without underscores are returned unchanged, so an already-camelCase
+   * option key passes through verbatim.
    */
   static String snakeToCamelCase(String key) {
+    if (key.indexOf('_') < 0) {
+      return key;
+    }
     String[] parts = key.split("_");
-    StringBuilder camel = new StringBuilder(parts[0]);
+    StringBuilder camel = new StringBuilder(parts[0].toLowerCase(Locale.ROOT));
     for (int i = 1; i < parts.length; i++) {
-      String part = parts[i];
+      String part = parts[i].toLowerCase(Locale.ROOT);
       if (part.isEmpty()) {
         continue;
       }
