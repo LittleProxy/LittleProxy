@@ -23,23 +23,23 @@
         <commons.cli.version>1.11.0</commons.cli.version>
         <commons.exec.version>1.6.0</commons.exec.version>
         <commons.io.version>2.22.0</commons.io.version>
-        <commons.lang3.version>3.20.0</commons.lang3.version>
+        <commons.lang3.version>3.21.0</commons.lang3.version>
         <disruptor.version>4.0.0</disruptor.version>
         <dnsjava.version>3.6.5</dnsjava.version>
         <dnssec4j.version>0.1.6</dnssec4j.version>
         <error_prone.version>2.42.0</error_prone.version>
-        <guava.version>33.7.1-jre</guava.version>
+        <guava.version>33.7.2-jre</guava.version>
         <httpclient.version>4.5.14</httpclient.version>
-        <jackson.bom.version>2.22.2</jackson.bom.version>
+        <jackson.bom.version>2.22.3</jackson.bom.version>
         <jackson.databind.version>2.13.1</jackson.databind.version>
         <jetty.version>11.0.24</jetty.version>
         <junit.version>6.1.3</junit.version>
         <log4j.version>2.26.1</log4j.version>
         <maxmind.db.version>3.1.1</maxmind.db.version>
-        <mockito.version>5.23.0</mockito.version>
+        <mockito.version>5.24.0</mockito.version>
         <netty.version>4.2.18.Final</netty.version>
-        <selenium.version>4.49.0</selenium.version>
-        <slf4j.version>2.0.19</slf4j.version>
+        <selenium.version>4.50.0</selenium.version>
+        <slf4j.version>2.0.20</slf4j.version>
         <ulid.version>5.2.3</ulid.version>
         <wiremock.version>3.13.2</wiremock.version>
     </properties>
@@ -714,7 +714,7 @@
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
-                <version>3.10.2</version>
+                <version>3.10.3</version>
                 <configuration>
                     <java>
                         <includes>
