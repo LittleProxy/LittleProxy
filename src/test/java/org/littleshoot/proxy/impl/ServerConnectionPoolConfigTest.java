@@ -4,24 +4,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.littleshoot.proxy.ServerConnectionPoolType;
 
 class ServerConnectionPoolConfigTest {
 
   private final ServerConnectionPoolConfig config = new ServerConnectionPoolConfig();
 
   @Test
-  void setPoolTypeRejectsNull() {
-    assertThatThrownBy(() -> config.setPoolType(null))
+  void setPoolNameRejectsNull() {
+    assertThatThrownBy(() -> config.setPoolName(null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("poolType");
+        .hasMessageContaining("poolName");
   }
 
   @Test
-  void setPoolTypeAcceptsValidValue() {
-    config.setPoolType(ServerConnectionPoolType.CONCURRENT_MAP);
-    assertThat(config.getPoolType()).isEqualTo(ServerConnectionPoolType.CONCURRENT_MAP);
+  void setPoolNameAcceptsValidValue() {
+    config.setPoolName("concurrent_map");
+    assertThat(config.getPoolName()).isEqualTo("concurrent_map");
   }
 
   @Test
@@ -72,7 +73,7 @@ class ServerConnectionPoolConfigTest {
   @Test
   void defaults() {
     assertThat(config.isEnabled()).isFalse();
-    assertThat(config.getPoolType()).isEqualTo(ServerConnectionPoolType.CONCURRENT_MAP);
+    assertThat(config.getPoolName()).isEqualTo("concurrent_map");
     assertThat(config.getMaxConnectionsPerHost()).isEqualTo(10);
     assertThat(config.getMaxConnections()).isEqualTo(200);
     assertThat(config.getIdleTimeout()).isNull();
@@ -120,5 +121,30 @@ class ServerConnectionPoolConfigTest {
     // but the config itself doesn't enforce this invariant.
     config.setPoolSharedMitmConnections(false).setPoolPerRequestInMitm(true);
     assertThat(config.isPoolPerRequestInMitm()).isTrue();
+  }
+
+  @Test
+  void optionsDefaultToEmpty() {
+    assertThat(new ServerConnectionPoolConfig().getOptions()).isEmpty();
+  }
+
+  @Test
+  void optionsSetterAndGetter() {
+    Map<String, Object> options = new LinkedHashMap<>();
+    options.put("maxRetries", "4");
+    options.put("batchSize", 42);
+
+    assertThat(config.setOptions(options)).isSameAs(config);
+    assertThat(config.getOptions()).containsEntry("maxRetries", "4").containsEntry("batchSize", 42);
+  }
+
+  @Test
+  void optionsAreCopiedImmutable() {
+    Map<String, Object> mutable = new LinkedHashMap<>();
+    mutable.put("retryDelay", "PT5S");
+    config.setOptions(mutable);
+    mutable.put("addedAfterSet", true);
+
+    assertThat(config.getOptions()).containsOnlyKeys("retryDelay").isUnmodifiable();
   }
 }
