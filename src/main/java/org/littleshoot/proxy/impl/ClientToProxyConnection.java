@@ -9,6 +9,7 @@ import static org.littleshoot.proxy.HttpFiltersAdapter.NOOP_FILTER;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CHUNK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_PROXY_AUTHENTICATION;
+import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECTED;
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.NEGOTIATING_CONNECT;
 
@@ -806,7 +807,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * On disconnect of the server, track that we have one fewer connected servers and then disconnect
    * the client if necessary.
    */
-  protected void serverDisconnected(ProxyToServerConnection serverConnection) {
+  protected void serverDisconnected(
+      ProxyToServerConnection serverConnection, boolean wasConnecting) {
     numberOfCurrentlyConnectedServers.decrementAndGet();
 
     // for non-SSL connections, do not disconnect the client from the proxy, even if this was the
@@ -818,6 +820,32 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // exactly one ClientToProxyConnection per ProxyToServerConnection, and vice versa.
     if (isTunneling() || isMitming()) {
       disconnect();
+      return;
+    }
+
+    // Failures during the connection flow are reported through serverConnectionFailed(), which may
+    // retry.
+    if (wasConnecting) {
+      return;
+    }
+
+    // The server can drop an established connection before responding, for example by resetting it
+    // while a large request body is still being written. Without a response here the client would
+    // wait until its own timeout.
+    HttpRequest pendingRequest = currentRequest;
+    if (pendingRequest != null && currentServerConnection == serverConnection) {
+      LOG.info(
+          "Server disconnected before responding to {}; returning 502 Bad Gateway",
+          pendingRequest.uri());
+      boolean keepAlive = writeBadGateway(pendingRequest);
+      become(keepAlive ? AWAITING_INITIAL : DISCONNECT_REQUESTED);
+    }
+
+    // A connection that closes while saturated never reports becoming writable again, so reading
+    // from the client must be resumed here or the next request on this keep-alive connection is
+    // never read.
+    if (numberOfCurrentlyConnectingServers.get() <= 0) {
+      resumeReadingIfNoServerSaturated(serverConnection);
     }
   }
 
@@ -883,11 +911,16 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * When a server becomes writeable, we check to see if all servers are writeable and if they are,
    * we resume reading.
    */
-  protected synchronized void serverBecameWriteable(ProxyToServerConnection serverConnection) {
+  protected void serverBecameWriteable(ProxyToServerConnection serverConnection) {
+    resumeReadingIfNoServerSaturated(serverConnection);
+  }
+
+  private synchronized void resumeReadingIfNoServerSaturated(
+      ProxyToServerConnection serverConnection) {
     boolean anyServersSaturated = false;
     ProxyToServerConnection current = currentServerConnection;
     for (ProxyToServerConnection otherServerConnection : serverConnectionsByHostAndPort.values()) {
-      if (otherServerConnection.isSaturated()) {
+      if (isLiveAndSaturated(otherServerConnection)) {
         anyServersSaturated = true;
         break;
       }
@@ -895,13 +928,23 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     if (!anyServersSaturated
         && current != null
         && current != serverConnection
-        && current.isSaturated()) {
+        && isLiveAndSaturated(current)) {
       anyServersSaturated = true;
     }
     if (!anyServersSaturated) {
       LOG.info("All server connections writeable, resuming reading");
       resumeReading();
     }
+  }
+
+  /**
+   * Closed connections stay in {@link #serverConnectionsByHostAndPort} for reuse, but their
+   * channels never become writable again, so they must not keep the client from being read.
+   */
+  private static boolean isLiveAndSaturated(ProxyToServerConnection serverConnection) {
+    return !serverConnection.is(DISCONNECTED)
+        && !serverConnection.isConnecting()
+        && serverConnection.isSaturated();
   }
 
   @Override
