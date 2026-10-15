@@ -2,21 +2,61 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpProxyServer;
 
 /**
  * Interface for pooling ProxyToServerConnection instances.
  *
- * <p>This interface allows swapping different pooling implementations:
+ * <p>Implementations are discovered at startup through the Java {@link java.util.ServiceLoader}:
+ * each implementation is registered in {@code
+ * META-INF/services/org.littleshoot.proxy.impl.ServerConnectionPool} and provides a public
+ * no-argument constructor. The chosen implementation is selected by name via {@link #getName()} and
+ * configured once through {@link #initialize(HttpProxyServer, GlobalTrafficShapingHandler, Map)}.
  *
  * <ul>
  *   <li>{@link ConcurrentMapServerConnectionPool} - Simple ConcurrentHashMap-based pool
  * </ul>
  */
-public interface ServerConnectionPool {
+public interface ServerConnectionPool extends NamedService {
+
+  /** Name of the built-in {@link ConcurrentMapServerConnectionPool} implementation. */
+  String DEFAULT_NAME = "concurrent_map";
+
+  /** Standard option key: maximum number of connections per host:port ({@link Integer}). */
+  String OPTION_MAX_CONNECTIONS_PER_HOST = "maxConnectionsPerHost";
+
+  /** Standard option key: maximum total number of connections ({@link Integer}). */
+  String OPTION_MAX_CONNECTIONS = "maxTotalConnections";
+
+  /**
+   * Standard option key: idle timeout before a pooled connection is evicted, as a {@link Duration}
+   * or absent when eviction is disabled.
+   */
+  String OPTION_IDLE_TIMEOUT = "poolIdleTimeout";
+
+  /**
+   * Initializes this pool with the dependencies and options it needs. Called exactly once after
+   * instantiation; implementations must throw {@link IllegalStateException} if invoked again.
+   *
+   * <p>The option map carries the standard keys documented on this interface plus any
+   * implementation-specific keys supplied through the bootstrap. Values may be typed objects or raw
+   * {@link String}s from a properties file; normalize them with {@link PoolConfigUtils}.
+   *
+   * @param server the proxy server this pool serves
+   * @param globalTrafficShapingHandler the server's traffic shaping handler, or null when
+   *     throttling is disabled
+   * @param options read-only map of options for the pool implementation
+   */
+  void initialize(
+      HttpProxyServer server,
+      @Nullable GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      Map<String, Object> options);
 
   /**
    * Gets a connection for the given host and port, or creates one if it doesn't exist.

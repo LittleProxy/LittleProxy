@@ -1,6 +1,7 @@
 package org.littleshoot.proxy.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
@@ -13,6 +14,9 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -51,7 +55,8 @@ class ConcurrentMapServerConnectionPoolTest {
     when(mockClientConnection.flowContextForServerConnection(any(ProxyToServerConnection.class)))
         .thenReturn(mock());
 
-    pool = new ConcurrentMapServerConnectionPool(mockProxyServer, mockTrafficHandler);
+    pool = new ConcurrentMapServerConnectionPool();
+    pool.initialize(mockProxyServer, mockTrafficHandler, java.util.Collections.emptyMap());
   }
 
   @AfterEach
@@ -148,6 +153,52 @@ class ConcurrentMapServerConnectionPoolTest {
   @Test
   void poolShouldHaveDefaultMaxTotalConnections() {
     assertThat(ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS).isEqualTo(200);
+  }
+
+  @Test
+  void shouldRejectDoubleInitialize() {
+    ConcurrentMapServerConnectionPool other = new ConcurrentMapServerConnectionPool();
+    other.initialize(mockProxyServer, mockTrafficHandler, java.util.Collections.emptyMap());
+
+    try {
+      assertThatThrownBy(
+              () ->
+                  other.initialize(
+                      mockProxyServer, mockTrafficHandler, java.util.Collections.emptyMap()))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("already initialized");
+    } finally {
+      other.closeAll();
+    }
+  }
+
+  @Test
+  void shouldRejectMissingServer() {
+    ConcurrentMapServerConnectionPool other = new ConcurrentMapServerConnectionPool();
+
+    assertThatThrownBy(
+            () -> other.initialize(null, mockTrafficHandler, java.util.Collections.emptyMap()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("server");
+  }
+
+  @Test
+  void shouldReadStandardOptionsFromInitialize() {
+    ConcurrentMapServerConnectionPool other = new ConcurrentMapServerConnectionPool();
+    Map<String, Object> options = new HashMap<>();
+    options.put(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST, 3);
+    options.put(ServerConnectionPool.OPTION_MAX_CONNECTIONS, 7);
+    options.put(ServerConnectionPool.OPTION_IDLE_TIMEOUT, Duration.ofSeconds(90));
+
+    try {
+      other.initialize(mockProxyServer, mockTrafficHandler, options);
+
+      assertThat(other.getMaxConnectionsPerHost()).isEqualTo(3);
+      assertThat(other.getMaxConnections()).isEqualTo(7);
+      assertThat(other.getIdleTimeout()).isEqualTo(Duration.ofSeconds(90));
+    } finally {
+      other.closeAll();
+    }
   }
 
   // -----------------------------------------------------------------------
