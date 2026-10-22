@@ -1815,8 +1815,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   private void resetInitialRequest() {
-    if (initialRequest instanceof ReferenceCounted) {
-      ((ReferenceCounted) initialRequest).release();
+    HttpRequest request = initialRequest;
+    initialRequest = null;
+    if (request instanceof ReferenceCounted) {
+      ((ReferenceCounted) request).release();
     }
   }
 
