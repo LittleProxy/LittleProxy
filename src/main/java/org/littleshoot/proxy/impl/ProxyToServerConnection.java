@@ -1921,7 +1921,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected void responseRead(HttpResponse httpResponse) {
           String requestId = currentRequestId;
-          currentRequestId = null;
+          int statusCode = httpResponse.status().code();
+          if (statusCode < 100 || statusCode >= 200 || statusCode == 101) {
+            currentRequestId = null;
+          }
           FullFlowContext flowContext =
               getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
