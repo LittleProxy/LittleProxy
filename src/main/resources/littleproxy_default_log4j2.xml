@@ -41,7 +41,7 @@
             <AppenderRef ref="ROLLING_TEXT_FILE"/>
         </Root>
         <Logger name="org.littleshoot.proxy" level="INFO"/>
-        <Logger name="org.littleshoot.proxy.extras.ActivityLogger" level="INFO" additivity="false">
+        <Logger name="org.littleshoot.proxy.extras.logging.ActivityLogger" level="${sys:log4j2.ActivityLogger.level:-INFO}" additivity="false">
             <AppenderRef ref="ACCESS_LOG"/>
         </Logger>
         <Logger name="org.eclipse.jetty" level="OFF"/>

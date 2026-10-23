@@ -39,8 +39,11 @@ public interface ActivityTracker {
    *
    * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
    * @param httpRequest
+   * @param requestId the unique identifier for this request, used to correlate with
+   *     responseSentToClient
    */
-  void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest);
+  void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId);
 
   /**
    * Record that the proxy attempted to send bytes to the server.
@@ -75,8 +78,10 @@ public interface ActivityTracker {
    *
    * @param flowContext provides contextual information about the flow
    * @param httpResponse
+   * @param requestId the unique identifier for this request
    */
-  void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse);
+  void responseReceivedFromServer(
+      FullFlowContext flowContext, HttpResponse httpResponse, String requestId);
 
   /**
    * Record that the proxy sent bytes to the client.
@@ -93,8 +98,10 @@ public interface ActivityTracker {
    *
    * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
    * @param httpResponse
+   * @param requestId the unique identifier for this request, used to correlate with
+   *     requestReceivedFromClient
    */
-  void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse);
+  void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse, String requestId);
 
   /**
    * Record that the proxy connected to the server.
