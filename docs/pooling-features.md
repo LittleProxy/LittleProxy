@@ -671,7 +671,8 @@ implementation.
 
 - **Metrics API not on `HttpProxyServer` interface:** To access pool metrics
   from client code, cast to `DefaultHttpProxyServer`. This is a minor API gap.
-- **No `encryptForMitm()` integration test:** The code path reached via
-  `disableSslForNonTls` (retry after failed TLS to a plain-text server) has
-  no integration test coverage. A bug in `encryptForMitm()` analogous to the
-  `MitmEncryptClientChannel` bug was fixed during development.
+- **Non-TLS-server MITM gap:** On the `disableSslForNonTls` retry path (CONNECT
+  to a server whose TLS handshake failed), the proxy responds CONNECT
+  successful without MITM encryption and without tunneling; if the client then
+  speaks TLS, nothing handles it and the client-side HTTP decoder fails. This
+  client-TLS-after-CONNECT case has no integration test coverage.
