@@ -222,6 +222,51 @@ class ServerConnectionPoolOptionsTest {
   }
 
   @Test
+  void shouldOmitIdleTimeoutOptionWhenDisabled() {
+    DefaultHttpProxyServer server =
+        (DefaultHttpProxyServer)
+            new DefaultHttpProxyServerBootstrap()
+                .withPort(0)
+                .withSharedServerConnectionPool(true)
+                .withServerConnectionPoolName(OptionsCapturingServerConnectionPool.NAME)
+                .start();
+
+    try {
+      OptionsCapturingServerConnectionPool pool =
+          (OptionsCapturingServerConnectionPool) server.getServerConnectionPool();
+      // The SPI documents the idle timeout as absent when eviction is disabled, so the key must not
+      // be present with a null value.
+      assertThat(pool.getCapturedOptions())
+          .doesNotContainKey(ServerConnectionPool.OPTION_IDLE_TIMEOUT)
+          .containsKey(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
+    } finally {
+      server.stop();
+    }
+  }
+
+  @Test
+  void shouldRepresentNullIdleTimeoutOverrideAsAbsent() {
+    DefaultHttpProxyServer server =
+        (DefaultHttpProxyServer)
+            new DefaultHttpProxyServerBootstrap()
+                .withPort(0)
+                .withSharedServerConnectionPool(true)
+                .withServerConnectionPoolName(OptionsCapturingServerConnectionPool.NAME)
+                .withPoolIdleTimeout(Duration.ofSeconds(30))
+                .withServerConnectionPoolOption(ServerConnectionPool.OPTION_IDLE_TIMEOUT, null)
+                .start();
+
+    try {
+      OptionsCapturingServerConnectionPool pool =
+          (OptionsCapturingServerConnectionPool) server.getServerConnectionPool();
+      assertThat(pool.getCapturedOptions())
+          .doesNotContainKey(ServerConnectionPool.OPTION_IDLE_TIMEOUT);
+    } finally {
+      server.stop();
+    }
+  }
+
+  @Test
   void shouldPreferProgrammaticOptionOverScopedProperty() {
     Properties props = new Properties();
     props.setProperty("port", "0");

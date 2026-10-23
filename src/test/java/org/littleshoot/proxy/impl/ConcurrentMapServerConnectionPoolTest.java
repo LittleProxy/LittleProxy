@@ -224,6 +224,30 @@ class ConcurrentMapServerConnectionPoolTest {
     }
   }
 
+  @Test
+  void shouldRemainInitializableAfterPostGuardFailure() {
+    ConcurrentMapServerConnectionPool other = new ConcurrentMapServerConnectionPool();
+    Map<String, Object> options = new HashMap<>();
+    options.put(ServerConnectionPool.OPTION_IDLE_TIMEOUT, Duration.ofMillis(1));
+
+    // A 1 ms timeout yields an eviction interval of 0, which the scheduler rejects. That failure
+    // happens after the one-shot guard is taken, so the guard (and the partially applied timeout)
+    // must be rolled back for the instance to stay retryable, as
+    // isRetryableAfterFailedInitialization
+    // promises.
+    assertThatThrownBy(() -> other.initialize(mockProxyServer, mockTrafficHandler, options))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    other.initialize(mockProxyServer, mockTrafficHandler, java.util.Collections.emptyMap());
+    try {
+      assertThat(other.getIdleTimeout()).isNull();
+      assertThat(other.getMaxConnectionsPerHost())
+          .isEqualTo(ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST);
+    } finally {
+      other.closeAll();
+    }
+  }
+
   // -----------------------------------------------------------------------
   // releaseConnection (public API)
   // -----------------------------------------------------------------------

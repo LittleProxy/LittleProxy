@@ -180,9 +180,9 @@ options map (an unmodifiable copy) and normalizes values with `PoolConfigUtils`.
 
 ### Standard options
 
-The server always fills the options map with these typed keys (`DefaultHttpProxyServer.buildPoolOptions()`).
-Implementations read them with `PoolConfigUtils`, so their properties-file snake_case spellings are
-also accepted:
+The server fills the options map with these typed keys (`DefaultHttpProxyServer.buildPoolOptions()`),
+except `poolIdleTimeout`, which is absent when idle eviction is disabled. Implementations read them
+with `PoolConfigUtils`, so their properties-file snake_case spellings are also accepted:
 
 | Property spelling (scoped) | Option key | Map value type | Default | Meaning |
 |---|---|---|---|---|

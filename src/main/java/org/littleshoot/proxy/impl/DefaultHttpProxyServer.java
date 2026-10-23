@@ -441,6 +441,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     options.put(ServerConnectionPool.OPTION_MAX_CONNECTIONS, maxConn);
     options.put(ServerConnectionPool.OPTION_IDLE_TIMEOUT, idleTimeout);
     options.putAll(serverConnectionPoolConfig.getOptions());
+    // The SPI documents the idle timeout as a Duration or absent when eviction is disabled, so a
+    // null effective value (disabled, or an explicit null override) is represented as absence.
+    if (options.get(ServerConnectionPool.OPTION_IDLE_TIMEOUT) == null) {
+      options.remove(ServerConnectionPool.OPTION_IDLE_TIMEOUT);
+    }
     return Collections.unmodifiableMap(options);
   }
 

@@ -120,13 +120,25 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       throw new IllegalStateException("Server connection pool already initialized: " + getName());
     }
 
-    this.proxyServer = (DefaultHttpProxyServer) server;
-    this.globalTrafficShapingHandler = globalTrafficShapingHandler;
-    this.maxConnectionsPerHost =
-        maxConnPerHost > 0 ? maxConnPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
-    this.maxConnections = maxConn > 0 ? maxConn : DEFAULT_MAX_TOTAL_CONNECTIONS;
-    if (parsedIdleTimeout != null) {
-      setIdleTimeout(parsedIdleTimeout);
+    try {
+      this.proxyServer = (DefaultHttpProxyServer) server;
+      this.globalTrafficShapingHandler = globalTrafficShapingHandler;
+      this.maxConnectionsPerHost =
+          maxConnPerHost > 0 ? maxConnPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
+      this.maxConnections = maxConn > 0 ? maxConn : DEFAULT_MAX_TOTAL_CONNECTIONS;
+      if (parsedIdleTimeout != null) {
+        setIdleTimeout(parsedIdleTimeout);
+      }
+    } catch (RuntimeException | Error failure) {
+      // setIdleTimeout can still throw after the guard is taken (for example a sub-millisecond
+      // timeout yields an eviction interval the scheduler rejects). The instance is not published
+      // until initialize returns, so roll back the guard and the partially applied state; otherwise
+      // a retry would report "already initialized" and mask the real failure, contradicting
+      // isRetryableAfterFailedInitialization().
+      stopEvictionTask();
+      this.idleTimeout = null;
+      initialized.set(false);
+      throw failure;
     }
   }
 
