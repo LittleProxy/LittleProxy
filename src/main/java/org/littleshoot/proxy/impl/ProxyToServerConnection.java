@@ -1919,12 +1919,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private final ResponseReadMonitor responseReadMonitor =
       new ResponseReadMonitor() {
         @Override
-        protected void responseRead(HttpResponse httpResponse, String requestId) {
-          // The requestId attribute is stored on the client channel; on the server side it is not
-          // available, so fall back to the request id propagated when the request was forwarded.
-          if (requestId == null) {
-            requestId = currentRequestId;
-          }
+        protected void responseRead(HttpResponse httpResponse) {
+          String requestId = currentRequestId;
           currentRequestId = null;
           FullFlowContext flowContext =
               getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);

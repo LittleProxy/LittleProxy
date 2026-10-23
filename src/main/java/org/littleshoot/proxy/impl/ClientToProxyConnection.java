@@ -412,11 +412,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     LOG.debug("Writing request to ProxyToServerConnection");
     // Propagate the current request id so the server side can correlate the response with the
     // request (the requestId attribute lives on the client channel only).
-    if (ctx != null && ctx.channel() != null) {
-      String requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
-      if (requestId != null) {
-        currentServerConnection.setCurrentRequestId(requestId);
-      }
+    String requestId = getChannelRequestId();
+    if (requestId != null) {
+      currentServerConnection.setCurrentRequestId(requestId);
     }
     requireNonNull(currentServerConnection).write(httpRequest, currentFilters);
 
@@ -1705,9 +1703,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         protected void requestRead(HttpRequest httpRequest) {
           recordClientConnected();
           String requestId = UlidCreator.getMonotonicUlid().toString();
-          if (ctx != null && ctx.channel() != null) {
-            ctx.channel().attr(REQUEST_ID_KEY).set(requestId);
-          }
+          setChannelRequestId(requestId);
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             try {
@@ -1734,10 +1730,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new ResponseWrittenMonitor() {
         @Override
         protected void responseWritten(HttpResponse httpResponse) {
-          String requestId = null;
-          if (ctx != null && ctx.channel() != null) {
-            requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
-          }
+          String requestId = getChannelRequestId();
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             try {

@@ -15,7 +15,7 @@ import org.littleshoot.proxy.impl.ClientToProxyConnection;
  */
 public class FlowContext {
   private final ClientToProxyConnection clientConnection;
-  private final String connectionId;
+  private final String clientConnectionId;
   private final Map<String, Long> timingData = new ConcurrentHashMap<>();
 
   /**
@@ -25,7 +25,7 @@ public class FlowContext {
    */
   public FlowContext(ClientToProxyConnection clientConnection) {
     this.clientConnection = clientConnection;
-    this.connectionId = clientConnection.getId();
+    this.clientConnectionId = clientConnection.getId();
   }
 
   /**
@@ -86,12 +86,13 @@ public class FlowContext {
   }
 
   /**
-   * Gets the flow ID for this context.
+   * Gets the flow ID for this context. For a client-only flow this is the client connection ID;
+   * {@link FullFlowContext} overrides this to combine the client and server connection IDs.
    *
    * @return the flow ID, or null if not set
    */
   public String getFlowId() {
-    return connectionId;
+    return clientConnectionId;
   }
 
   @Override
@@ -99,11 +100,11 @@ public class FlowContext {
     if (this == o) return true;
     if (!(o instanceof FlowContext)) return false;
     FlowContext that = (FlowContext) o;
-    return connectionId.equals(that.connectionId);
+    return clientConnectionId.equals(that.clientConnectionId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(connectionId);
+    return Objects.hashCode(clientConnectionId);
   }
 }
