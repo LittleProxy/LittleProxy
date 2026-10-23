@@ -201,6 +201,29 @@ class ConcurrentMapServerConnectionPoolTest {
     }
   }
 
+  @Test
+  void shouldRemainInitializableAfterInvalidOption() {
+    ConcurrentMapServerConnectionPool other = new ConcurrentMapServerConnectionPool();
+    Map<String, Object> invalidOptions = new HashMap<>();
+    invalidOptions.put(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST, "not-a-number");
+
+    assertThatThrownBy(() -> other.initialize(mockProxyServer, mockTrafficHandler, invalidOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
+
+    // A rejected option must not consume the one-shot guard, so the pool can be initialized again:
+    // the server retries the same instance instead of re-resolving one via the ServiceLoader scan.
+    other.initialize(mockProxyServer, mockTrafficHandler, java.util.Collections.emptyMap());
+    try {
+      assertThat(other.getMaxConnectionsPerHost())
+          .isEqualTo(ConcurrentMapServerConnectionPool.DEFAULT_MAX_CONNECTIONS_PER_HOST);
+      assertThat(other.getMaxConnections())
+          .isEqualTo(ConcurrentMapServerConnectionPool.DEFAULT_MAX_TOTAL_CONNECTIONS);
+    } finally {
+      other.closeAll();
+    }
+  }
+
   // -----------------------------------------------------------------------
   // releaseConnection (public API)
   // -----------------------------------------------------------------------

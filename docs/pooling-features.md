@@ -154,7 +154,8 @@ with `server_connection_pool.<poolName>.` is de-prefixed and handed to the selec
 as an option, alongside the typed standard options. Suffix keys use **relaxed binding**:
 `max_retries` becomes the option key `maxRetries` (and already-camelCase keys pass
 through unchanged), so pool options follow the snake_case convention of this properties
-file.
+file. Keys without an underscore are passed through verbatim, so an upper-case key such
+as `RETRIES` is **not** lowercased — spell such keys in camelCase.
 
 ```properties
 use_shared_server_connection_pool=true
@@ -179,9 +180,9 @@ options map (an unmodifiable copy) and normalizes values with `PoolConfigUtils`.
 
 ### Standard options
 
-The server always fills the options map with these typed keys (`DefaultHttpProxyServer.createServerConnectionPool()`).
-Implementations read them with `PoolConfigUtils`, so their properties-file spellings (snake_case or
-dashed) are also accepted:
+The server always fills the options map with these typed keys (`DefaultHttpProxyServer.buildPoolOptions()`).
+Implementations read them with `PoolConfigUtils`, so their properties-file snake_case spellings are
+also accepted:
 
 | Property spelling (scoped) | Option key | Map value type | Default | Meaning |
 |---|---|---|---|---|
@@ -209,9 +210,11 @@ startup rather than quietly using `concurrent_map`. The pool is resolved when th
 
 Initialization is lazy, though: `initialize(server, trafficHandler, options)` runs on the first
 pooled request, so an exception thrown there (for example an invalid option value) surfaces then,
-not at startup. Such a failure is not cached: the next request re-resolves a fresh pool instance
-and re-runs initialization instead of retrying the failed one, so the original configuration error
-keeps being reported rather than being masked as an "already initialized" pool.
+not at startup. A pool that validates its options *before* taking its one-shot initialization guard
+can declare itself retryable (`isRetryableAfterFailedInitialization()`): the next request then
+retries the same instance and reports the same configuration error, without re-running the
+`ServiceLoader` classpath scan. The built-in `concurrent_map` pool does this. Any other pool is
+discarded and re-resolved on the next request, so it cannot stay stuck on a dead instance.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 

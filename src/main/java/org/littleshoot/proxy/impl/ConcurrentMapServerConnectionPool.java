@@ -83,17 +83,21 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       Map<String, Object> options) {
     java.util.Objects.requireNonNull(server, "server must not be null");
     java.util.Objects.requireNonNull(options, "options must not be null");
-    if (!initialized.compareAndSet(false, true)) {
+    // Report a repeated initialize as "already initialized" before validating options, so the
+    // one-shot contract holds even when the second call also carries a bad option. The
+    // compareAndSet
+    // further down still guards against concurrent first-time callers.
+    if (initialized.get()) {
       throw new IllegalStateException("Server connection pool already initialized: " + getName());
     }
-
     if (!(server instanceof DefaultHttpProxyServer)) {
       throw new IllegalStateException(
           "DefaultHttpProxyServer expected but got: " + server.getClass().getName());
     }
-    this.proxyServer = (DefaultHttpProxyServer) server;
-    this.globalTrafficShapingHandler = globalTrafficShapingHandler;
 
+    // Parse and validate every option before taking the one-shot initialization guard, so a
+    // rejected option leaves this instance re-initializable. The server then retries the same
+    // instance on the next request instead of re-resolving one through the ServiceLoader scan.
     int maxConnPerHost =
         PoolConfigUtils.intValue(
             ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
@@ -105,15 +109,36 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
             ServerConnectionPool.OPTION_MAX_CONNECTIONS,
             options.getOrDefault(
                 ServerConnectionPool.OPTION_MAX_CONNECTIONS, DEFAULT_MAX_TOTAL_CONNECTIONS));
+    Object idleTimeoutOption = options.get(ServerConnectionPool.OPTION_IDLE_TIMEOUT);
+    @Nullable Duration parsedIdleTimeout =
+        idleTimeoutOption != null
+            ? PoolConfigUtils.durationValue(
+                ServerConnectionPool.OPTION_IDLE_TIMEOUT, idleTimeoutOption)
+            : null;
+
+    if (!initialized.compareAndSet(false, true)) {
+      throw new IllegalStateException("Server connection pool already initialized: " + getName());
+    }
+
+    this.proxyServer = (DefaultHttpProxyServer) server;
+    this.globalTrafficShapingHandler = globalTrafficShapingHandler;
     this.maxConnectionsPerHost =
         maxConnPerHost > 0 ? maxConnPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
     this.maxConnections = maxConn > 0 ? maxConn : DEFAULT_MAX_TOTAL_CONNECTIONS;
-
-    Object idleTimeout = options.get(ServerConnectionPool.OPTION_IDLE_TIMEOUT);
-    if (idleTimeout != null) {
-      setIdleTimeout(
-          PoolConfigUtils.durationValue(ServerConnectionPool.OPTION_IDLE_TIMEOUT, idleTimeout));
+    if (parsedIdleTimeout != null) {
+      setIdleTimeout(parsedIdleTimeout);
     }
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Always {@code true}: options are validated before the one-shot guard is taken, so a failed
+   * initialization leaves this instance ready to be initialized again.
+   */
+  @Override
+  public boolean isRetryableAfterFailedInitialization() {
+    return true;
   }
 
   /** Public no-argument constructor required by the {@link java.util.ServiceLoader} SPI. */

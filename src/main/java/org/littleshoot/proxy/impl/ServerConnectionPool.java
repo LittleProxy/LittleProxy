@@ -41,12 +41,20 @@ public interface ServerConnectionPool extends NamedService {
   String OPTION_IDLE_TIMEOUT = "poolIdleTimeout";
 
   /**
-   * Initializes this pool with the dependencies and options it needs. Called exactly once after
-   * instantiation; implementations must throw {@link IllegalStateException} if invoked again.
+   * Initializes this pool with the dependencies and options it needs. Called once on success;
+   * implementations must throw {@link IllegalStateException} if invoked again. The server may
+   * invoke it again on the same instance after a failed initialization when {@link
+   * #isRetryableAfterFailedInitialization()} returns true, so validate the options before taking
+   * the one-shot guard.
    *
    * <p>The option map carries the standard keys documented on this interface plus any
    * implementation-specific keys supplied through the bootstrap. Values may be typed objects or raw
    * {@link String}s from a properties file; normalize them with {@link PoolConfigUtils}.
+   *
+   * <p>If this method throws it must not leave any threads, executors, or connections running. A
+   * pool that is {@link #isRetryableAfterFailedInitialization() retryable} must also remain safe to
+   * initialize again; a pool that is not is discarded by the server, which then resolves a fresh
+   * instance on the next request.
    *
    * @param server the proxy server this pool serves
    * @param globalTrafficShapingHandler the server's traffic shaping handler, or null when
@@ -57,6 +65,22 @@ public interface ServerConnectionPool extends NamedService {
       HttpProxyServer server,
       @Nullable GlobalTrafficShapingHandler globalTrafficShapingHandler,
       Map<String, Object> options);
+
+  /**
+   * Whether the server may re-invoke {@link #initialize} on this instance after a failed
+   * initialization.
+   *
+   * <p>Defaults to {@code false}: a failed pool is assumed unusable, so the server discards it and
+   * resolves a fresh instance (re-running the {@link java.util.ServiceLoader} classpath scan) on
+   * the next request. A pool that validates all of its options before taking its one-shot
+   * initialization guard can override this to return {@code true}; the server then retries the same
+   * instance, reporting the same failure on every request without repeating the scan.
+   *
+   * @return true when this pool can be initialized again after a failure
+   */
+  default boolean isRetryableAfterFailedInitialization() {
+    return false;
+  }
 
   /**
    * Gets a connection for the given host and port, or creates one if it doesn't exist.
