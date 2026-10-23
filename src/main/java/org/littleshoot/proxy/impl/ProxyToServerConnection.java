@@ -186,6 +186,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   @Nullable private volatile ClientToProxyConnection currentClientConnectionForRequest;
 
+  /**
+   * The request identifier of the request currently being proxied to the server. It is set on the
+   * client side before the request is forwarded and consumed to correlate the server response with
+   * its originating request.
+   */
+  @Nullable private volatile String currentRequestId;
+
   /** Limits bandwidth when throttling is enabled. */
   private final GlobalTrafficShapingHandler trafficHandler;
 
@@ -816,6 +823,16 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentClientConnectionForRequest = clientConnection;
   }
 
+  /**
+   * Associates the given request identifier with the request about to be forwarded to the server.
+   * The identifier is consumed when the corresponding response is read from the server.
+   *
+   * @param requestId the per-request identifier
+   */
+  void setCurrentRequestId(@Nullable String requestId) {
+    this.currentRequestId = requestId;
+  }
+
   void setRemoteAddress(InetSocketAddress remoteAddress) {
     this.remoteAddress = remoteAddress;
   }
@@ -823,6 +840,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   void releaseToPool() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
+    this.currentRequestId = null;
     if (connectionPool != null) {
       this.currentHttpRequest = null;
       connectionPool.releaseConnection(this);
@@ -1901,11 +1919,17 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private final ResponseReadMonitor responseReadMonitor =
       new ResponseReadMonitor() {
         @Override
-        protected void responseRead(HttpResponse httpResponse) {
+        protected void responseRead(HttpResponse httpResponse, String requestId) {
+          // The requestId attribute is stored on the client channel; on the server side it is not
+          // available, so fall back to the request id propagated when the request was forwarded.
+          if (requestId == null) {
+            requestId = currentRequestId;
+          }
+          currentRequestId = null;
           FullFlowContext flowContext =
               getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseReceivedFromServer(flowContext, httpResponse);
+            tracker.responseReceivedFromServer(flowContext, httpResponse, requestId);
           }
         }
       };

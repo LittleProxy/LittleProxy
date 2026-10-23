@@ -43,12 +43,14 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   }
 
   @Override
-  public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
+  public void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId) {
     requestMap.put(flowContext, new TimedRequest(httpRequest, System.currentTimeMillis()));
   }
 
   @Override
-  public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {
+  public void responseSentToClient(
+      FlowContext flowContext, HttpResponse httpResponse, String requestId) {
     TimedRequest timedRequest = requestMap.remove(flowContext);
     if (timedRequest == null) {
       return;

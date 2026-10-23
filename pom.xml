@@ -37,6 +37,7 @@
         <netty.version>4.2.19.Final</netty.version>
         <selenium.version>4.51.0</selenium.version>
         <slf4j.version>2.0.20</slf4j.version>
+        <ulid.version>5.2.3</ulid.version>
         <wiremock.version>3.13.2</wiremock.version>
     </properties>
 
@@ -384,6 +385,13 @@
             <artifactId>commons-exec</artifactId>
             <version>${commons.exec.version}</version>
             <scope>test</scope>
+        </dependency>
+
+        <!-- ULID support for request correlation -->
+        <dependency>
+            <groupId>com.github.f4b6a3</groupId>
+            <artifactId>ulid-creator</artifactId>
+            <version>${ulid.version}</version>
         </dependency>
     </dependencies>
 

@@ -35,7 +35,8 @@ abstract class BaseChainedProxyTest extends BaseProxyTest {
   protected final ActivityTracker UPSTREAM_TRACKER =
       new ActivityTrackerAdapter() {
         @Override
-        public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {
+        public void requestReceivedFromClient(
+            FlowContext flowContext, HttpRequest httpRequest, String requestId) {
           REQUESTS_RECEIVED_BY_UPSTREAM.incrementAndGet();
         }
       };
