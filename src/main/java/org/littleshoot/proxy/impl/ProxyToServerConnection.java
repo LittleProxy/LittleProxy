@@ -202,6 +202,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private final Queue<String> pendingRequestIds = new ConcurrentLinkedQueue<>();
 
   /**
+   * The request identifier captured when the current connection flow was initiated. The initial
+   * request's write is deferred until the flow completes ({@link #connectionSucceeded}), and a
+   * pipelined request may meanwhile replace {@link #currentRequestId}; this snapshot keeps the
+   * delayed write paired with its own request's ID.
+   */
+  @Nullable private volatile String initialRequestId;
+
+  /**
    * The request identifier paired with the response most recently read from the server, resolved
    * from {@link #pendingRequestIds}. Passed to the client so {@link
    * org.littleshoot.proxy.ActivityTracker#responseSentToClient} can report the ID of the request
@@ -868,6 +876,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
     this.currentRequestId = null;
+    this.initialRequestId = null;
     this.currentResponseId = null;
     this.pendingRequestIds.clear();
     if (connectionPool != null) {
@@ -907,6 +916,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   private void connectAndWrite(HttpRequest initialRequest) {
     LOG.debug("Starting new connection to: {}", remoteAddress);
+
+    // Snapshot the request ID of the request initiating this flow: the initial request's write
+    // is deferred until the flow completes, and a pipelined request could meanwhile replace
+    // currentRequestId on this connection.
+    this.initialRequestId = currentRequestId;
 
     // Remember our initial request so that we can write it after connecting
     this.initialRequest = initialRequest;
@@ -1837,6 +1851,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     }
     getClientConnection().serverConnectionSucceeded(this, shouldForwardInitialRequest);
+
+    // Restore the request ID captured when this connection flow was initiated, so the delayed
+    // write of the initial request pairs with its own request even if a pipelined request has
+    // since replaced currentRequestId.
+    if (initialRequestId != null) {
+      currentRequestId = initialRequestId;
+      initialRequestId = null;
+    }
 
     if (shouldForwardInitialRequest) {
       LOG.debug("Writing initial request: {}", initialRequest);
