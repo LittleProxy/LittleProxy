@@ -2,6 +2,7 @@ package org.littleshoot.proxy.impl;
 
 import static org.littleshoot.proxy.impl.ConnectionState.*;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -9,10 +10,10 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLEngine;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -69,8 +70,9 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   /** If using encryption, this holds our {@link SSLEngine}. */
   @Nullable protected volatile SSLEngine sslEngine;
 
-  private static final AtomicLong CONNECTION_ID_GENERATOR = new AtomicLong();
-  private final long connectionId;
+  private final String connectionId;
+
+  private static final AttributeKey<String> REQUEST_ID_KEY = AttributeKey.valueOf("requestId");
 
   /**
    * Construct a new ProxyConnection.
@@ -82,14 +84,32 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    */
   protected ProxyConnection(
       ConnectionState initialState, DefaultHttpProxyServer proxyServer, boolean runsAsSslClient) {
-    this.connectionId = CONNECTION_ID_GENERATOR.incrementAndGet();
+    this.connectionId = UlidCreator.getMonotonicUlid().toString();
     become(initialState);
     this.proxyServer = proxyServer;
     this.runsAsSslClient = runsAsSslClient;
   }
 
-  public long getId() {
+  public String getId() {
     return connectionId;
+  }
+
+  /**
+   * Returns the request identifier stored on this connection's channel attribute, or {@code null}
+   * if none is present.
+   */
+  @Nullable
+  protected String getChannelRequestId() {
+    Channel ch = ctx != null ? ctx.channel() : channel;
+    return ch != null ? ch.attr(REQUEST_ID_KEY).get() : null;
+  }
+
+  /** Stores the given request identifier on this connection's channel attribute. */
+  protected void setChannelRequestId(@Nullable String requestId) {
+    Channel ch = ctx != null ? ctx.channel() : channel;
+    if (ch != null) {
+      ch.attr(REQUEST_ID_KEY).set(requestId);
+    }
   }
 
   /*

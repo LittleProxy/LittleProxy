@@ -186,6 +186,37 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   @Nullable private volatile ClientToProxyConnection currentClientConnectionForRequest;
 
+  /**
+   * The request identifier of the request currently being proxied to the server. It is set on the
+   * client side before the request is forwarded and snapshotted into {@link #pendingRequestIds}
+   * when the request is written, so responses can be paired with their originating request in FIFO
+   * order even when requests overlap (HTTP pipelining).
+   */
+  @Nullable private volatile String currentRequestId;
+
+  /**
+   * FIFO of request identifiers for requests written to the server that have not yet received their
+   * final response. Populated in {@link #writeHttp} and consumed by the response read monitor only
+   * for final responses (interim 1xx responses other than 101 do not complete a request).
+   */
+  private final Queue<String> pendingRequestIds = new ConcurrentLinkedQueue<>();
+
+  /**
+   * The request identifier captured when the current connection flow was initiated. The initial
+   * request's write is deferred until the flow completes ({@link #connectionSucceeded}), and a
+   * pipelined request may meanwhile replace {@link #currentRequestId}; this snapshot keeps the
+   * delayed write paired with its own request's ID.
+   */
+  @Nullable private volatile String initialRequestId;
+
+  /**
+   * The request identifier paired with the response most recently read from the server, resolved
+   * from {@link #pendingRequestIds}. Passed to the client so {@link
+   * org.littleshoot.proxy.ActivityTracker#responseSentToClient} can report the ID of the request
+   * that produced this response rather than the latest request on the client channel.
+   */
+  @Nullable private volatile String currentResponseId;
+
   /** Limits bandwidth when throttling is enabled. */
   private final GlobalTrafficShapingHandler trafficHandler;
 
@@ -596,6 +627,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       chainedProxy.filterRequest(httpObject);
     }
     if (httpObject instanceof HttpRequest) {
+      // Snapshot the request ID set by the client side for this write, so the response can be
+      // paired with its originating request in FIFO order (supports HTTP pipelining).
+      String requestId = currentRequestId;
+      if (requestId != null) {
+        pendingRequestIds.add(requestId);
+      }
       if (connectionPool == null) {
         // Remember that we issued this HttpRequest for later
         currentHttpRequest = (HttpRequest) httpObject;
@@ -805,7 +842,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
 
     targetClientConnection.respond(
-        this, currentFilters, currentHttpRequest, currentHttpResponse, httpObject);
+        this,
+        currentFilters,
+        currentHttpRequest,
+        currentHttpResponse,
+        httpObject,
+        currentResponseId);
   }
 
   /**
@@ -816,6 +858,16 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.currentClientConnectionForRequest = clientConnection;
   }
 
+  /**
+   * Associates the given request identifier with the request about to be forwarded to the server.
+   * The identifier is consumed when the corresponding response is read from the server.
+   *
+   * @param requestId the per-request identifier
+   */
+  void setCurrentRequestId(@Nullable String requestId) {
+    this.currentRequestId = requestId;
+  }
+
   void setRemoteAddress(InetSocketAddress remoteAddress) {
     this.remoteAddress = remoteAddress;
   }
@@ -823,6 +875,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   void releaseToPool() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
+    this.currentRequestId = null;
+    this.initialRequestId = null;
+    this.currentResponseId = null;
+    this.pendingRequestIds.clear();
     if (connectionPool != null) {
       this.currentHttpRequest = null;
       connectionPool.releaseConnection(this);
@@ -860,6 +916,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   private void connectAndWrite(HttpRequest initialRequest) {
     LOG.debug("Starting new connection to: {}", remoteAddress);
+
+    // Snapshot the request ID of the request initiating this flow: the initial request's write
+    // is deferred until the flow completes, and a pipelined request could meanwhile replace
+    // currentRequestId on this connection.
+    this.initialRequestId = currentRequestId;
 
     // Remember our initial request so that we can write it after connecting
     this.initialRequest = initialRequest;
@@ -1791,6 +1852,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
     getClientConnection().serverConnectionSucceeded(this, shouldForwardInitialRequest);
 
+    // Restore the request ID captured when this connection flow was initiated, so the delayed
+    // write of the initial request pairs with its own request even if a pipelined request has
+    // since replaced currentRequestId.
+    if (initialRequestId != null) {
+      currentRequestId = initialRequestId;
+      initialRequestId = null;
+    }
+
     if (shouldForwardInitialRequest) {
       LOG.debug("Writing initial request: {}", initialRequest);
       write(initialRequest);
@@ -1902,10 +1971,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       new ResponseReadMonitor() {
         @Override
         protected void responseRead(HttpResponse httpResponse) {
+          // Pair this response with the oldest request written on this connection (FIFO).
+          // Interim 1xx responses (other than 101 Switching Protocols) do not complete the
+          // request, so the paired request ID is only consumed by a final response.
+          String requestId = pendingRequestIds.peek();
+          int statusCode = httpResponse.status().code();
+          if (statusCode < 100 || statusCode >= 200 || statusCode == 101) {
+            pendingRequestIds.poll();
+          }
+          currentResponseId = requestId;
           FullFlowContext flowContext =
               getClientConnection().flowContextForServerConnection(ProxyToServerConnection.this);
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseReceivedFromServer(flowContext, httpResponse);
+            tracker.responseReceivedFromServer(flowContext, httpResponse, requestId);
           }
         }
       };
