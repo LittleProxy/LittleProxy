@@ -211,8 +211,7 @@ class ConcurrentMapServerConnectionPoolTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
 
-    // A rejected option must not consume the one-shot guard, so the pool can be initialized again:
-    // the server retries the same instance instead of re-resolving one via the ServiceLoader scan.
+    // A rejected option must not consume the one-shot guard, so the pool can be initialized again.
     other.initialize(mockProxyServer, mockTrafficHandler, java.util.Collections.emptyMap());
     try {
       assertThat(other.getMaxConnectionsPerHost())
@@ -232,9 +231,7 @@ class ConcurrentMapServerConnectionPoolTest {
 
     // A 1 ms timeout yields an eviction interval of 0, which the scheduler rejects. That failure
     // happens after the one-shot guard is taken, so the guard (and the partially applied timeout)
-    // must be rolled back for the instance to stay retryable, as
-    // isRetryableAfterFailedInitialization
-    // promises.
+    // must be rolled back so a failed initialize leaves the instance re-initializable.
     assertThatThrownBy(() -> other.initialize(mockProxyServer, mockTrafficHandler, options))
         .isInstanceOf(IllegalArgumentException.class);
 

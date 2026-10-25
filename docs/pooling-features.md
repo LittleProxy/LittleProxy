@@ -210,11 +210,10 @@ startup rather than quietly using `concurrent_map`. The pool is resolved when th
 
 Initialization is lazy, though: `initialize(server, trafficHandler, options)` runs on the first
 pooled request, so an exception thrown there (for example an invalid option value) surfaces then,
-not at startup. A pool that validates its options *before* taking its one-shot initialization guard
-can declare itself retryable (`isRetryableAfterFailedInitialization()`): the next request then
-retries the same instance and reports the same configuration error, without re-running the
-`ServiceLoader` classpath scan. The built-in `concurrent_map` pool does this. Any other pool is
-discarded and re-resolved on the next request, so it cannot stay stuck on a dead instance.
+not at startup. Such a failure is not cached: the server discards the failed instance, and the next
+request resolves a fresh one and re-runs initialization, so the original configuration error keeps
+being reported rather than being masked as an "already initialized" pool. A failed `initialize`
+must therefore not leave any threads, executors, or connections running.
 
 ### Refactoring: `DefaultHttpProxyServerConfig`
 
