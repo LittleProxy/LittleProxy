@@ -12,6 +12,7 @@ import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_PROXY_AUTHENTI
 import static org.littleshoot.proxy.impl.ConnectionState.DISCONNECT_REQUESTED;
 import static org.littleshoot.proxy.impl.ConnectionState.NEGOTIATING_CONNECT;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -409,6 +410,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
 
     LOG.debug("Writing request to ProxyToServerConnection");
+    // Propagate the current request id so the server side can correlate the response with the
+    // request (the requestId attribute lives on the client channel only).
+    if (ctx != null && ctx.channel() != null) {
+      String requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
+      if (requestId != null) {
+        currentServerConnection.setCurrentRequestId(requestId);
+      }
+    }
     requireNonNull(currentServerConnection).write(httpRequest, currentFilters);
 
     // Figure out our next state
@@ -1695,9 +1704,17 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
           recordClientConnected();
+          String requestId = UlidCreator.getMonotonicUlid().toString();
+          if (ctx != null && ctx.channel() != null) {
+            ctx.channel().attr(REQUEST_ID_KEY).set(requestId);
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.requestReceivedFromClient(flowContext, httpRequest);
+            try {
+              tracker.requestReceivedFromClient(flowContext, httpRequest, requestId);
+            } catch (Exception e) {
+              LOG.error("Unable to requestReceivedFromClient", e);
+            }
           }
         }
       };
@@ -1717,9 +1734,17 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new ResponseWrittenMonitor() {
         @Override
         protected void responseWritten(HttpResponse httpResponse) {
+          String requestId = null;
+          if (ctx != null && ctx.channel() != null) {
+            requestId = ctx.channel().attr(REQUEST_ID_KEY).get();
+          }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
-            tracker.responseSentToClient(flowContext, httpResponse);
+            try {
+              tracker.responseSentToClient(flowContext, httpResponse, requestId);
+            } catch (Exception e) {
+              LOG.error("Unable to write response", e);
+            }
           }
         }
       };
@@ -1729,16 +1754,16 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         CLIENT_CONNECTED_NOT_YET_RECORDED, CLIENT_CONNECTED_RECORDED)) {
       return;
     }
-    try {
-      FlowContext flowContext = flowContext();
-      // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real
-      // client IP, not the TCP peer.
-      clientDetails.setClientAddress(flowContext.getClientAddress());
-      for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+    FlowContext flowContext = flowContext();
+    // Resolve via FlowContext so ClientDetails (used for chained-proxy routing) sees the real
+    // client IP, not the TCP peer.
+    clientDetails.setClientAddress(flowContext.getClientAddress());
+    for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
+      try {
         tracker.clientConnected(flowContext);
+      } catch (Exception e) {
+        LOG.error("Unable to recordClientConnected", e);
       }
-    } catch (Exception e) {
-      LOG.error("Unable to recordClientConnected", e);
     }
   }
 
