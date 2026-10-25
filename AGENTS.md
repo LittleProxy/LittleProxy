@@ -62,3 +62,4 @@ For diagrams and the full lifecycle of CONNECT/MITM/filter callbacks, see `Littl
 ## Release
 
 Release steps (version bumps in `pom.xml` + `README.md`, `deploy.bash`, tag, publish on Sonatype Central) are documented in `CONTRIBUTING.md`. Do not bump versions unless a release is being cut.
+

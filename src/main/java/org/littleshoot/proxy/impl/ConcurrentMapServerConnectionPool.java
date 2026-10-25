@@ -2,8 +2,10 @@ package org.littleshoot.proxy.impl;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -12,11 +14,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.ChainedProxyManager;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpProxyServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +52,12 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
           });
   @Nullable private volatile ScheduledFuture<?> evictionTask;
 
-  private final int maxConnectionsPerHost;
-  private final int maxConnections;
-  private final DefaultHttpProxyServer proxyServer;
-  private final io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler;
+  private int maxConnectionsPerHost;
+  private int maxConnections;
+  private DefaultHttpProxyServer proxyServer;
+  private GlobalTrafficShapingHandler globalTrafficShapingHandler;
+
+  private final AtomicBoolean initialized = new AtomicBoolean(false);
 
   private final ConcurrentMap<ProxyToServerConnection, String> connectionKeys =
       new ConcurrentHashMap<>();
@@ -65,38 +71,90 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   private final java.util.concurrent.atomic.AtomicLong validationFailureCount =
       new java.util.concurrent.atomic.AtomicLong(0);
 
-  public ConcurrentMapServerConnectionPool(
-      DefaultHttpProxyServer proxyServer,
-      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler) {
-    this(
-        proxyServer,
-        globalTrafficShapingHandler,
-        DEFAULT_MAX_CONNECTIONS_PER_HOST,
-        DEFAULT_MAX_TOTAL_CONNECTIONS);
+  @Override
+  public String getName() {
+    return ServerConnectionPool.DEFAULT_NAME;
   }
 
-  public ConcurrentMapServerConnectionPool(
-      DefaultHttpProxyServer proxyServer,
-      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
-      int maxConnectionsPerHost) {
-    this(
-        proxyServer,
-        globalTrafficShapingHandler,
-        maxConnectionsPerHost,
-        DEFAULT_MAX_TOTAL_CONNECTIONS);
+  @Override
+  public void initialize(
+      HttpProxyServer server,
+      @Nullable GlobalTrafficShapingHandler globalTrafficShapingHandler,
+      Map<String, Object> options) {
+    java.util.Objects.requireNonNull(server, "server must not be null");
+    java.util.Objects.requireNonNull(options, "options must not be null");
+    // Report a repeated initialize as "already initialized" before validating options, so the
+    // one-shot contract holds even when the second call also carries a bad option. The
+    // compareAndSet
+    // further down still guards against concurrent first-time callers.
+    if (initialized.get()) {
+      throw new IllegalStateException("Server connection pool already initialized: " + getName());
+    }
+    if (!(server instanceof DefaultHttpProxyServer)) {
+      throw new IllegalStateException(
+          "DefaultHttpProxyServer expected but got: " + server.getClass().getName());
+    }
+
+    // Parse and validate every option before taking the one-shot initialization guard, so a
+    // rejected option leaves this instance re-initializable. The server then retries the same
+    // instance on the next request instead of re-resolving one through the ServiceLoader scan.
+    int maxConnPerHost =
+        PoolConfigUtils.intValue(
+            ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
+            options.getOrDefault(
+                ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
+                DEFAULT_MAX_CONNECTIONS_PER_HOST));
+    int maxConn =
+        PoolConfigUtils.intValue(
+            ServerConnectionPool.OPTION_MAX_CONNECTIONS,
+            options.getOrDefault(
+                ServerConnectionPool.OPTION_MAX_CONNECTIONS, DEFAULT_MAX_TOTAL_CONNECTIONS));
+    Object idleTimeoutOption = options.get(ServerConnectionPool.OPTION_IDLE_TIMEOUT);
+    @Nullable Duration parsedIdleTimeout =
+        idleTimeoutOption != null
+            ? PoolConfigUtils.durationValue(
+                ServerConnectionPool.OPTION_IDLE_TIMEOUT, idleTimeoutOption)
+            : null;
+
+    if (!initialized.compareAndSet(false, true)) {
+      throw new IllegalStateException("Server connection pool already initialized: " + getName());
+    }
+
+    try {
+      this.proxyServer = (DefaultHttpProxyServer) server;
+      this.globalTrafficShapingHandler = globalTrafficShapingHandler;
+      this.maxConnectionsPerHost =
+          maxConnPerHost > 0 ? maxConnPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
+      this.maxConnections = maxConn > 0 ? maxConn : DEFAULT_MAX_TOTAL_CONNECTIONS;
+      if (parsedIdleTimeout != null) {
+        setIdleTimeout(parsedIdleTimeout);
+      }
+    } catch (RuntimeException | Error failure) {
+      // setIdleTimeout can still throw after the guard is taken (for example a sub-millisecond
+      // timeout yields an eviction interval the scheduler rejects). The instance is not published
+      // until initialize returns, so roll back the guard and the partially applied state; otherwise
+      // a retry would report "already initialized" and mask the real failure, contradicting
+      // isRetryableAfterFailedInitialization().
+      stopEvictionTask();
+      this.idleTimeout = null;
+      initialized.set(false);
+      throw failure;
+    }
   }
 
-  public ConcurrentMapServerConnectionPool(
-      DefaultHttpProxyServer proxyServer,
-      io.netty.handler.traffic.GlobalTrafficShapingHandler globalTrafficShapingHandler,
-      int maxConnectionsPerHost,
-      int maxConnections) {
-    this.proxyServer = proxyServer;
-    this.globalTrafficShapingHandler = globalTrafficShapingHandler;
-    this.maxConnectionsPerHost =
-        maxConnectionsPerHost > 0 ? maxConnectionsPerHost : DEFAULT_MAX_CONNECTIONS_PER_HOST;
-    this.maxConnections = maxConnections > 0 ? maxConnections : DEFAULT_MAX_TOTAL_CONNECTIONS;
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Always {@code true}: options are validated before the one-shot guard is taken, so a failed
+   * initialization leaves this instance ready to be initialized again.
+   */
+  @Override
+  public boolean isRetryableAfterFailedInitialization() {
+    return true;
   }
+
+  /** Public no-argument constructor required by the {@link java.util.ServiceLoader} SPI. */
+  public ConcurrentMapServerConnectionPool() {}
 
   @Override
   @Nullable
