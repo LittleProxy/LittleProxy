@@ -41,8 +41,9 @@ public interface ServerConnectionPool extends NamedService {
   String OPTION_IDLE_TIMEOUT = "poolIdleTimeout";
 
   /**
-   * Initializes this pool with the dependencies and options it needs. Called exactly once after
-   * instantiation; implementations must throw {@link IllegalStateException} if invoked again.
+   * Initializes this pool with the dependencies and options it needs. The server calls it at most
+   * once per instance; implementations must throw {@link IllegalStateException} if it is invoked
+   * again after a successful initialization.
    *
    * <p>The option map carries the standard keys documented on this interface plus any
    * implementation-specific keys supplied through the bootstrap. Values may be typed objects or raw
