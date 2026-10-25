@@ -85,16 +85,6 @@ public class FlowContext {
     return Map.copyOf(timingData);
   }
 
-  /**
-   * Gets the flow ID for this context. For a client-only flow this is the client connection ID;
-   * {@link FullFlowContext} overrides this to combine the client and server connection IDs.
-   *
-   * @return the flow ID, or null if not set
-   */
-  public String getFlowId() {
-    return clientConnectionId;
-  }
-
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;

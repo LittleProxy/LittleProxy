@@ -152,13 +152,20 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Nullable private volatile HttpRequest currentRequest;
 
   /**
-   * FIFO of request identifiers for proxied responses being written to the client, pushed in {@link
-   * #respond} and popped by the response written monitor when the paired {@link HttpResponse} is
-   * written. This keeps {@link org.littleshoot.proxy.ActivityTracker#responseSentToClient}
-   * correlated with the request that produced the response, rather than the latest request on the
-   * channel, when requests overlap.
+   * The identifier of the request most recently read from the client, or null when no {@link
+   * org.littleshoot.proxy.ActivityTracker} is registered. Used to pair responses the proxy itself
+   * generates (short-circuit, CONNECT, 407) with the request they answer.
    */
-  private final Queue<String> pendingResponseRequestIds = new ConcurrentLinkedQueue<>();
+  @Nullable private volatile String currentClientRequestId;
+
+  /**
+   * Pairs each proxied {@link HttpResponse} written to the client with the identifier of the
+   * request that produced it. The response object itself is the key (identity-based), so no
+   * ordering between the write and concurrent client-channel activity can mispair the IDs: the
+   * response written monitor looks the ID up by the very object it observes. Entries are removed
+   * when the response is written and the whole map is cleared on disconnect.
+   */
+  private final Map<HttpResponse, String> responseRequestIds = new ConcurrentHashMap<>();
 
   private final ClientDetails clientDetails = new ClientDetails();
 
@@ -419,13 +426,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
 
     LOG.debug("Writing request to ProxyToServerConnection");
-    // Propagate the current request id so the server side can correlate the response with the
-    // request (the requestId attribute lives on the client channel only).
-    String requestId = getChannelRequestId();
-    if (requestId != null) {
-      currentServerConnection.setCurrentRequestId(requestId);
-    }
-    requireNonNull(currentServerConnection).write(httpRequest, currentFilters);
+    // Pass the current request's ID along with the write so the server side can pair the response
+    // with this request (the write may be deferred by the connection flow).
+    requireNonNull(currentServerConnection)
+        .write(httpRequest, currentFilters, currentClientRequestId);
 
     // Figure out our next state
     if (ProxyUtils.isCONNECT(httpRequest)) {
@@ -584,9 +588,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       serverConnection.switchToWebSocketProtocol();
     }
     if (filteredhttpObject instanceof HttpResponse && requestId != null) {
-      // Queue the request ID paired with this response so the response written monitor reports
-      // the ID of the request that produced it (FIFO with the writes).
-      pendingResponseRequestIds.add(requestId);
+      // Pair this response object with its request's ID so the response written monitor reports
+      // the ID of the request that produced it, by the identity of the object it observes.
+      responseRequestIds.put((HttpResponse) filteredhttpObject, requestId);
     }
     write(filteredhttpObject)
         .addListener(
@@ -645,6 +649,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
           HttpResponse response =
               ProxyUtils.createFullHttpResponse(HttpVersion.HTTP_1_1, CONNECTION_ESTABLISHED);
           ProxyUtils.addVia(response, proxyServer.getProxyAlias());
+          // Pair the CONNECT response with the CONNECT request's ID.
+          if (currentClientRequestId != null) {
+            responseRequestIds.put(response, currentClientRequestId);
+          }
           return writeToChannel(response);
         }
       };
@@ -718,6 +726,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected void disconnected() {
     super.disconnected();
+    // Responses can no longer be written; drop any leftover pairings so they cannot be
+    // attributed to a future response on this connection.
+    responseRequestIds.clear();
     boolean poolSharedMitm = proxyServer.isPoolSharedMitmConnections();
     boolean poolPerRequest = proxyServer.isPoolPerRequestInMitm();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
@@ -1245,6 +1256,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         .set(
             HttpHeaderNames.PROXY_AUTHENTICATE,
             "Basic realm=\"" + (realm == null ? "Restricted Files" : realm) + "\"");
+    // Pair the 407 response with the current request's ID.
+    if (currentClientRequestId != null) {
+      responseRequestIds.put(response, currentClientRequestId);
+    }
     write(response);
   }
 
@@ -1642,6 +1657,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // restore the keep alive status, if it was overwritten when modifying headers for proxying
     HttpUtil.setKeepAlive(filteredResponse, isKeepAlive);
 
+    // Pair the written response with the current request's ID so the response written monitor
+    // reports it (short-circuit responses answer the request most recently read).
+    if (currentClientRequestId != null) {
+      responseRequestIds.put(filteredResponse, currentClientRequestId);
+    }
+
     write(filteredResponse);
 
     if (ProxyUtils.isLastChunk(filteredResponse)) {
@@ -1717,8 +1738,13 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
         @Override
         protected void requestRead(HttpRequest httpRequest) {
           recordClientConnected();
-          String requestId = UlidCreator.getMonotonicUlid().toString();
-          setChannelRequestId(requestId);
+          // Only generate an ID when there is a tracker to consume it: ID generation is not free
+          // (monotonic ULID) and must not burden the hot path of proxies without trackers.
+          String requestId =
+              proxyServer.getActivityTrackers().isEmpty()
+                  ? null
+                  : UlidCreator.getMonotonicUlid().toString();
+          currentClientRequestId = requestId;
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {
             try {
@@ -1745,12 +1771,12 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       new ResponseWrittenMonitor() {
         @Override
         protected void responseWritten(HttpResponse httpResponse) {
-          // Prefer the ID paired with this response (queued in respond()); fall back to the
-          // channel attribute for responses generated by the proxy itself (short-circuit,
+          // Look up the ID by the identity of the very object being written; fall back to the
+          // most recent request's ID for responses the proxy itself generates (short-circuit,
           // CONNECT, 407), which answer the request most recently read.
-          String requestId = pendingResponseRequestIds.poll();
+          String requestId = responseRequestIds.remove(httpResponse);
           if (requestId == null) {
-            requestId = getChannelRequestId();
+            requestId = currentClientRequestId;
           }
           FlowContext flowContext = flowContext();
           for (ActivityTracker tracker : proxyServer.getActivityTrackers()) {

@@ -187,25 +187,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Nullable private volatile ClientToProxyConnection currentClientConnectionForRequest;
 
   /**
-   * The request identifier of the request currently being proxied to the server. It is set on the
-   * client side before the request is forwarded and snapshotted into {@link #pendingRequestIds}
-   * when the request is written, so responses can be paired with their originating request in FIFO
-   * order even when requests overlap (HTTP pipelining).
-   */
-  @Nullable private volatile String currentRequestId;
-
-  /**
    * FIFO of request identifiers for requests written to the server that have not yet received their
-   * final response. Populated in {@link #writeHttp} and consumed by the response read monitor only
-   * for final responses (interim 1xx responses other than 101 do not complete a request).
+   * final response. Populated when the request is written (see {@link #writeHttp}) and consumed by
+   * the response read monitor only for final responses (interim 1xx responses other than 101 do not
+   * complete a request). Cleared when the connection disconnects so a stale ID can never pair with
+   * a later request's response after a reconnect.
    */
   private final Queue<String> pendingRequestIds = new ConcurrentLinkedQueue<>();
 
   /**
-   * The request identifier captured when the current connection flow was initiated. The initial
-   * request's write is deferred until the flow completes ({@link #connectionSucceeded}), and a
-   * pipelined request may meanwhile replace {@link #currentRequestId}; this snapshot keeps the
-   * delayed write paired with its own request's ID.
+   * The request identifier passed along with the initial request when the current connection flow
+   * was initiated. The initial request's write is deferred until the flow completes ({@link
+   * #connectionSucceeded}); storing the ID here keeps that delayed write paired with its own
+   * request even if other requests are written on this connection in the meantime.
    */
   @Nullable private volatile String initialRequestId;
 
@@ -558,14 +552,30 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * Writing
    **************************************************************************/
 
-  /** Like {@link #write(Object)} and also sets the current filters to the given value. */
-  void write(Object msg, HttpFilters filters) {
+  /**
+   * Like {@link #write(Object)} and also sets the current filters to the given value.
+   *
+   * @param requestId the identifier of the request being written, used to pair the server's
+   *     response with this request; may be null when no request identifier is available
+   */
+  ChannelFuture write(Object msg, HttpFilters filters, @Nullable String requestId) {
     currentFilters = filters;
-    write(msg);
+    return write(msg, requestId);
   }
 
   @Override
   ChannelFuture write(Object msg) {
+    return write(msg, null);
+  }
+
+  /**
+   * Writes the message to the server, carrying the request identifier alongside the write so the
+   * response can be paired with its originating request (supports HTTP pipelining).
+   *
+   * @param requestId the identifier of the request being written, or null when the message is not
+   *     an initial request (e.g. content chunks)
+   */
+  ChannelFuture write(Object msg, @Nullable String requestId) {
     LOG.debug("Requested write of {}", msg);
 
     if (msg instanceof ReferenceCounted) {
@@ -581,7 +591,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
     if ((is(DISCONNECTED) || needsReuseFlow) && msg instanceof HttpRequest) {
       LOG.debug("Currently disconnected, connect and then write the message");
-      connectAndWrite((HttpRequest) msg);
+      connectAndWrite((HttpRequest) msg, requestId);
       return getClientConnection().channel.newSucceededFuture();
     } else {
       if (isConnecting()) {
@@ -617,19 +627,47 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
 
       LOG.debug("Using existing connection to: {}", remoteAddress);
-      return doWrite(msg);
+      return doWrite(msg, requestId);
+    }
+  }
+
+  @Override
+  ChannelFuture doWrite(Object msg) {
+    return doWrite(msg, null);
+  }
+
+  /**
+   * Writes the message, carrying the request identifier into {@link #writeHttp} on the same call
+   * stack so it cannot be confused with another request's identifier.
+   */
+  ChannelFuture doWrite(Object msg, @Nullable String requestId) {
+    LOG.debug("Writing: {}", msg);
+
+    try {
+      if (msg instanceof HttpObject) {
+        return writeHttp((HttpObject) msg, requestId);
+      } else {
+        return writeRaw((ByteBuf) msg);
+      }
+    } finally {
+      LOG.debug("Wrote: {}", msg);
     }
   }
 
   @Override
   protected ChannelFuture writeHttp(HttpObject httpObject) {
+    return writeHttp(httpObject, null);
+  }
+
+  /**
+   * Writes HttpObjects to the connection, pairing the request identifier with the written request
+   * so the response read monitor can correlate them in FIFO order.
+   */
+  protected ChannelFuture writeHttp(HttpObject httpObject, @Nullable String requestId) {
     if (chainedProxy != null) {
       chainedProxy.filterRequest(httpObject);
     }
     if (httpObject instanceof HttpRequest) {
-      // Snapshot the request ID set by the client side for this write, so the response can be
-      // paired with its originating request in FIFO order (supports HTTP pipelining).
-      String requestId = currentRequestId;
       if (requestId != null) {
         pendingRequestIds.add(requestId);
       }
@@ -708,6 +746,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Override
   protected void disconnected() {
     super.disconnected();
+    // Drop any pairing state: responses can no longer arrive on a disconnected channel, and a
+    // stale ID must never pair with a later request's response when this connection object is
+    // reused for a new connection to the same host.
+    initialRequestId = null;
+    currentResponseId = null;
+    pendingRequestIds.clear();
     recordServerDisconnected();
     if (chainedProxy != null) {
       // Let the ChainedProxy know that we disconnected
@@ -864,10 +908,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    *
    * @param requestId the per-request identifier
    */
-  void setCurrentRequestId(@Nullable String requestId) {
-    this.currentRequestId = requestId;
-  }
-
   void setRemoteAddress(InetSocketAddress remoteAddress) {
     this.remoteAddress = remoteAddress;
   }
@@ -875,7 +915,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   void releaseToPool() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
-    this.currentRequestId = null;
     this.initialRequestId = null;
     this.currentResponseId = null;
     this.pendingRequestIds.clear();
@@ -914,13 +953,20 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    *
    * @param initialRequest the current HTTP request being handled
    */
-  private void connectAndWrite(HttpRequest initialRequest) {
+  /**
+   * Configures the connection to the upstream server and begins the {@link ConnectionFlow},
+   * remembering the initial request and its identifier for the deferred write.
+   *
+   * @param initialRequest the current HTTP request being handled
+   * @param requestId the identifier of the initial request, paired with it when it is written after
+   *     the connection flow completes
+   */
+  private void connectAndWrite(HttpRequest initialRequest, @Nullable String requestId) {
     LOG.debug("Starting new connection to: {}", remoteAddress);
 
-    // Snapshot the request ID of the request initiating this flow: the initial request's write
-    // is deferred until the flow completes, and a pipelined request could meanwhile replace
-    // currentRequestId on this connection.
-    this.initialRequestId = currentRequestId;
+    // Remember the request ID alongside the initial request: the write only happens once the
+    // connection flow completes, and the ID must stay paired with this request.
+    this.initialRequestId = requestId;
 
     // Remember our initial request so that we can write it after connecting
     this.initialRequest = initialRequest;
@@ -1610,7 +1656,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         // disable SNI, re-setup the connection, and restart the connection flow
         disableSni = true;
         resetConnectionForRetry();
-        connectAndWrite(initialRequest);
+        connectAndWrite(initialRequest, initialRequestId);
 
         return true;
       }
@@ -1629,7 +1675,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       // Set a flag to skip SSL in the next attempt
       disableSslForNonTls = true;
       resetConnectionForRetry();
-      connectAndWrite(initialRequest);
+      connectAndWrite(initialRequest, initialRequestId);
 
       return true;
     }
@@ -1654,7 +1700,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
       resetConnectionForRetry();
 
-      connectAndWrite(initialRequest);
+      connectAndWrite(initialRequest, initialRequestId);
       return true;
     }
 
@@ -1852,17 +1898,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
     getClientConnection().serverConnectionSucceeded(this, shouldForwardInitialRequest);
 
-    // Restore the request ID captured when this connection flow was initiated, so the delayed
-    // write of the initial request pairs with its own request even if a pipelined request has
-    // since replaced currentRequestId.
-    if (initialRequestId != null) {
-      currentRequestId = initialRequestId;
-      initialRequestId = null;
-    }
+    // The initial request's write is deferred until this point; carry the identifier that was
+    // passed along when the connection flow was initiated so the write stays paired with its
+    // own request even if other requests have since been written on this connection.
+    String requestId = initialRequestId;
+    initialRequestId = null;
 
     if (shouldForwardInitialRequest) {
       LOG.debug("Writing initial request: {}", initialRequest);
-      write(initialRequest);
+      write(initialRequest, requestId);
     } else {
       LOG.debug("Dropping initial request: {}", initialRequest);
     }

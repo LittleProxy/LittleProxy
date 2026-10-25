@@ -29,14 +29,21 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   private static class TimedRequest {
     final HttpRequest request;
     final long startTime;
+    final FlowContext flowContext;
 
-    TimedRequest(HttpRequest request, long startTime) {
+    TimedRequest(HttpRequest request, long startTime, FlowContext flowContext) {
       this.request = request;
       this.startTime = startTime;
+      this.flowContext = flowContext;
     }
   }
 
-  private final Map<FlowContext, TimedRequest> requestMap = new ConcurrentHashMap<>();
+  /**
+   * Pending requests by request identifier. Keyed by identifier (not by flow context, which is
+   * shared by every request on a client connection) so overlapping requests on one connection do
+   * not overwrite each other's entries.
+   */
+  private final Map<String, TimedRequest> requestMap = new ConcurrentHashMap<>();
 
   public ActivityLogger(LogFormat logFormat) {
     this.logFormat = logFormat;
@@ -45,13 +52,20 @@ public class ActivityLogger extends ActivityTrackerAdapter {
   @Override
   public void requestReceivedFromClient(
       FlowContext flowContext, HttpRequest httpRequest, String requestId) {
-    requestMap.put(flowContext, new TimedRequest(httpRequest, System.currentTimeMillis()));
+    if (requestId == null) {
+      return;
+    }
+    requestMap.put(
+        requestId, new TimedRequest(httpRequest, System.currentTimeMillis(), flowContext));
   }
 
   @Override
   public void responseSentToClient(
       FlowContext flowContext, HttpResponse httpResponse, String requestId) {
-    TimedRequest timedRequest = requestMap.remove(flowContext);
+    if (requestId == null) {
+      return;
+    }
+    TimedRequest timedRequest = requestMap.remove(requestId);
     if (timedRequest == null) {
       return;
     }
@@ -68,17 +82,22 @@ public class ActivityLogger extends ActivityTrackerAdapter {
 
   @Override
   public void clientDisconnected(FlowContext flowContext, javax.net.ssl.SSLSession sslSession) {
-    requestMap.remove(flowContext);
+    removeRequestsFor(flowContext);
   }
 
   @Override
   public void connectionTimedOut(FlowContext flowContext) {
-    requestMap.remove(flowContext);
+    removeRequestsFor(flowContext);
   }
 
   @Override
   public void connectionExceptionCaught(FlowContext flowContext, Throwable cause) {
-    requestMap.remove(flowContext);
+    removeRequestsFor(flowContext);
+  }
+
+  /** Drops every pending request that belongs to the given flow. */
+  private void removeRequestsFor(FlowContext flowContext) {
+    requestMap.values().removeIf(timedRequest -> timedRequest.flowContext.equals(flowContext));
   }
 
   private String formatLogEntry(

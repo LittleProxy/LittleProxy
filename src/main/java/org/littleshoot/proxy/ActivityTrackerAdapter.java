@@ -14,9 +14,12 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   @Override
   public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {}
 
+  // Note: the 3-arg request/response variants with a requestId are NOT overridden here; the
+  // interface's default implementations delegate to these 2-arg methods, so subclasses (old or
+  // new style) keep receiving callbacks. Override the 3-arg variants in the interface instead
+  // if you need the request identifier.
   @Override
-  public void requestReceivedFromClient(
-      FlowContext flowContext, HttpRequest httpRequest, String requestId) {}
+  public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {}
 
   @Override
   public void bytesSentToServer(FullFlowContext flowContext, int numberOfBytes) {}
@@ -28,15 +31,13 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   public void bytesReceivedFromServer(FullFlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void responseReceivedFromServer(
-      FullFlowContext flowContext, HttpResponse httpResponse, String requestId) {}
+  public void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse) {}
 
   @Override
   public void bytesSentToClient(FlowContext flowContext, int numberOfBytes) {}
 
   @Override
-  public void responseSentToClient(
-      FlowContext flowContext, HttpResponse httpResponse, String requestId) {}
+  public void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse) {}
 
   @Override
   public void clientConnected(FlowContext flowContext) {}

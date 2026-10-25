@@ -10,7 +10,6 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
@@ -72,8 +71,6 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   private final String connectionId;
 
-  private static final AttributeKey<String> REQUEST_ID_KEY = AttributeKey.valueOf("requestId");
-
   /**
    * Construct a new ProxyConnection.
    *
@@ -92,24 +89,6 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   public String getId() {
     return connectionId;
-  }
-
-  /**
-   * Returns the request identifier stored on this connection's channel attribute, or {@code null}
-   * if none is present.
-   */
-  @Nullable
-  protected String getChannelRequestId() {
-    Channel ch = ctx != null ? ctx.channel() : channel;
-    return ch != null ? ch.attr(REQUEST_ID_KEY).get() : null;
-  }
-
-  /** Stores the given request identifier on this connection's channel attribute. */
-  protected void setChannelRequestId(@Nullable String requestId) {
-    Channel ch = ctx != null ? ctx.channel() : channel;
-    if (ch != null) {
-      ch.attr(REQUEST_ID_KEY).set(requestId);
-    }
   }
 
   /*
