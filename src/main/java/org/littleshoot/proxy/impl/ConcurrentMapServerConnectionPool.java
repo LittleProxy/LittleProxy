@@ -85,8 +85,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     java.util.Objects.requireNonNull(options, "options must not be null");
     // Report a repeated initialize as "already initialized" before validating options, so the
     // one-shot contract holds even when the second call also carries a bad option. The
-    // compareAndSet
-    // further down still guards against concurrent first-time callers.
+    // compareAndSet further down still guards against concurrent first-time callers.
     if (initialized.get()) {
       throw new IllegalStateException("Server connection pool already initialized: " + getName());
     }
@@ -96,8 +95,7 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     }
 
     // Parse and validate every option before taking the one-shot initialization guard, so a
-    // rejected option leaves this instance re-initializable. The server then retries the same
-    // instance on the next request instead of re-resolving one through the ServiceLoader scan.
+    // rejected option leaves this instance untouched and re-initializable.
     int maxConnPerHost =
         PoolConfigUtils.intValue(
             ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST,
@@ -132,25 +130,14 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     } catch (RuntimeException | Error failure) {
       // setIdleTimeout can still throw after the guard is taken (for example a sub-millisecond
       // timeout yields an eviction interval the scheduler rejects). The instance is not published
-      // until initialize returns, so roll back the guard and the partially applied state; otherwise
-      // a retry would report "already initialized" and mask the real failure, contradicting
-      // isRetryableAfterFailedInitialization().
+      // until initialize returns, so roll back the guard and the partially applied state: a failed
+      // initialize leaves no eviction task running and does not report "already initialized" on a
+      // later call.
       stopEvictionTask();
       this.idleTimeout = null;
       initialized.set(false);
       throw failure;
     }
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * <p>Always {@code true}: options are validated before the one-shot guard is taken, so a failed
-   * initialization leaves this instance ready to be initialized again.
-   */
-  @Override
-  public boolean isRetryableAfterFailedInitialization() {
-    return true;
   }
 
   /** Public no-argument constructor required by the {@link java.util.ServiceLoader} SPI. */

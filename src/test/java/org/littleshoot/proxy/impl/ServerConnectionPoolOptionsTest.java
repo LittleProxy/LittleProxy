@@ -313,9 +313,8 @@ class ServerConnectionPoolOptionsTest {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
 
-      // The built-in pool validates before taking its one-shot guard, so the failed instance is
-      // retried in place: the retry reports the same configuration error instead of being masked as
-      // "already initialized".
+      // The failed instance is discarded and a fresh one is resolved, so the retry reports the same
+      // configuration error instead of being masked as "already initialized".
       assertThatThrownBy(server::getServerConnectionPool)
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining(ServerConnectionPool.OPTION_MAX_CONNECTIONS_PER_HOST);
@@ -325,30 +324,14 @@ class ServerConnectionPoolOptionsTest {
   }
 
   @Test
-  void shouldRetrySamePoolInstanceWhenPoolIsRetryable() {
-    DefaultHttpProxyServer server = startFailingPool(FailingServerConnectionPool.RETRYABLE);
-
-    try {
-      // The pool fails on its first initialize but not on later ones, so a successful retry proves
-      // the server reused the same instance instead of resolving a fresh one (which would fail
-      // again) and repeating the ServiceLoader classpath scan.
-      assertThatThrownBy(server::getServerConnectionPool)
-          .isInstanceOf(IllegalArgumentException.class);
-      assertThat(server.getServerConnectionPool()).isInstanceOf(FailingServerConnectionPool.class);
-    } finally {
-      server.abort();
-    }
-  }
-
-  @Test
-  void shouldResolveFreshPoolWhenPoolIsNotRetryable() {
-    DefaultHttpProxyServer server = startFailingPool(FailingServerConnectionPool.NOT_RETRYABLE);
+  void shouldResolveFreshPoolAfterFailedInitialization() {
+    DefaultHttpProxyServer server = startFailingPool(FailingServerConnectionPool.EXCEPTION);
 
     try {
       assertThatThrownBy(server::getServerConnectionPool)
           .isInstanceOf(IllegalArgumentException.class);
-      // The failed instance is not retryable, so it is discarded: the next request resolves a fresh
-      // instance, which fails on its own first initialize.
+      // The pool fails only on its first initialize, so failing again proves the server discarded
+      // the failed instance and resolved a fresh one, which fails on its own first initialize.
       assertThatThrownBy(server::getServerConnectionPool)
           .isInstanceOf(IllegalArgumentException.class);
     } finally {
