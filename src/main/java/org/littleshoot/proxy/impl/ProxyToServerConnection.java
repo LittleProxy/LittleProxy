@@ -21,6 +21,7 @@ import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.haproxy.HAProxyCommand;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
@@ -119,7 +120,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static final String SOCKS_ENCODER_NAME = "socksEncoder";
   private static final String SOCKS_DECODER_NAME = "socksDecoder";
   private static final String MAIN_HANDLER_NAME = "handler";
-  public static final int CONNECT_LOCK_TIMEOUT_MILLIS = 30000;
   private final ClientToProxyConnection clientConnection;
   @Nullable private final ServerConnectionPool connectionPool;
   private final ProxyToServerConnection serverConnection = this;
@@ -158,10 +158,25 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   /**
    * While we're in the process of connecting, it's possible that we'll receive a new message to
-   * write. This lock helps us synchronize and wait for the connection to be established before
-   * writing the next message.
+   * write. Rather than blocking the calling (Netty event loop) thread until the connection is
+   * established (see issue #827), such messages are queued here and flushed once the connection
+   * flow completes. If the connection ultimately fails, the queued messages are released.
    */
   private final Object connectLock = new Object();
+
+  /** Messages received while the connection was still being established, in arrival order. */
+  private final Queue<PendingWrite> pendingWrites = new ConcurrentLinkedQueue<>();
+
+  /** A message deferred until the connection is established, together with its result promise. */
+  private static final class PendingWrite {
+    private final Object message;
+    private final ChannelPromise promise;
+
+    PendingWrite(Object message, ChannelPromise promise) {
+      this.message = message;
+      this.promise = promise;
+    }
+  }
 
   /**
    * This is the initial request received prior to connecting. We keep track of it so that we can
@@ -559,18 +574,17 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       connectAndWrite((HttpRequest) msg);
       return getClientConnection().channel.newSucceededFuture();
     } else {
-      if (isConnecting()) {
-        synchronized (connectLock) {
-          if (isConnecting()) {
-            LOG.debug(
-                "Attempted to write while still in the process of connecting, waiting for connection.");
-            getClientConnection().stopReading();
-            try {
-              connectLock.wait(CONNECT_LOCK_TIMEOUT_MILLIS);
-            } catch (InterruptedException ie) {
-              LOG.warn("Interrupted while waiting for connect monitor");
-            }
-          }
+      synchronized (connectLock) {
+        if (isConnecting()) {
+          LOG.debug(
+              "Attempted to write while still in the process of connecting, deferring until connected.");
+          getClientConnection().stopReading();
+          // Do not block the calling event-loop thread waiting for the connection to be
+          // established (issue #827). Queue the message and complete its promise when the
+          // connection flow succeeds (flushPendingWrites) or fails (failPendingWrites).
+          ChannelPromise promise = getClientConnection().channel.newPromise();
+          pendingWrites.add(new PendingWrite(msg, promise));
+          return promise;
         }
       }
 
@@ -593,6 +607,48 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
       LOG.debug("Using existing connection to: {}", remoteAddress);
       return doWrite(msg);
+    }
+  }
+
+  /**
+   * Writes any messages that arrived while the connection was still being established. Called once
+   * the {@link ConnectionFlow} has completed successfully.
+   */
+  void flushPendingWrites() {
+    PendingWrite pending;
+    while ((pending = pendingWrites.poll()) != null) {
+      final PendingWrite queued = pending;
+      try {
+        doWrite(queued.message)
+            .addListener(
+                future -> {
+                  if (future.isSuccess()) {
+                    queued.promise.setSuccess(null);
+                  } else {
+                    queued.promise.setFailure(future.cause());
+                  }
+                });
+      } catch (Throwable t) {
+        queued.promise.setFailure(t);
+      }
+    }
+  }
+
+  /**
+   * Releases and fails any messages queued while the connection was being established. Called when
+   * the connection has failed permanently, so that retained buffers are not leaked.
+   */
+  void failPendingWrites(@Nullable Throwable cause) {
+    Throwable failure =
+        cause != null
+            ? cause
+            : new Exception("Connection failed before pending message could be written");
+    PendingWrite pending;
+    while ((pending = pendingWrites.poll()) != null) {
+      if (pending.message instanceof ReferenceCounted) {
+        ((ReferenceCounted) pending.message).release();
+      }
+      pending.promise.tryFailure(failure);
     }
   }
 
@@ -1698,6 +1754,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // the pipeline to generate FullHttpRequests), we need to manually release it to avoid a memory
     // leak.
     resetInitialRequest();
+
+    // Now that the connection is fully established, send any messages that arrived while it was
+    // still connecting (issue #827).
+    flushPendingWrites();
 
     // Phase 2 per-request MITM: release the CONNECT-created connection to pool so subsequent
     // HTTP requests can borrow it via pool.getOrCreateConnection().
