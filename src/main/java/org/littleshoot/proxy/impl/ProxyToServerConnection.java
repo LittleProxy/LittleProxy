@@ -606,11 +606,23 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   /**
    * Writes any messages that arrived while the connection was still being established. Called once
    * the {@link ConnectionFlow} has completed successfully.
+   *
+   * <p>A message whose originating client has since disconnected is dropped rather than sent
+   * upstream. Shared-pool connections are not tracked in the client's {@code
+   * serverConnectionsByHostAndPort}, so without this check a pooled connection that completes its
+   * connection flow after the client is gone would flush that client's queued data.
    */
   void flushPendingWrites() {
     PendingWrite pending;
     while ((pending = pendingWrites.poll()) != null) {
       final PendingWrite queued = pending;
+      ClientToProxyConnection targetClient = getClientConnection();
+      if (targetClient == null || targetClient.getCurrentState().isDisconnectingOrDisconnected()) {
+        releasePendingWrite(queued);
+        queued.promise.tryFailure(
+            new Exception("Client disconnected before pending message could be written"));
+        continue;
+      }
       try {
         doWrite(queued.message)
             .addListener(
@@ -622,26 +634,43 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
                   }
                 });
       } catch (Throwable t) {
+        // doWrite threw before taking ownership of the message; release the reference retained
+        // by write() so the buffer does not leak.
+        releasePendingWrite(queued);
         queued.promise.setFailure(t);
       }
+    }
+  }
+
+  /** Releases the reference retained by {@link #write(Object)} for a queued message. */
+  private static void releasePendingWrite(PendingWrite pending) {
+    if (pending.message instanceof ReferenceCounted) {
+      ((ReferenceCounted) pending.message).release();
     }
   }
 
   /**
    * Releases and fails any messages queued while the connection was being established. Called when
    * the connection has failed permanently, so that retained buffers are not leaked.
+   *
+   * <p>The terminal state transition and the drain happen under {@code connectLock} so that a
+   * concurrent {@link #write(Object)} which is waiting on that lock cannot enqueue a message after
+   * the queue has been drained.
    */
   void failPendingWrites(@Nullable Throwable cause) {
     Throwable failure =
         cause != null
             ? cause
             : new Exception("Connection failed before pending message could be written");
-    PendingWrite pending;
-    while ((pending = pendingWrites.poll()) != null) {
-      if (pending.message instanceof ReferenceCounted) {
-        ((ReferenceCounted) pending.message).release();
+    synchronized (connectLock) {
+      if (isConnecting()) {
+        become(DISCONNECTED);
       }
-      pending.promise.tryFailure(failure);
+      PendingWrite pending;
+      while ((pending = pendingWrites.poll()) != null) {
+        releasePendingWrite(pending);
+        pending.promise.tryFailure(failure);
+      }
     }
   }
 

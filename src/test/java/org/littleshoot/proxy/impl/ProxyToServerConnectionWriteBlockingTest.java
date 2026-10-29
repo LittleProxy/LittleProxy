@@ -12,6 +12,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import io.netty.util.ReferenceCounted;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.List;
@@ -52,6 +53,7 @@ final class ProxyToServerConnectionWriteBlockingTest {
     // deferred-write future. `channel` is an inherited protected field, set directly (same
     // package).
     clientConnection.channel = new EmbeddedChannel();
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
     return ProxyToServerConnection.create(
         proxyServer, clientConnection, "localhost:8080", filters, null, trafficHandler);
   }
@@ -62,10 +64,8 @@ final class ProxyToServerConnectionWriteBlockingTest {
     ProxyToServerConnection connection = createConnection();
     connection.become(ConnectionState.CONNECTING);
 
-    Thread writer =
-        new Thread(
-            () -> connection.write(new DefaultHttpContent(Unpooled.buffer(1))),
-            "write-while-connecting");
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(1));
+    Thread writer = new Thread(() -> connection.write(content), "write-while-connecting");
     writer.start();
 
     // The write must return on its own, well within the old 30s connect lock timeout.
@@ -77,6 +77,10 @@ final class ProxyToServerConnectionWriteBlockingTest {
       writer.interrupt();
       writer.join(5000);
     }
+
+    // Drain and release the queued message so the test does not leak its retained buffer.
+    connection.failPendingWrites(null);
+    content.release();
 
     assertThat(returnedPromptly)
         .as("write() must not block the event-loop thread while the connection is still CONNECTING")
@@ -106,10 +110,45 @@ final class ProxyToServerConnectionWriteBlockingTest {
     serverChannel.runPendingTasks();
 
     assertThat(deferred.isSuccess()).as("deferred write future should succeed").isTrue();
-    assertThat((Object) serverChannel.readOutbound())
+    Object outbound = serverChannel.readOutbound();
+    assertThat(outbound)
         .as("queued message should have been written to the server channel")
         .isSameAs(content);
 
+    // write() retained an extra reference for the queued message; readOutbound() transferred it to
+    // this test, so release both references.
+    ((ReferenceCounted) outbound).release();
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "a deferred message is dropped if the client disconnects before the connection succeeds")
+  void deferredWriteIsDroppedWhenClientDisconnects() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(7));
+    ChannelFuture deferred = connection.write(content);
+
+    // The client goes away while the connection is still being established (e.g. a shared-pool
+    // connection that is not tracked in serverConnectionsByHostAndPort).
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.DISCONNECTED);
+
+    connection.connectionSucceeded(false);
+    serverChannel.runPendingTasks();
+
+    assertThat(deferred.isDone()).isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat((Object) serverChannel.readOutbound())
+        .as("data must not be sent upstream for a disconnected client")
+        .isNull();
+    assertThat(content.refCnt()).as("the retained reference was released").isEqualTo(1);
     content.release();
     serverChannel.finishAndReleaseAll();
   }
