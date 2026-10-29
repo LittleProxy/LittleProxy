@@ -699,6 +699,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     boolean poolSharedMitm = proxyServer.isPoolSharedMitmConnections();
     boolean poolPerRequest = proxyServer.isPoolPerRequestInMitm();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
+      // Any messages queued while the server connection was still connecting can no longer be
+      // delivered once the client is gone; release them.
+      serverConnection.failPendingWrites(new Exception("Client disconnected"));
       // Phase 1: release pooled MITM connections back to the pool
       // Phase 2: connections are already in pool after each response, no release needed
       if (poolSharedMitm && !poolPerRequest && serverConnection.isManagedByPool()) {
@@ -780,6 +783,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // the connection to the server failed, so disconnect the server and remove the
     // ProxyToServerConnection from the
     // map of open server connections
+    serverConnection.failPendingWrites(new Exception("Connection to server failed"));
     serverConnection.disconnect();
     serverConnectionsByHostAndPort.remove(serverConnection.getServerHostAndPort());
 
