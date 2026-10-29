@@ -1059,6 +1059,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               .then(serverConnection.MitmEncryptClientChannel);
         } else {
           // For non-SSL servers, just respond CONNECT successful without MITM encryption.
+          // TODO: if the client then speaks TLS, nothing handles it and the HTTP decoder will fail.
           connectionFlow.then(getClientConnection().RespondCONNECTSuccessful);
         }
       } else {
@@ -1073,32 +1074,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     }
   }
-
-  /**
-   * A connection flow step that waits for the server's response to the CONNECT request. This is
-   * used in MITM mode when we don't want to add SSL to the server connection upfront - instead, we
-   * wait for the server's response and then inspect the first bytes from the client to detect TLS.
-   */
-  private final ConnectionFlowStep<HttpResponse> MitmWaitForServerConnectResponse =
-      new ConnectionFlowStep<>(this, ConnectionState.AWAITING_CONNECT_OK) {
-        @Override
-        boolean shouldSuppressInitialRequest() {
-          return true;
-        }
-
-        @Override
-        protected Future<?> execute() {
-          // This step just marks that we're waiting for the server's response
-          return channel.newSucceededFuture();
-        }
-
-        @Override
-        public void read(ConnectionFlow flow, Object msg) {
-          // Server responded to CONNECT - this step is complete
-          LOG.debug("Server responded to CONNECT in MITM mode: {}", msg);
-          flow.advance();
-        }
-      };
 
   SSLEngine newChainedProxySslEngine() {
     if (remoteAddress != null) {
