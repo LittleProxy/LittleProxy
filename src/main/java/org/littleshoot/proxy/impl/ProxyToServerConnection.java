@@ -669,6 +669,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   @Override
   protected void disconnected() {
+    boolean wasConnecting = isConnecting();
     super.disconnected();
     recordServerDisconnected();
     if (chainedProxy != null) {
@@ -688,7 +689,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
     ClientToProxyConnection clientConn = getClientConnection();
     if (clientConn != null) {
-      clientConn.serverDisconnected(this);
+      clientConn.serverDisconnected(this, wasConnecting);
     }
   }
 
@@ -721,8 +722,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     } finally {
       if (!is(DISCONNECTED)) {
         LOG.info("Disconnecting open connection to server");
+        boolean wasConnecting = isConnecting();
         disconnect();
-        getClientConnection().serverConnectionFailed(this, getCurrentState(), cause);
+        // Failures after the connection was established are handled by
+        // ClientToProxyConnection#serverDisconnected once the channel closes.
+        if (wasConnecting) {
+          getClientConnection().serverConnectionFailed(this, getCurrentState(), cause);
+        }
       }
     }
     // This can happen if we couldn't make the initial connection due
