@@ -18,6 +18,18 @@ This guide covers logging performance optimization techniques and configuration 
 
 ## Logging Modes
 
+### Connection Diagnostics
+
+Core connection log messages include `id`, `side` (`client` or `upstream`), and `target` when
+available, in addition to the connection state and Netty channel. `target` contains only the
+host and optional port; credentials, paths, query strings, and fragments are excluded from
+this prefix. Invalid or unavailable targets are shown as `unknown`.
+
+For a client connection, the target is the most recent request's authority; for an upstream
+connection, it is that connection's destination authority. These labels identify the local
+connection context, not which peer or intermediary caused a reset. Existing message bodies and
+logging levels are unchanged, and this context adds no new records or rate-limiting policy.
+
 ### Synchronous Logging
 
 **Default Mode**: Synchronous logging is the default behavior and provides reliable logging with immediate disk writes.

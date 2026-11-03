@@ -9,9 +9,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.littleshoot.proxy.ActivityTracker;
 import org.littleshoot.proxy.ChainedProxy;
 import org.littleshoot.proxy.ChainedProxyManager;
@@ -68,6 +71,37 @@ final class ProxyToServerConnectionTest {
     return requireNonNull(
         ProxyToServerConnection.create(
             proxyServer, clientConnection, "localhost:8080", filters, null, trafficHandler));
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = ConnectionState.class,
+      names = {"CONNECTING", "HANDSHAKING", "NEGOTIATING_CONNECT", "AWAITING_CONNECT_OK"})
+  void connectionSuccessShouldBeReportedOnceForEveryConnectionFlowState(ConnectionState state)
+      throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    ChannelHandlerContext serverContext = mock();
+    connection.ctx = serverContext;
+
+    connection.become(state);
+    connection.become(ConnectionState.AWAITING_INITIAL);
+    connection.become(ConnectionState.AWAITING_INITIAL);
+
+    verify(filters, times(1)).proxyToServerConnectionSucceeded(serverContext);
+    assertThat(connection.getCurrentState()).isEqualTo(ConnectionState.AWAITING_INITIAL);
+  }
+
+  @Test
+  void failedConnectionShouldNotReportSuccess() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    ChannelHandlerContext serverContext = mock();
+    connection.ctx = serverContext;
+
+    connection.become(ConnectionState.CONNECTING);
+    connection.become(ConnectionState.DISCONNECTED);
+
+    verify(filters).proxyToServerConnectionFailed();
+    verify(filters, never()).proxyToServerConnectionSucceeded(serverContext);
   }
 
   @Test

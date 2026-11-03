@@ -92,6 +92,12 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
     return connectionId;
   }
 
+  /** The current target authority, if known; never a request URI or body. */
+  @Nullable
+  protected String getLogTarget() {
+    return null;
+  }
+
   /*
    * *************************************************************************
    * Reading

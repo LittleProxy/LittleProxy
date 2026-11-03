@@ -1,6 +1,8 @@
 package org.littleshoot.proxy.impl;
 
+import java.net.URI;
 import java.util.Arrays;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
@@ -8,7 +10,8 @@ import org.slf4j.spi.LocationAwareLogger;
 
 /**
  * A helper class that logs messages for ProxyConnections. All it does is make sure that the Channel
- * and current state are always included in the log messages (if available).
+ * and current state are always included in the log messages (if available), along with the
+ * connection ID, side, and safe target authority. Request paths and query strings are not included.
  *
  * <p>Note that this depends on us using a LocationAwareLogger so that we can report the line
  * numbers of the caller rather than this helper class. If the SLF4J binding does not provide a
@@ -21,8 +24,12 @@ class ProxyConnectionLogger {
   private final String fqcn = getClass().getCanonicalName();
 
   public ProxyConnectionLogger(ProxyConnection<?> connection) {
+    this(connection, LoggerFactory.getLogger(connection.getClass()));
+  }
+
+  ProxyConnectionLogger(ProxyConnection<?> connection, Logger logger) {
     this.connection = connection;
-    logger = LoggerFactory.getLogger(connection.getClass());
+    this.logger = logger;
     dispatch =
         logger instanceof LocationAwareLogger
             ? new LocationAwareLoggerDispatch((LocationAwareLogger) logger)
@@ -98,11 +105,37 @@ class ProxyConnectionLogger {
     if (connection.isTunneling()) {
       stateMessage += " {tunneling}";
     }
-    String messagePrefix = "(" + stateMessage + ")";
+    String messagePrefix =
+        "("
+            + stateMessage
+            + ") id="
+            + connection.getId()
+            + " side="
+            + (connection.runsAsSslClient ? "upstream" : "client")
+            + " target="
+            + safeTarget(connection.getLogTarget());
     if (connection.channel != null) {
       messagePrefix = messagePrefix + " " + connection.channel;
     }
     return messagePrefix + ": " + message;
+  }
+
+  private static String safeTarget(@Nullable String authority) {
+    if (authority == null) {
+      return "unknown";
+    }
+    try {
+      URI uri = URI.create("http://" + authority);
+      String host = uri.getHost();
+      if (host == null) {
+        return "unknown";
+      }
+      String target = host + (uri.getPort() < 0 ? "" : ":" + uri.getPort());
+      return target.length() <= 256 ? target : "unknown";
+    } catch (IllegalArgumentException ignored) {
+      // Invalid or multiline authorities must not change logging or leak the original input.
+      return "unknown";
+    }
   }
 
   /** Fallback dispatch if a LocationAwareLogger is not available from the SLF4J LoggerFactory. */
