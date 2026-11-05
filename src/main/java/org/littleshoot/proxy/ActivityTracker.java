@@ -43,6 +43,25 @@ public interface ActivityTracker {
   void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest);
 
   /**
+   * Record that proxy received an {@link HttpRequest} from the client, with the identifier of the
+   * request so it can be correlated with {@link #responseSentToClient(FlowContext, HttpResponse,
+   * String)}.
+   *
+   * <p>This default implementation ignores the request identifier and delegates to {@link
+   * #requestReceivedFromClient(FlowContext, HttpRequest)}, so existing implementations keep working
+   * unchanged. Implementations that want the identifier should override this method.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   * @param httpRequest
+   * @param requestId the unique identifier for this request, used to correlate with
+   *     responseSentToClient
+   */
+  default void requestReceivedFromClient(
+      FlowContext flowContext, HttpRequest httpRequest, String requestId) {
+    requestReceivedFromClient(flowContext, httpRequest);
+  }
+
+  /**
    * Record that the proxy attempted to send bytes to the server.
    *
    * @param flowContext provides contextual information about the flow
@@ -79,6 +98,23 @@ public interface ActivityTracker {
   void responseReceivedFromServer(FullFlowContext flowContext, HttpResponse httpResponse);
 
   /**
+   * Record that the proxy received an {@link HttpResponse} from the server, with the identifier of
+   * the request that produced it.
+   *
+   * <p>This default implementation ignores the request identifier and delegates to {@link
+   * #responseReceivedFromServer(FullFlowContext, HttpResponse)}, so existing implementations keep
+   * working unchanged. Implementations that want the identifier should override this method.
+   *
+   * @param flowContext provides contextual information about the flow
+   * @param httpResponse
+   * @param requestId the unique identifier for this request
+   */
+  default void responseReceivedFromServer(
+      FullFlowContext flowContext, HttpResponse httpResponse, String requestId) {
+    responseReceivedFromServer(flowContext, httpResponse);
+  }
+
+  /**
    * Record that the proxy sent bytes to the client.
    *
    * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
@@ -95,6 +131,25 @@ public interface ActivityTracker {
    * @param httpResponse
    */
   void responseSentToClient(FlowContext flowContext, HttpResponse httpResponse);
+
+  /**
+   * Record that the proxy sent a response to the client, with the identifier of the request it
+   * answers, so it can be correlated with {@link #requestReceivedFromClient(FlowContext,
+   * HttpRequest, String)}.
+   *
+   * <p>This default implementation ignores the request identifier and delegates to {@link
+   * #responseSentToClient(FlowContext, HttpResponse)}, so existing implementations keep working
+   * unchanged. Implementations that want the identifier should override this method.
+   *
+   * @param flowContext if full information is available, this will be a {@link FullFlowContext}.
+   * @param httpResponse
+   * @param requestId the unique identifier for this request, used to correlate with
+   *     requestReceivedFromClient
+   */
+  default void responseSentToClient(
+      FlowContext flowContext, HttpResponse httpResponse, String requestId) {
+    responseSentToClient(flowContext, httpResponse);
+  }
 
   /**
    * Record that the proxy connected to the server.
