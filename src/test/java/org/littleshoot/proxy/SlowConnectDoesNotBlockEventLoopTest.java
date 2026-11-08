@@ -2,6 +2,7 @@ package org.littleshoot.proxy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -9,11 +10,12 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
@@ -28,28 +30,25 @@ import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
  * End-to-end regression test for <a
  * href="https://github.com/LittleProxy/LittleProxy/issues/827">issue #827</a>.
  *
- * <p>A chunked POST is sent through a chained SOCKS5 proxy that deliberately takes a long time to
- * establish the upstream connection. While that connection is being established the client's body
- * chunks must not block the client event loop: an unrelated request handled by the same
- * single-threaded client event loop must still be answered promptly. The chunked body must also
- * arrive at the origin in full once the connection is ready.
+ * <p>A chunked POST is sent through a chained SOCKS5 proxy whose handshake is deliberately held
+ * open while the test runs an unrelated request through the same single-threaded client event loop.
+ * With the bug, writing during connection establishment blocked that event loop and the unrelated
+ * request could not be answered until the handshake completed; with the fix the unrelated request
+ * is answered immediately and the chunked body is still delivered in full.
  */
 final class SlowConnectDoesNotBlockEventLoopTest {
 
-  /** How long the fake chained proxy stalls before completing the SOCKS5 handshake. */
-  private static final int SLOW_GREETING_DELAY_MILLIS = 3000;
+  /** Generous socket timeout so a blocked observer fails instead of hanging the build. */
+  private static final int OBSERVER_SOCKET_TIMEOUT_MILLIS = 20_000;
 
-  /** Wait before issuing the observer request, so the chunked POST is mid-establishment. */
-  private static final int OBSERVER_REQUEST_DELAY_MILLIS = 500;
-
-  /** The observer request must complete well before the slow connection is established. */
-  private static final long OBSERVER_LATENCY_BUDGET_MILLIS = 1500;
+  /** Small settle time after the handshake starts, so client A's body chunks are in flight. */
+  private static final int CLIENT_SETTLE_MILLIS = 200;
 
   @Test
   void writesDuringASlowConnectDoNotBlockOtherClientsOnTheSameEventLoop() throws Exception {
     Server webServer = TestUtils.startWebServer(false, "target/littleproxy_keystore.jks");
     int webPort = TestUtils.findLocalHttpPort(webServer);
-    try (SlowSocks5Origin slowOrigin = new SlowSocks5Origin(SLOW_GREETING_DELAY_MILLIS)) {
+    try (SlowSocks5Origin slowOrigin = new SlowSocks5Origin()) {
       slowOrigin.start();
 
       // A single client-to-proxy worker thread so both client connections share one event loop.
@@ -91,21 +90,22 @@ final class SlowConnectDoesNotBlockEventLoopTest {
         slowClient.setDaemon(true);
         slowClient.start();
 
-        // Let client A reach the slow connection establishment so its write is in flight.
-        Thread.sleep(OBSERVER_REQUEST_DELAY_MILLIS);
+        // Wait until client A's connection is mid-handshake. The handshake stays open until we
+        // release it below, so A's queued writes cannot be flushed meanwhile.
+        assertThat(slowOrigin.awaitGreetingReceived(10, TimeUnit.SECONDS))
+            .as("client A should reach the chained SOCKS handshake")
+            .isTrue();
+        Thread.sleep(CLIENT_SETTLE_MILLIS);
 
-        // Client B: a plain, directly-connected request on the same single client event loop.
-        long startNanos = System.nanoTime();
-        String fastResponse = runDirectGet(proxy, webPort);
-        long elapsedMillis = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
-
+        // Client B: a plain, directly-connected request on the same single client event loop. It
+        // must be answered while the handshake is still held open.
+        String fastResponse;
+        try {
+          fastResponse = runDirectGet(proxy, webPort);
+        } finally {
+          slowOrigin.releaseHandshake();
+        }
         assertThat(fastResponse).isEqualTo("Received 0 bytes\n");
-        assertThat(elapsedMillis)
-            .as(
-                "an unrelated request must not be blocked by a write pending on a slow connection"
-                    + " establishment (elapsed=%dms)",
-                elapsedMillis)
-            .isLessThan(OBSERVER_LATENCY_BUDGET_MILLIS);
 
         assertThat(slowResponse.get(30, TimeUnit.SECONDS))
             .as("the chunked body must be delivered in full once the connection is established")
@@ -118,6 +118,7 @@ final class SlowConnectDoesNotBlockEventLoopTest {
     }
   }
 
+  /** Sends a chunked POST through the proxy and completes {@code result} with the response body. */
   private static void runChunkedPost(
       HttpProxyServer proxy, int webPort, byte[] body, CompletableFuture<String> result) {
     try (CloseableHttpClient httpClient =
@@ -134,30 +135,36 @@ final class SlowConnectDoesNotBlockEventLoopTest {
     }
   }
 
+  /** Sends a directly-connected GET through the proxy and returns the response body. */
   private static String runDirectGet(HttpProxyServer proxy, int webPort) throws IOException {
+    RequestConfig config =
+        RequestConfig.custom()
+            .setConnectTimeout(5_000)
+            .setSocketTimeout(OBSERVER_SOCKET_TIMEOUT_MILLIS)
+            .build();
     try (CloseableHttpClient httpClient =
         TestUtils.buildHttpClient(true, true, proxy.getListenAddress().getPort(), null, null)) {
       HttpGet request = new HttpGet("/fast");
-      request.setConfig(TestUtils.REQUEST_TIMEOUT_CONFIG);
+      request.setConfig(config);
       HttpResponse response = httpClient.execute(new HttpHost("127.0.0.1", webPort), request);
       return EntityUtils.toString(response.getEntity());
     }
   }
 
   /**
-   * A minimal SOCKS5 server that stalls before completing the handshake (to simulate a slow chained
-   * connection) and then answers the tunnelled HTTP request directly. It counts the bytes of the
-   * chunked request body and replies with {@code Received <n> bytes}, matching {@link
+   * A minimal SOCKS5 server that holds its handshake open until released (to simulate a slow
+   * chained connection) and then answers the tunnelled HTTP request directly. It counts the bytes
+   * of the chunked request body and replies with {@code Received <n> bytes}, matching {@link
    * TestUtils#startWebServer}.
    */
   private static final class SlowSocks5Origin implements AutoCloseable {
     private final ServerSocket serverSocket;
-    private final int greetingDelayMillis;
+    private final CountDownLatch greetingReceived = new CountDownLatch(1);
+    private final CountDownLatch releaseHandshake = new CountDownLatch(1);
     private volatile Thread acceptThread;
 
-    SlowSocks5Origin(int greetingDelayMillis) throws IOException {
+    SlowSocks5Origin() throws IOException {
       this.serverSocket = new ServerSocket(0, 50);
-      this.greetingDelayMillis = greetingDelayMillis;
     }
 
     int port() {
@@ -168,6 +175,16 @@ final class SlowConnectDoesNotBlockEventLoopTest {
       acceptThread = new Thread(this::acceptLoop, "slow-socks5-origin");
       acceptThread.setDaemon(true);
       acceptThread.start();
+    }
+
+    /** Waits until the chained SOCKS handshake has started. */
+    boolean awaitGreetingReceived(long timeout, TimeUnit unit) throws InterruptedException {
+      return greetingReceived.await(timeout, unit);
+    }
+
+    /** Lets the held-open SOCKS handshake complete. */
+    void releaseHandshake() {
+      releaseHandshake.countDown();
     }
 
     private void acceptLoop() {
@@ -183,8 +200,7 @@ final class SlowConnectDoesNotBlockEventLoopTest {
     }
 
     private void handle(Socket socket) throws IOException {
-      DataInputStream in =
-          new DataInputStream(new java.io.BufferedInputStream(socket.getInputStream()));
+      DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
       OutputStream out = socket.getOutputStream();
 
       int version = in.readUnsignedByte();
@@ -194,8 +210,9 @@ final class SlowConnectDoesNotBlockEventLoopTest {
         throw new IOException("Unexpected SOCKS version " + version);
       }
 
-      // Stall before completing the handshake: the proxy stays in its connecting state.
-      sleep(greetingDelayMillis);
+      // Signal that the proxy has reached the handshake, then hold it open.
+      greetingReceived.countDown();
+      awaitGate(releaseHandshake);
       out.write(new byte[] {5, 0}); // NO_AUTH
       out.flush();
 
@@ -258,6 +275,7 @@ final class SlowConnectDoesNotBlockEventLoopTest {
       }
     }
 
+    /** Reads a single CRLF-terminated line. */
     private static String readLine(DataInputStream in) throws IOException {
       StringBuilder line = new StringBuilder();
       int previous = -1;
@@ -274,13 +292,12 @@ final class SlowConnectDoesNotBlockEventLoopTest {
     }
 
     private static void readFully(DataInputStream in, int count) throws IOException {
-      byte[] buffer = new byte[count];
-      in.readFully(buffer);
+      in.readFully(new byte[count]);
     }
 
-    private static void sleep(int millis) {
+    private static void awaitGate(CountDownLatch gate) {
       try {
-        Thread.sleep(millis);
+        gate.await(60, TimeUnit.SECONDS);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
       }
@@ -288,6 +305,7 @@ final class SlowConnectDoesNotBlockEventLoopTest {
 
     @Override
     public void close() throws IOException {
+      releaseHandshake.countDown();
       serverSocket.close();
       Thread thread = acceptThread;
       if (thread != null) {

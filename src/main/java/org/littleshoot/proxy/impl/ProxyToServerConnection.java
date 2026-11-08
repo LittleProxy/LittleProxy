@@ -179,13 +179,21 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      */
     @Nullable private final ClientToProxyConnection clientConnection;
 
+    /**
+     * The filters active when this message was queued. Captured so that a pipelined request which
+     * arrives later cannot make this message's callbacks run against the wrong filters.
+     */
+    private final HttpFilters filters;
+
     PendingWrite(
         Object message,
         ChannelPromise promise,
-        @Nullable ClientToProxyConnection clientConnection) {
+        @Nullable ClientToProxyConnection clientConnection,
+        HttpFilters filters) {
       this.message = message;
       this.promise = promise;
       this.clientConnection = clientConnection;
+      this.filters = filters;
     }
   }
 
@@ -196,6 +204,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * <p>Package-private so tests can seed it; {@link #connectionSucceeded(boolean)} consumes it.
    */
   @Nullable volatile HttpRequest initialRequest;
+
+  /** The filters active when {@link #initialRequest} was received. */
+  @Nullable private volatile HttpFilters initialRequestFilters;
 
   /**
    * Keeps track of HttpRequests that have been issued so that we can associate them with responses
@@ -593,7 +604,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
             // connection flow succeeds (flushPendingWrites) or fails (failPendingWrites).
             ClientToProxyConnection client = getClientConnection();
             ChannelPromise promise = client.channel.newPromise();
-            pendingWrites.add(new PendingWrite(msg, promise, client));
+            pendingWrites.add(new PendingWrite(msg, promise, client, currentFilters));
             return promise;
           }
         }
@@ -649,6 +660,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         continue;
       }
       try {
+        // Restore the per-request state captured at enqueue time so this write and its callbacks
+        // run against the originating client and filters, not whatever request came last.
+        currentFilters = queued.filters;
+        setCurrentClientConnectionForRequest(queued.clientConnection);
         doWrite(queued.message)
             .addListener(
                 future -> {
@@ -972,6 +987,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
     // Remember our initial request so that we can write it after connecting
     this.initialRequest = initialRequest;
+    this.initialRequestFilters = currentFilters;
     initializeConnectionFlow();
     connectionFlow.start();
   }
@@ -1757,6 +1773,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
       if (shouldForwardInitialRequest) {
         LOG.debug("Writing initial request: {}", initialRequest);
+        // A pipelined request may have overwritten currentFilters while we were connecting; use
+        // the filters that were active for this request.
+        if (initialRequestFilters != null) {
+          currentFilters = initialRequestFilters;
+        }
         write(initialRequest);
       } else {
         LOG.debug("Dropping initial request: {}", initialRequest);
