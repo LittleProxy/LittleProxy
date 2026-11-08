@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.netty.buffer.Unpooled;
@@ -11,6 +13,10 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import io.netty.util.ReferenceCounted;
 import java.net.InetSocketAddress;
@@ -150,6 +156,73 @@ final class ProxyToServerConnectionWriteBlockingTest {
         .isNull();
     assertThat(content.refCnt()).as("the retained reference was released").isEqualTo(1);
     content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("failPendingWrites fails the promise and releases the retained buffer")
+  void failPendingWritesFailsPromiseAndReleasesBuffer() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    connection.failPendingWrites(new Exception("upstream failed"));
+
+    assertThat(deferred.isDone()).isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("back to the single reference held by the caller").isEqualTo(1);
+    content.release();
+  }
+
+  @Test
+  @DisplayName("draining on client disconnect does not report a connection failure to filters")
+  void clientDisconnectDrainDoesNotReportConnectionFailed() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+
+    connection.failPendingWrites(new Exception("client disconnected"));
+
+    verify(filters, never()).proxyToServerConnectionFailed();
+    assertThat(connection.getCurrentState())
+        .as("the client-disconnect drain must not change the connection state")
+        .isEqualTo(ConnectionState.CONNECTING);
+  }
+
+  @Test
+  @DisplayName("queued chunks are written after the initial request, in order")
+  void queuedChunksFollowInitialRequestInOrder() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    HttpRequest initialRequest =
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.initialRequest = initialRequest;
+    DefaultHttpContent chunk1 = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    DefaultHttpContent chunk2 = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
+    connection.write(chunk1);
+    connection.write(chunk2);
+
+    connection.connectionSucceeded(true);
+    serverChannel.runPendingTasks();
+
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(initialRequest);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(chunk1);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(chunk2);
+    assertThat((Object) serverChannel.readOutbound()).isNull();
+
+    // Each chunk carries one reference from the test and one retained by write(); the initial
+    // request is not reference counted.
+    chunk1.release();
+    chunk1.release();
+    chunk2.release();
+    chunk2.release();
     serverChannel.finishAndReleaseAll();
   }
 }
