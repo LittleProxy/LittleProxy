@@ -123,6 +123,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /** This is the current server connection that we're using while transferring chunked data. */
   @Nullable private volatile ProxyToServerConnection currentServerConnection;
 
+  /**
+   * Sets the current server connection. Package-private so tests can drive disconnect handling
+   * without a full request round-trip.
+   */
+  void setCurrentServerConnection(@Nullable ProxyToServerConnection serverConnection) {
+    this.currentServerConnection = serverConnection;
+  }
+
   private final Map<ProxyToServerConnection, FullFlowContext> serverFlowContexts =
       new ConcurrentHashMap<>();
 
@@ -696,6 +704,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected void disconnected() {
     super.disconnected();
+    // A pooled connection is not tracked in serverConnectionsByHostAndPort, so drain this client's
+    // queued writes explicitly before the connection can be handed to another client. The client
+    // stops reading while a connection flow is in progress, so at most one connection can hold
+    // writes queued by this client.
+    ProxyToServerConnection current = currentServerConnection;
+    if (current != null) {
+      current.failPendingWritesFor(this);
+    }
     boolean poolSharedMitm = proxyServer.isPoolSharedMitmConnections();
     boolean poolPerRequest = proxyServer.isPoolPerRequestInMitm();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {

@@ -118,6 +118,59 @@ final class ProxyToServerConnectionWriteBlockingTest {
   }
 
   @Test
+  @DisplayName("failPendingWritesFor only drains the given client's writes")
+  void failPendingWritesForOnlyDrainsThatClient() throws Exception {
+    ProxyToServerConnection connection = createPooledConnection();
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+
+    ClientToProxyConnection clientA = mock();
+    clientA.channel = new EmbeddedChannel();
+    when(clientA.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+    ClientToProxyConnection clientB = mock();
+    clientB.channel = new EmbeddedChannel();
+    when(clientB.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+
+    connection.setCurrentClientConnectionForRequest(clientA);
+    DefaultHttpContent contentA = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    ChannelFuture futureA = connection.write(contentA);
+
+    connection.setCurrentClientConnectionForRequest(clientB);
+    DefaultHttpContent contentB = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
+    ChannelFuture futureB = connection.write(contentB);
+
+    connection.failPendingWritesFor(clientA);
+
+    assertThat(futureA.isDone()).isTrue();
+    assertThat(futureA.isSuccess()).isFalse();
+    assertThat(contentA.refCnt()).isEqualTo(1);
+    assertThat(futureB.isDone())
+        .as("another client's queued write must be left untouched")
+        .isFalse();
+
+    connection.failPendingWrites(null);
+    contentA.release();
+    contentB.release();
+  }
+
+  private ProxyToServerConnection createPooledConnection() throws UnknownHostException {
+    HostResolver hostResolver = mock();
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt())).thenReturn(hostAddress);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+    when(clientConnection.flowContext()).thenReturn(flowContext);
+    when(clientConnection.flowContextForServerConnection(any())).thenReturn(fullFlowContext);
+    return ProxyToServerConnection.createForPool(
+        proxyServer,
+        mock(ServerConnectionPool.class),
+        clientConnection,
+        "localhost:8080",
+        null,
+        filters,
+        mock(HttpRequest.class),
+        trafficHandler);
+  }
+
+  @Test
   @DisplayName("write() while CONNECTING must not block the calling thread")
   void writeWhileConnectingDoesNotBlockCaller() throws Exception {
     ProxyToServerConnection connection = createConnection();

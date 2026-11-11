@@ -74,6 +74,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -688,6 +689,26 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         // by write() so the buffer does not leak.
         releasePendingWrite(queued);
         queued.promise.tryFailure(t);
+      }
+    }
+  }
+
+  /**
+   * Fails and releases only the writes queued by the given client, leaving other clients' queued
+   * writes untouched. Used when a client disconnects while its write is still queued on a shared
+   * pooled connection, which is not tracked in the client's {@code serverConnectionsByHostAndPort}.
+   */
+  void failPendingWritesFor(ClientToProxyConnection client) {
+    synchronized (connectLock) {
+      Iterator<PendingWrite> queued = pendingWrites.iterator();
+      while (queued.hasNext()) {
+        PendingWrite pending = queued.next();
+        if (pending.clientConnection == client) {
+          queued.remove();
+          releasePendingWrite(pending);
+          pending.promise.tryFailure(
+              new Exception("Client disconnected before pending message could be written"));
+        }
       }
     }
   }
