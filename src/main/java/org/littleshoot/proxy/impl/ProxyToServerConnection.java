@@ -804,7 +804,20 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   @Override
   protected void disconnected() {
+    // Capture this before super.disconnected() moves us to DISCONNECTED.
+    boolean wasConnecting = isConnecting();
     super.disconnected();
+    if (wasConnecting) {
+      // The connection flow never completed, so nothing will ever flush the writes that were
+      // queued while connecting. Fail them now instead of leaving their promises unresolved and
+      // their buffers retained. This happens, for example, when a shared-pool connection is handed
+      // to another client while still negotiating CONNECT and the upstream then closes.
+      //
+      // The chained-proxy/SSL retry path is unaffected: resetConnectionForRetry() removes this
+      // handler from the pipeline before closing the old channel, so channelInactive (and thus
+      // this method) is not delivered for the abandoned channel and the queued writes survive.
+      failPendingWrites(new Exception("Upstream connection closed before it was established"));
+    }
     recordServerDisconnected();
     if (chainedProxy != null) {
       // Let the ChainedProxy know that we disconnected

@@ -69,6 +69,55 @@ final class ProxyToServerConnectionWriteBlockingTest {
   }
 
   @Test
+  @DisplayName("upstream close during CONNECT negotiation fails queued writes")
+  void upstreamCloseDuringConnectNegotiationFailsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    // Mid-CONNECT: isConnecting() is true (so writes are queued) and isConnected() is true (so the
+    // pool can hand this connection to another client).
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    // The upstream closes while the CONNECT negotiation is still in flight.
+    connection.disconnected();
+
+    assertThat(deferred.isDone())
+        .as("the queued write's promise must be completed when the upstream closes")
+        .isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    content.release();
+  }
+
+  @Test
+  @DisplayName("a retry close does not drain queued writes")
+  void retryCloseKeepsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    serverChannel.pipeline().addLast(connection);
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    // resetConnectionForRetry(): remove the handler, then close the abandoned channel. The removed
+    // handler must not receive channelInactive, so the queued write survives for the retry.
+    serverChannel.pipeline().remove(connection);
+    serverChannel.close();
+
+    assertThat(deferred.isDone())
+        .as("a retry must keep the queued write so the retried request is not truncated")
+        .isFalse();
+
+    connection.failPendingWrites(null);
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
   @DisplayName("write() while CONNECTING must not block the calling thread")
   void writeWhileConnectingDoesNotBlockCaller() throws Exception {
     ProxyToServerConnection connection = createConnection();
