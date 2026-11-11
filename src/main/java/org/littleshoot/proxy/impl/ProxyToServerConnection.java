@@ -200,13 +200,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   /**
    * This is the initial request received prior to connecting. We keep track of it so that we can
    * process it after connection finishes.
-   *
-   * <p>Package-private so tests can seed it; {@link #connectionSucceeded(boolean)} consumes it.
    */
-  @Nullable volatile HttpRequest initialRequest;
+  @Nullable private volatile HttpRequest initialRequest;
 
   /** The filters active when {@link #initialRequest} was received. */
   @Nullable private volatile HttpFilters initialRequestFilters;
+
+  /**
+   * Seeds the initial request. Package-private so tests can exercise {@link
+   * #connectionSucceeded(boolean)} without driving a real connection flow.
+   */
+  void setInitialRequest(@Nullable HttpRequest initialRequest) {
+    this.initialRequest = initialRequest;
+  }
 
   /**
    * Keeps track of HttpRequests that have been issued so that we can associate them with responses
@@ -588,25 +594,29 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
     if ((is(DISCONNECTED) || needsReuseFlow) && msg instanceof HttpRequest) {
       LOG.debug("Currently disconnected, connect and then write the message");
+      // Remember the filters for this request; connectAndWrite() must not re-capture them, because
+      // on a chained-proxy/SSL retry it is called again with the same initial request while a
+      // pipelined request may already have switched currentFilters.
+      this.initialRequestFilters = currentFilters;
       connectAndWrite((HttpRequest) msg);
       return getClientConnection().channel.newSucceededFuture();
     } else {
-      // Unlocked pre-check so the common case (a write on an established connection) never touches
-      // the monitor. Only writes that arrive while connecting need the lock.
-      if (isConnecting()) {
-        synchronized (connectLock) {
-          if (isConnecting()) {
-            LOG.debug(
-                "Attempted to write while still in the process of connecting, deferring until connected.");
-            getClientConnection().stopReading();
-            // Do not block the calling event-loop thread waiting for the connection to be
-            // established (issue #827). Queue the message and complete its promise when the
-            // connection flow succeeds (flushPendingWrites) or fails (failPendingWrites).
-            ClientToProxyConnection client = getClientConnection();
-            ChannelPromise promise = client.channel.newPromise();
-            pendingWrites.add(new PendingWrite(msg, promise, client, currentFilters));
-            return promise;
-          }
+      // Always take connectLock. connectionSucceeded() holds it for its whole body (become
+      // AWAITING_INITIAL, resume reading, write the initial request, flush queued writes), so a
+      // chunk read as soon as reading resumes cannot overtake the initial request or the queued
+      // writes. The lock is uncontended once the connection is established.
+      synchronized (connectLock) {
+        if (isConnecting()) {
+          LOG.debug(
+              "Attempted to write while still in the process of connecting, deferring until connected.");
+          getClientConnection().stopReading();
+          // Do not block the calling event-loop thread waiting for the connection to be
+          // established (issue #827). Queue the message and complete its promise when the
+          // connection flow succeeds (flushPendingWrites) or fails (failPendingWrites).
+          ClientToProxyConnection client = getClientConnection();
+          ChannelPromise promise = client.channel.newPromise();
+          pendingWrites.add(new PendingWrite(msg, promise, client, currentFilters));
+          return promise;
         }
       }
 
@@ -985,9 +995,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private void connectAndWrite(HttpRequest initialRequest) {
     LOG.debug("Starting new connection to: {}", remoteAddress);
 
-    // Remember our initial request so that we can write it after connecting
+    // Remember our initial request so that we can write it after connecting. Its filters were
+    // captured when the request was first written (see write()); a retry calls this method again
+    // with the same request and must not re-capture them.
     this.initialRequest = initialRequest;
-    this.initialRequestFilters = currentFilters;
     initializeConnectionFlow();
     connectionFlow.start();
   }
@@ -1808,6 +1819,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     if (initialRequest instanceof ReferenceCounted) {
       ((ReferenceCounted) initialRequest).release();
     }
+    initialRequestFilters = null;
   }
 
   /**

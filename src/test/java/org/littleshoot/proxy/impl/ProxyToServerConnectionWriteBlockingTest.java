@@ -2,7 +2,9 @@ package org.littleshoot.proxy.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,6 +24,8 @@ import io.netty.util.ReferenceCounted;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.FlowContext;
@@ -203,7 +207,7 @@ final class ProxyToServerConnectionWriteBlockingTest {
 
     HttpRequest initialRequest =
         new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
-    connection.initialRequest = initialRequest;
+    connection.setInitialRequest(initialRequest);
     DefaultHttpContent chunk1 = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
     DefaultHttpContent chunk2 = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
     connection.write(chunk1);
@@ -223,6 +227,67 @@ final class ProxyToServerConnectionWriteBlockingTest {
     chunk1.release();
     chunk2.release();
     chunk2.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a write racing connectionSucceeded is ordered after the initial request and chunks")
+  void concurrentWriteDuringConnectionSucceededIsOrderedCorrectly() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    HttpRequest initialRequest =
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.setInitialRequest(initialRequest);
+    DefaultHttpContent queuedChunk = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    connection.write(queuedChunk);
+
+    // connectionSucceeded() resumes reading before it writes the initial request and flushes the
+    // queued chunk. Simulate a chunk read at exactly that point, on another thread.
+    CountDownLatch insideSucceeded = new CountDownLatch(1);
+    CountDownLatch writerReady = new CountDownLatch(1);
+    doAnswer(
+            invocation -> {
+              insideSucceeded.countDown();
+              writerReady.await(5, TimeUnit.SECONDS);
+              // Give a write that (wrongly) skipped connectLock time to run ahead.
+              Thread.sleep(200);
+              return null;
+            })
+        .when(clientConnection)
+        .serverConnectionSucceeded(any(), anyBoolean());
+
+    Thread succeededThread = new Thread(() -> connection.connectionSucceeded(true), "succeeded");
+    succeededThread.start();
+    assertThat(insideSucceeded.await(5, TimeUnit.SECONDS)).isTrue();
+
+    DefaultHttpContent racingChunk = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
+    Thread writer =
+        new Thread(
+            () -> {
+              writerReady.countDown();
+              connection.write(racingChunk);
+            },
+            "racing-writer");
+    writer.start();
+
+    succeededThread.join(5000);
+    writer.join(5000);
+    serverChannel.runPendingTasks();
+
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(initialRequest);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(queuedChunk);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(racingChunk);
+    assertThat((Object) serverChannel.readOutbound()).isNull();
+
+    queuedChunk.release();
+    queuedChunk.release();
+    racingChunk.release();
+    racingChunk.release();
     serverChannel.finishAndReleaseAll();
   }
 }
