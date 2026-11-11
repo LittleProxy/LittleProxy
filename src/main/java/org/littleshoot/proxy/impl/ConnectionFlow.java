@@ -22,9 +22,10 @@ class ConnectionFlow {
    *
    * @param clientConnection
    * @param serverConnection
-   * @param connectLock an object that's shared by {@link ConnectionFlow} and {@link
-   *     ProxyToServerConnection} and that is used for synchronizing the reader and writer threads
-   *     that are both involved during the establishing of a connection.
+   * @param connectLock an object shared by {@link ConnectionFlow} and {@link
+   *     ProxyToServerConnection} that serializes connection-flow step completion, {@link
+   *     ProxyToServerConnection#connectionSucceeded(boolean)} and deferred writes. It is a mutual
+   *     exclusion lock, not a wait/notify monitor.
    */
   ConnectionFlow(
       ClientToProxyConnection clientConnection,
@@ -136,7 +137,6 @@ class ConnectionFlow {
     synchronized (connectLock) {
       serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
       serverConnection.connectionSucceeded(!suppressInitialRequest);
-      notifyThreadsWaitingForConnection();
     }
   }
 
@@ -155,13 +155,8 @@ class ConnectionFlow {
                 if (!clientConnection.serverConnectionFailed(
                     serverConnection, lastStateBeforeFailure, cause)) {
                   // the connection to the server failed, and we are not retrying, so transition to
-                  // the
-                  // DISCONNECTED state
+                  // the DISCONNECTED state
                   serverConnection.become(ConnectionState.DISCONNECTED);
-
-                  // We are not retrying our connection, let anyone waiting for a connection know
-                  // that we're done
-                  notifyThreadsWaitingForConnection();
                 }
               }
             });
@@ -170,13 +165,5 @@ class ConnectionFlow {
   /** Like {@link #fail(Throwable)} but with no cause. */
   void fail() {
     fail(null);
-  }
-
-  /**
-   * Once we've finished recording our connection and written our initial request, we can notify
-   * anyone who is waiting on the connection that it's okay to proceed.
-   */
-  private void notifyThreadsWaitingForConnection() {
-    connectLock.notifyAll();
   }
 }

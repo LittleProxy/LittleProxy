@@ -2,19 +2,28 @@ package org.littleshoot.proxy.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.HttpRequest;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
+import org.littleshoot.proxy.HostResolver;
+import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.HttpFiltersSource;
 
 class ClientToProxyConnectionTest {
@@ -57,6 +66,48 @@ class ClientToProxyConnectionTest {
     connection.disconnected();
 
     verify(normalTracker).clientDisconnected(connection.flowContext(), null);
+  }
+
+  @Test
+  @DisplayName("client disconnect drains its queued writes on a pooled connection")
+  void clientDisconnectDrainsQueuedWritesOnPooledConnection() throws Exception {
+    ClientToProxyConnection client = createConnection();
+    client.channel = new EmbeddedChannel();
+    ProxyToServerConnection pooled = createPooledConnection(client);
+    // Mid-CONNECT: the write is queued, and the connection is not in
+    // serverConnectionsByHostAndPort because it is pooled.
+    pooled.become(ConnectionState.NEGOTIATING_CONNECT);
+    client.setCurrentServerConnection(pooled);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = pooled.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    client.disconnected();
+
+    assertThat(deferred.isDone())
+        .as("the client's queued write must be failed when the client disconnects")
+        .isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    content.release();
+  }
+
+  private ProxyToServerConnection createPooledConnection(ClientToProxyConnection client)
+      throws UnknownHostException {
+    HostResolver hostResolver = mock();
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt()))
+        .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
+    return ProxyToServerConnection.createForPool(
+        proxyServer,
+        mock(ServerConnectionPool.class),
+        client,
+        "localhost:8080",
+        null,
+        mock(HttpFilters.class),
+        mock(HttpRequest.class),
+        null);
   }
 
   @Test

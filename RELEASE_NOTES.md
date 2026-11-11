@@ -1,7 +1,7 @@
 # Release Notes
 
 - 2.10.0 (Under construction, https://github.com/LittleProxy/LittleProxy/milestone/54?closed=1)
-  - TBD
+  - #827 don't block the Netty event loop while an upstream connection is being established; buffer writes until the connection is ready
 
 - 2.9.1 (28.08.2026, https://github.com/LittleProxy/LittleProxy/milestone/53?closed=1)
   - Bump Netty from 4.2.16.Final to 4.2.17.Final (#782)
