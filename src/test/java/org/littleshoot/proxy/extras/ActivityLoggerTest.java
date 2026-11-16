@@ -35,8 +35,8 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CLF);
     setupMocks();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("CLF Log: " + tracker.lastLogMessage);
     // Expecting: 127.0.0.1 - - [Date] "GET /test HTTP/1.1" 200 100
@@ -49,8 +49,8 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.JSON);
     setupMocks();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("JSON Log: " + tracker.lastLogMessage);
     assertTrue(tracker.lastLogMessage.startsWith("{"));
@@ -68,8 +68,8 @@ class ActivityLoggerTest {
     when(requestHeaders.get("Referer")).thenReturn("http://referrer.com");
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("ELF Log: " + tracker.lastLogMessage);
     // host ident authuser [date] "request" status bytes "referer" "user-agent"
@@ -87,8 +87,8 @@ class ActivityLoggerTest {
     setupMocks();
     when(requestHeaders.get("User-Agent")).thenReturn("Mozilla/5.0");
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("W3C Log: " + tracker.lastLogMessage);
     // date time c-ip cs-method cs-uri-stem sc-status sc-bytes cs(User-Agent)
@@ -101,13 +101,13 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.LTSV);
     setupMocksWithDelay();
 
-    tracker.requestReceivedFromClient(flowContext, request);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
     // Simulate delay
     try {
       Thread.sleep(10);
     } catch (InterruptedException ignored) {
     }
-    tracker.responseSentToClient(flowContext, response);
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("LTSV Log: " + tracker.lastLogMessage);
     // time:... host:127.0.0.1 method:GET uri:/test status:200 size:100 duration:>=0
@@ -122,8 +122,8 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.CSV);
     setupMocksWithDelay();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("CSV Log: " + tracker.lastLogMessage);
     // "timestamp","127.0.0.1","GET","/test",200,100,duration,"Mozilla/5.0"
@@ -136,8 +136,8 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.HAPROXY);
     setupMocksWithDelay();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("HAProxy Log: " + tracker.lastLogMessage);
     // 127.0.0.1 [date] "GET /test HTTP/1.1" 200 100 duration
@@ -150,8 +150,8 @@ class ActivityLoggerTest {
     TestableActivityLogger tracker = new TestableActivityLogger(LogFormat.SQUID);
     setupMocks();
 
-    tracker.requestReceivedFromClient(flowContext, request);
-    tracker.responseSentToClient(flowContext, response);
+    tracker.requestReceivedFromClient(flowContext, request, "test-request-id");
+    tracker.responseSentToClient(flowContext, response, "test-request-id");
 
     System.out.println("Squid Log: " + tracker.lastLogMessage);
     // time elapsed remotehost code/status bytes method URL rfc931
