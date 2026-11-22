@@ -21,6 +21,7 @@ import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ConnectTimeoutException;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.haproxy.HAProxyCommand;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
@@ -662,6 +663,21 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   @Override
   protected void timedOut() {
+    if (isConnecting() && connectionFlow != null) {
+      // The server (e.g. a chained proxy that never answers CONNECT) stalled in the middle of the
+      // connection flow. Fail the flow instead of just closing the channel: that resumes reading
+      // from the client, tries the next chained proxy (or a direct connection), and otherwise
+      // responds 502 to the client. Merely disconnecting would leave the client channel with
+      // auto-read disabled forever, so its close would never be noticed (CLOSE_WAIT leak, #6).
+      recordConnectionTimedOut();
+      connectionFlow.fail(
+          new ConnectTimeoutException(
+              "Idle timeout while connecting to "
+                  + remoteAddress
+                  + " in state "
+                  + getCurrentState()));
+      return;
+    }
     super.timedOut();
     recordConnectionTimedOut();
     getClientConnection().timedOut(this);

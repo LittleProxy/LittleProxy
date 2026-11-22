@@ -124,6 +124,13 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /** This is the current server connection that we're using while transferring chunked data. */
   @Nullable private volatile ProxyToServerConnection currentServerConnection;
 
+  /**
+   * The last server connection whose connection flow failed without any retry left. While it is
+   * still the {@link #currentServerConnection}, the client is not waiting for anything, so its idle
+   * timeout may close it.
+   */
+  @Nullable private volatile ProxyToServerConnection unrecoverablyFailedServerConnection;
+
   private final Map<ProxyToServerConnection, FullFlowContext> serverFlowContexts =
       new ConcurrentHashMap<>();
 
@@ -689,6 +696,11 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             // there are no current request from the client
             && currentRequest.get() == null)
         ||
+        // connecting to the server failed for good (e.g. a chained proxy never answered CONNECT),
+        // the client already got an error response and sent nothing since: nothing to wait for
+        (currentServerConnection == unrecoverablyFailedServerConnection
+            && currentRequest.get() == null)
+        ||
         // The client hasn't sent data as recently as the server
         // - Both sides are idle (no activity on either end)
         // - After a response is complete and neither client nor server has sent anything new
@@ -790,6 +802,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // map of open server connections
     serverConnection.disconnect();
     serverConnectionsByHostAndPort.remove(serverConnection.getServerHostAndPort());
+    unrecoverablyFailedServerConnection = serverConnection;
 
     boolean keepAlive = writeBadGateway(initialRequest);
     if (keepAlive) {
