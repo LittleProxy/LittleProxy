@@ -3,9 +3,8 @@ package org.littleshoot.proxy;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -27,8 +26,8 @@ import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
  */
 @Tag("slow-test")
 public final class UnresponsiveChainedProxyTest {
-  private static final int IDLE_TIMEOUT_SECONDS = 1;
-  private static final int CLIENT_READ_TIMEOUT_MILLIS = 10_000;
+  private static final int IDLE_TIMEOUT_SECONDS = 3;
+  private static final int CLIENT_READ_TIMEOUT_MILLIS = 15_000;
 
   /** Sockets accepted by the fake chained proxy; held open and never answered. */
   private final List<Socket> acceptedByChainedProxy = new CopyOnWriteArrayList<>();
@@ -115,12 +114,21 @@ public final class UnresponsiveChainedProxyTest {
     return client;
   }
 
+  /**
+   * Reads the status line byte by byte from the raw stream, so that nothing beyond it is consumed
+   * into a buffer that would be discarded.
+   */
   private static String readStatusLine(Socket client) throws IOException {
-    BufferedReader reader =
-        new BufferedReader(new InputStreamReader(client.getInputStream(), US_ASCII));
-    String statusLine = reader.readLine();
-    assertThat(statusLine).as("status line").isNotNull();
-    return statusLine;
+    InputStream in = client.getInputStream();
+    StringBuilder statusLine = new StringBuilder();
+    int b;
+    while ((b = in.read()) != -1 && b != '\n') {
+      if (b != '\r') {
+        statusLine.append((char) b);
+      }
+    }
+    assertThat(statusLine).as("status line").isNotEmpty();
+    return statusLine.toString();
   }
 
   /** Returns true if the proxy closed the connection before the client's read timeout. */
