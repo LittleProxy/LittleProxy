@@ -14,6 +14,10 @@ public class ActivityTrackerAdapter implements ActivityTracker {
   @Override
   public void bytesReceivedFromClient(FlowContext flowContext, int numberOfBytes) {}
 
+  // Note: the 3-arg request/response variants with a requestId are NOT overridden here; the
+  // interface's default implementations delegate to these 2-arg methods, so subclasses (old or
+  // new style) keep receiving callbacks. Override the 3-arg variants in the interface instead
+  // if you need the request identifier.
   @Override
   public void requestReceivedFromClient(FlowContext flowContext, HttpRequest httpRequest) {}
 
