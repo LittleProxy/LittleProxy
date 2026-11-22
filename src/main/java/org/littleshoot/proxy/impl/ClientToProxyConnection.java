@@ -38,7 +38,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
-import io.netty.util.ReferenceCounted;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -56,6 +56,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSession;
@@ -147,8 +148,13 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /** Cached FlowContext for consistent timing data across client lifecycle events. */
   private final FlowContext clientFlowContext;
 
-  /** The current HTTP request that this connection is currently servicing. */
-  @Nullable private volatile HttpRequest currentRequest;
+  /**
+   * A copy of the HTTP request that this connection is currently servicing (null if none). When
+   * request aggregation is enabled, the copy holds a pooled buffer and must be released via {@link
+   * #resetCurrentRequest()} once the request is done. It is accessed from both the client and the
+   * server event loops, hence the atomic swap.
+   */
+  private final AtomicReference<@Nullable HttpRequest> currentRequest = new AtomicReference<>();
 
   private final ClientDetails clientDetails = new ClientDetails();
 
@@ -224,15 +230,14 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    * <p>Note - the "server" could be a chained proxy, not the final endpoint for the request.
    */
   private ConnectionState doReadHTTPInitial(HttpRequest httpRequest) {
-    resetCurrentRequest();
-    // Make a copy of the original request
-    currentRequest = copy(httpRequest);
+    // Make a copy of the original request, releasing the copy of the previous one (if any)
+    HttpRequest originalRequest = copy(httpRequest);
+    ReferenceCountUtil.release(currentRequest.getAndSet(originalRequest));
 
     // Set up our filters based on the original request. If the HttpFiltersSource returns null
     // (meaning the request/response
     // should not be filtered), fall back to the default no-op filter source.
-    HttpFilters filterInstance =
-        proxyServer.getFiltersSource().filterRequest(requireNonNull(currentRequest), ctx);
+    HttpFilters filterInstance = proxyServer.getFiltersSource().filterRequest(originalRequest, ctx);
     currentFilters = requireNonNullElse(filterInstance, NOOP_FILTER);
 
     // Send the request through the clientToProxyRequest filter, and respond with the short-circuit
@@ -581,10 +586,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   private void resetCurrentRequest() {
-    if (currentRequest != null && currentRequest instanceof ReferenceCounted) {
-      ((ReferenceCounted) currentRequest).release();
-    }
-    currentRequest = null;
+    ReferenceCountUtil.release(currentRequest.getAndSet(null));
   }
 
   private void switchToWebSocketProtocol(final ProxyToServerConnection serverConnection) {
@@ -620,6 +622,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
         protected Future<?> execute() {
           LOG.debug("Responding with CONNECT successful");
+          // The CONNECT request is done: from now on the channel carries either a raw tunnel or
+          // (with MITM) new requests, so no HTTP response will ever release its copy.
+          resetCurrentRequest();
           HttpResponse response =
               ProxyUtils.createFullHttpResponse(HttpVersion.HTTP_1_1, CONNECTION_ESTABLISHED);
           ProxyUtils.addVia(response, proxyServer.getProxyAlias());
@@ -645,7 +650,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
       // client.
       LOG.warn("Server timed out: {}", currentServerConnection);
       currentFilters.serverToProxyResponseTimedOut();
-      writeGatewayTimeout(currentRequest);
+      writeGatewayTimeout(currentRequest.get());
     }
   }
 
@@ -681,7 +686,7 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             // no initial request has been written to the server
             && !requestHasBeenWritten
             // there are no current request from the client
-            && currentRequest == null)
+            && currentRequest.get() == null)
         ||
         // The client hasn't sent data as recently as the server
         // - Both sides are idle (no activity on either end)
@@ -696,6 +701,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   @Override
   protected void disconnected() {
     super.disconnected();
+    // the client may disconnect before the response arrives, in which case respond() never runs
+    resetCurrentRequest();
     boolean poolSharedMitm = proxyServer.isPoolSharedMitmConnections();
     boolean poolPerRequest = proxyServer.isPoolPerRequestInMitm();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
