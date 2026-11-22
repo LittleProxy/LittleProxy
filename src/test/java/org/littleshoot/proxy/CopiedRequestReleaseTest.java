@@ -2,6 +2,7 @@ package org.littleshoot.proxy;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -99,7 +100,8 @@ final class CopiedRequestReleaseTest {
 
   private void assertCopiedRequestIsReleased() throws InterruptedException {
     assertThat(originalRequests).hasSize(1);
-    FullHttpRequest copy = (FullHttpRequest) originalRequests.get(0);
+    FullHttpRequest copy =
+        assertThat(originalRequests.get(0)).asInstanceOf(type(FullHttpRequest.class)).actual();
     long deadline = System.currentTimeMillis() + TIMEOUT_MS;
     while (copy.refCnt() > 0 && System.currentTimeMillis() < deadline) {
       Thread.sleep(20);
@@ -127,7 +129,10 @@ final class CopiedRequestReleaseTest {
     }
   }
 
-  /** Accepts connections and reads requests, but never writes anything back. */
+  /**
+   * Accepts any number of connections and reads from each one, but never writes anything back.
+   * Serves as the target of a CONNECT tunnel as well as a server that never responds.
+   */
   private static final class SilentServer implements AutoCloseable {
     private final ServerSocket serverSocket;
     private final List<Socket> accepted = new CopyOnWriteArrayList<>();
@@ -158,12 +163,23 @@ final class CopiedRequestReleaseTest {
         while (!serverSocket.isClosed()) {
           Socket socket = serverSocket.accept();
           accepted.add(socket);
-          if (socket.getInputStream().read() != -1) {
-            requestReceived.countDown();
-          }
+          Thread reader = new Thread(() -> drain(socket), "silent-server-reader");
+          reader.setDaemon(true);
+          reader.start();
         }
       } catch (IOException ignored) {
         // server closed
+      }
+    }
+
+    private void drain(Socket socket) {
+      byte[] buffer = new byte[8192];
+      try (InputStream in = socket.getInputStream()) {
+        while (in.read(buffer) != -1) {
+          requestReceived.countDown();
+        }
+      } catch (IOException ignored) {
+        // connection closed
       }
     }
 
