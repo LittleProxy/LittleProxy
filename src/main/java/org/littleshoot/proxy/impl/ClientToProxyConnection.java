@@ -151,8 +151,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   /**
    * A copy of the HTTP request that this connection is currently servicing (null if none). When
    * request aggregation is enabled, the copy holds a pooled buffer and must be released via {@link
-   * #resetCurrentRequest()} once the request is done. It is accessed from both the client and the
-   * server event loops, hence the atomic swap.
+   * #resetCurrentRequest()} once the request is done. It is swapped atomically because it is
+   * released from both the client event loop ({@code doReadHTTPInitial}, {@code disconnected}) and
+   * the server event loop ({@code respond}, {@code timedOut(ProxyToServerConnection)}).
    */
   private final AtomicReference<@Nullable HttpRequest> currentRequest = new AtomicReference<>();
 
