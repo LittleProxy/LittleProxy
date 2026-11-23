@@ -968,9 +968,23 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     } finally {
       if (!is(DISCONNECTED)) {
-        LOG.info("Disconnecting open connection to server");
-        disconnect();
-        getClientConnection().serverConnectionFailed(this, getCurrentState(), cause);
+        ConnectionFlow flow = connectionFlow;
+        if (isConnecting() && flow != null && !flow.settleFailure()) {
+          // A second failure notification for an attempt whose failure is already being handled.
+          // The socket read and the SslHandler can both report the same close, and the in-flight
+          // step's own future can fail too. Reporting each of them would decrement the client's
+          // read gate more than once and could abort the retry the first notification started (the
+          // retry's state is CONNECTING by the time the stale notification arrives).
+          LOG.debug(
+              "Ignoring failure notification for an already settled connection attempt", cause);
+        } else {
+          // Capture the state before disconnecting: serverConnectionFailed reports it as the state
+          // before the failure, and disconnecting moves us to DISCONNECTED.
+          ConnectionState lastStateBeforeFailure = getCurrentState();
+          LOG.info("Disconnecting open connection to server");
+          disconnect();
+          getClientConnection().serverConnectionFailed(this, lastStateBeforeFailure, cause);
+        }
       }
     }
     // This can happen if we couldn't make the initial connection due

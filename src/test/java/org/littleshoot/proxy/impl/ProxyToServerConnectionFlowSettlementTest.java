@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,8 +19,10 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
@@ -90,6 +93,47 @@ final class ProxyToServerConnectionFlowSettlementTest {
 
     content.release();
     serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a second failure notification for a connecting attempt does not report it again")
+  void secondFailureNotificationForConnectingAttemptIsIgnored() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.HANDSHAKING);
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, connection, new Object());
+    connection.setConnectionFlow(flow);
+
+    // A reset on the socket read is reported first, and starts the fallback to the direct
+    // connection.
+    IOException reset = new IOException("Connection reset");
+    connection.exceptionCaught(reset);
+
+    // The in-flight step then reports the same close (the SslHandler's handshake future fails when
+    // the channel is closed). It belongs to the attempt that was already reported: reporting it
+    // again would tell the client twice and abort the retry that is already connecting.
+    flow.fail(new ClosedChannelException());
+    serverChannel.runPendingTasks();
+
+    assertThat(reportsToClient())
+        .as("one connection attempt must report its failure exactly once")
+        .isEqualTo(1);
+    verify(clientConnection).serverConnectionFailed(connection, ConnectionState.HANDSHAKING, reset);
+
+    serverChannel.finishAndReleaseAll();
+  }
+
+  /**
+   * Every {@code serverConnectionFailed} notification on the client, whatever state or cause it
+   * carries, so the assertion does not depend on which notification arrived first.
+   */
+  private long reportsToClient() {
+    return mockingDetails(clientConnection).getInvocations().stream()
+        .filter(invocation -> "serverConnectionFailed".equals(invocation.getMethod().getName()))
+        .count();
   }
 
   private ProxyToServerConnection createConnection() throws UnknownHostException {
