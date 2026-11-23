@@ -18,13 +18,51 @@ class ConnectionFlow {
   private final Object connectLock;
 
   /**
+   * Set once this flow has reported success or failure to its client. A single attempt can be
+   * reported more than once: an idle timeout ({@code timedOut()}), a stale step-failure listener
+   * and an upstream close can all call {@link #fail(Throwable)} for the same attempt. Reporting
+   * twice would notify {@code serverConnectionFailed}/{@code serverConnectionSucceeded} twice,
+   * unbalancing the client's read gate and possibly starting a second retry on top of the first.
+   *
+   * <p>Guarded by {@link #settlementLock}.
+   */
+  private boolean settled;
+
+  /**
+   * Guards the transition from "this attempt is still live" to "this attempt has settled", the
+   * choice of the next step, and the reservation a step makes before it starts. {@link #advance()}
+   * holds it while it checks {@link #settled} and polls the next step, and {@link
+   * #succeed()}/{@link #fail(Throwable)} hold it while they claim settlement. It is held only for
+   * short bookkeeping sections, never while a step is executed or a callback into user code runs,
+   * and it is distinct from {@code connectLock}, so claiming settlement can never wait on the
+   * connection's write ordering.
+   */
+  private final Object settlementLock = new Object();
+
+  /**
+   * True while a step has passed the settlement check and its {@link ConnectionFlowStep#execute()}
+   * has not returned yet. Guarded by {@link #settlementLock}. A settlement claimed in that window
+   * is deferred instead of tearing the connection down: the step has already been admitted and must
+   * act on the attempt it started for, not on one that a retry may have rebound in the meantime.
+   */
+  private boolean stepStarting;
+
+  /**
+   * Settlement claimed while a step was starting, to be run once {@code execute()} returns. Guarded
+   * by {@link #settlementLock}. It runs on the stepping thread before the step's future listener is
+   * registered.
+   */
+  private Runnable deferredSettlement;
+
+  /**
    * Construct a new {@link ConnectionFlow} for the given client and server connections.
    *
    * @param clientConnection
    * @param serverConnection
-   * @param connectLock an object that's shared by {@link ConnectionFlow} and {@link
-   *     ProxyToServerConnection} and that is used for synchronizing the reader and writer threads
-   *     that are both involved during the establishing of a connection.
+   * @param connectLock an object shared by {@link ConnectionFlow} and {@link
+   *     ProxyToServerConnection} that serializes connection-flow step completion, {@link
+   *     ProxyToServerConnection#connectionSucceeded(ClientToProxyConnection, boolean)} and deferred
+   *     writes. It is a mutual exclusion lock, not a wait/notify monitor.
    */
   ConnectionFlow(
       ClientToProxyConnection clientConnection,
@@ -70,18 +108,31 @@ class ConnectionFlow {
   /**
    * Advances the flow. {@link #advance()} will be called until we're either out of steps, or a step
    * has failed.
+   *
+   * <p>The "is this attempt still live?" check and the next-step poll happen atomically with
+   * respect to {@link #fail(Throwable)}'s settlement claim (see {@link #settlementLock}), so a step
+   * that completes after the attempt failed or succeeded cannot start another step of the dead
+   * attempt. The step itself is then run outside the lock.
    */
   void advance() {
-    currentStep = steps.poll();
-    if (currentStep == null) {
+    final ConnectionFlowStep<?> nextStep;
+    synchronized (settlementLock) {
+      if (settled) {
+        serverConnection.getLOG().debug("Ignoring advance of a settled connection flow");
+        return;
+      }
+      nextStep = steps.poll();
+      currentStep = nextStep;
+    }
+    if (nextStep == null) {
       succeed();
     } else {
-      processCurrentStep();
+      processCurrentStep(nextStep);
     }
   }
 
   /**
-   * Process the current {@link ConnectionFlowStep}. With each step, we:
+   * Process the given {@link ConnectionFlowStep}. With each step, we:
    *
    * <ol>
    *   <li>Change the state of the associated {@link ProxyConnection} to the value of {@link
@@ -93,50 +144,139 @@ class ConnectionFlow {
    *   <li>If unsuccessful, we call {@link #fail()}, stopping the connection flow
    * </ol>
    */
-  private void processCurrentStep() {
-    final ProxyConnection<?> connection = currentStep.getConnection();
+  private void processCurrentStep(ConnectionFlowStep<?> step) {
+    final ProxyConnection<?> connection = step.getConnection();
     final ProxyConnectionLogger LOG = connection.getLOG();
 
-    LOG.debug("Processing connection flow step: {}", currentStep);
-    connection.become(currentStep.getState());
-    suppressInitialRequest = suppressInitialRequest || currentStep.shouldSuppressInitialRequest();
+    if (isSettled()) {
+      LOG.debug("Skipping step of a settled connection flow: {}", step);
+      return;
+    }
+    LOG.debug("Processing connection flow step: {}", step);
 
-    if (currentStep.shouldExecuteOnEventLoop()) {
-      connection.ctx.executor().submit(() -> doProcessCurrentStep(LOG));
+    if (step.shouldExecuteOnEventLoop()) {
+      connection.ctx.executor().submit(() -> doProcessCurrentStep(step, LOG));
     } else {
-      doProcessCurrentStep(LOG);
+      doProcessCurrentStep(step, LOG);
     }
   }
 
   /**
-   * Does the work of processing the current step, checking the result and handling success/failure.
+   * Does the work of processing the given step, checking the result and handling success/failure.
+   *
+   * <p>The settlement check and the reservation of the step happen atomically under {@link
+   * #settlementLock}. A settlement claimed after that reservation is deferred until {@code
+   * execute()} returns (see {@link #deferredSettlement}), so the step cannot act on a connection
+   * that a retry has rebound, cannot have its state transition overwritten by a concurrent retry,
+   * and a step that arrives after the claim neither starts nor changes the connection's state. The
+   * transition itself runs outside the lock because {@link ProxyConnection#become} reports it to
+   * user-supplied filters; the reservation makes it safe from a concurrent settlement. No lock is
+   * held while {@code execute()} runs.
    */
-  private void doProcessCurrentStep(final ProxyConnectionLogger LOG) {
-    currentStep
-        .execute()
-        .addListener(
-            future -> {
-              synchronized (connectLock) {
-                if (future.isSuccess()) {
-                  LOG.debug("ConnectionFlowStep succeeded");
-                  currentStep.onSuccess(ConnectionFlow.this);
-                } else {
-                  LOG.debug("ConnectionFlowStep failed", future.cause());
-                  fail(future.cause());
-                }
-              }
-            });
+  private void doProcessCurrentStep(
+      final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
+    final ProxyConnection<?> connection = step.getConnection();
+    synchronized (settlementLock) {
+      if (settled) {
+        LOG.debug("Skipping step of a settled connection flow: {}", step);
+        return;
+      }
+      stepStarting = true;
+    }
+
+    final Future<?> stepFuture;
+    try {
+      // Applied after the reservation and outside the lock: become() reports the transition to
+      // user-supplied HttpFilters, which must not run while holding settlementLock. A settlement
+      // claimed from here on is deferred until execute() returns, so it cannot change the state
+      // underneath this transition.
+      connection.become(step.getState());
+      suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
+      stepFuture = step.execute();
+    } finally {
+      final Runnable settlement;
+      synchronized (settlementLock) {
+        stepStarting = false;
+        settlement = deferredSettlement;
+        deferredSettlement = null;
+      }
+      if (settlement != null) {
+        settlement.run();
+      }
+    }
+    stepFuture.addListener(
+        future -> {
+          if (future.isSuccess()) {
+            LOG.debug("ConnectionFlowStep succeeded");
+            // Deliberately not under connectLock: onSuccess() normally advances straight into
+            // succeed(), and the resulting connectionSucceeded() runs user callbacks
+            // (ChainedProxy, HttpFilters) that must not be able to stall write() callers. The
+            // ordering-critical part takes connectLock itself, inside connectionSucceeded().
+            step.onSuccess(ConnectionFlow.this);
+          } else {
+            LOG.debug("ConnectionFlowStep failed", future.cause());
+            synchronized (connectLock) {
+              fail(future.cause());
+            }
+          }
+        });
   }
 
   /**
    * Called when the flow is complete and successful. Notifies the {@link ProxyToServerConnection}
    * that we succeeded.
+   *
+   * <p>The success is reported to {@code clientConnection}, the client that started this flow and
+   * was told so by {@link #start()}. A pooled connection can meanwhile have been borrowed by
+   * another client, whose writes are only queued on it while it is still connecting; notifying that
+   * other client would decrement a connecting count it never incremented and leave both clients
+   * with reading paused.
    */
   void succeed() {
-    synchronized (connectLock) {
-      serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
-      serverConnection.connectionSucceeded(!suppressInitialRequest);
-      notifyThreadsWaitingForConnection();
+    boolean claimed =
+        claimSettlement(
+            () -> {
+              serverConnection
+                  .getLOG()
+                  .debug("Connection flow completed successfully: {}", currentStep);
+              serverConnection.connectionSucceeded(clientConnection, !suppressInitialRequest);
+            });
+    if (!claimed) {
+      serverConnection.getLOG().debug("Ignoring repeated completion of connection flow");
+    }
+  }
+
+  /**
+   * Claims the single settlement of this attempt and runs {@code settlement}, or defers it until
+   * the step that is currently starting returns (see {@link #deferredSettlement}).
+   *
+   * <p>Claiming and the reservation in {@link #doProcessCurrentStep} are mutually exclusive under
+   * {@link #settlementLock}, so once settlement has been claimed no further step starts. A step
+   * that had already been admitted is allowed to run to its first suspension point before the
+   * settlement disconnects and retries the connection, so it acts on the attempt it was admitted
+   * for rather than on a rebound one.
+   *
+   * @return {@code false} if the attempt had already been settled
+   */
+  private boolean claimSettlement(Runnable settlement) {
+    synchronized (settlementLock) {
+      if (settled) {
+        return false;
+      }
+      settled = true;
+      if (stepStarting) {
+        deferredSettlement = settlement;
+        return true;
+      }
+    }
+    settlement.run();
+    return true;
+  }
+
+  /** Whether this attempt has already been reported as succeeded or failed. */
+  private boolean isSettled() {
+    synchronized (settlementLock) {
+      return settled;
     }
   }
 
@@ -147,36 +287,32 @@ class ConnectionFlow {
    */
   void fail(final Throwable cause) {
     final ConnectionState lastStateBeforeFailure = serverConnection.getCurrentState();
-    serverConnection
-        .disconnect()
-        .addListener(
-            future -> {
-              synchronized (connectLock) {
-                if (!clientConnection.serverConnectionFailed(
-                    serverConnection, lastStateBeforeFailure, cause)) {
-                  // the connection to the server failed, and we are not retrying, so transition to
-                  // the
-                  // DISCONNECTED state
-                  serverConnection.become(ConnectionState.DISCONNECTED);
-
-                  // We are not retrying our connection, let anyone waiting for a connection know
-                  // that we're done
-                  notifyThreadsWaitingForConnection();
-                }
-              }
-            });
+    boolean claimed =
+        claimSettlement(
+            () ->
+                serverConnection
+                    .disconnect()
+                    .addListener(
+                        future -> {
+                          synchronized (connectLock) {
+                            if (!clientConnection.serverConnectionFailed(
+                                serverConnection, lastStateBeforeFailure, cause)) {
+                              // the connection to the server failed, and we are not retrying, so
+                              // transition to the DISCONNECTED state
+                              serverConnection.become(ConnectionState.DISCONNECTED);
+                            }
+                          }
+                        }));
+    if (!claimed) {
+      // Already reported for this attempt: a stale close notification, or the idle timeout racing
+      // the failing step's own future. Reporting again would tell the client twice (unbalancing its
+      // read gate) and could start a second retry while the first one is already connecting.
+      serverConnection.getLOG().debug("Ignoring repeated failure of connection flow", cause);
+    }
   }
 
   /** Like {@link #fail(Throwable)} but with no cause. */
   void fail() {
     fail(null);
-  }
-
-  /**
-   * Once we've finished recording our connection and written our initial request, we can notify
-   * anyone who is waiting on the connection that it's okay to proceed.
-   */
-  private void notifyThreadsWaitingForConnection() {
-    connectLock.notifyAll();
   }
 }

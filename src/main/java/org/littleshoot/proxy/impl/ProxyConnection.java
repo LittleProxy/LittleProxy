@@ -15,6 +15,7 @@ import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLEngine;
 import org.jspecify.annotations.NullMarked;
@@ -241,11 +242,34 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   /** Writes HttpObjects to the connection asynchronously. */
   protected ChannelFuture writeHttp(HttpObject httpObject) {
     if (ProxyUtils.isLastChunk(httpObject)) {
-      channel.write(httpObject);
+      // Keep the empty buffer that flushes the chunked transfer, but report the content's own write
+      // as well: the marker only flushes, so an outbound handler that rejects the content while
+      // accepting the marker would otherwise be reported to our callers as a successful write.
+      ChannelFuture contentFuture = channel.write(httpObject);
       LOG.debug("Writing an empty buffer to signal the end of our chunked transfer");
-      return writeToChannel(Unpooled.EMPTY_BUFFER);
+      ChannelFuture flushFuture = writeToChannel(Unpooled.EMPTY_BUFFER);
+      ChannelPromise result = channel.newPromise();
+      // Writes on one channel normally complete in order, but the result must not rely on it:
+      // succeed only after both writes have succeeded, and fail on the first failure.
+      AtomicInteger pendingWrites = new AtomicInteger(2);
+      contentFuture.addListener(future -> completeCompositeWrite(future, result, pendingWrites));
+      flushFuture.addListener(future -> completeCompositeWrite(future, result, pendingWrites));
+      return result;
     } else {
       return writeToChannel(httpObject);
+    }
+  }
+
+  /**
+   * Completes the composite promise of a {@link LastHttpContent} write once both of its futures
+   * have succeeded, or fails it with the first failure.
+   */
+  private static void completeCompositeWrite(
+      Future<?> future, ChannelPromise result, AtomicInteger pendingWrites) {
+    if (!future.isSuccess()) {
+      result.tryFailure(future.cause());
+    } else if (pendingWrites.decrementAndGet() == 0) {
+      result.trySuccess(null);
     }
   }
 

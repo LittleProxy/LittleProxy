@@ -1,0 +1,737 @@
+package org.littleshoot.proxy.impl;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ConnectTimeoutException;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import io.netty.util.ReferenceCounted;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.littleshoot.proxy.ChainedProxy;
+import org.littleshoot.proxy.ChainedProxyAdapter;
+import org.littleshoot.proxy.ChainedProxyManager;
+import org.littleshoot.proxy.ChainedProxyType;
+import org.littleshoot.proxy.FlowContext;
+import org.littleshoot.proxy.FullFlowContext;
+import org.littleshoot.proxy.HostResolver;
+import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.TransportProtocol;
+import org.mockito.ArgumentCaptor;
+
+/**
+ * Regression test for <a href="https://github.com/LittleProxy/LittleProxy/issues/827">issue
+ * #827</a>.
+ *
+ * <p>{@code ProxyToServerConnection.write()} used to block the calling (Netty event loop) thread on
+ * {@code connectLock.wait(30000)} while the upstream connection was still being established. This
+ * test drives {@code write()} from a separate thread while the connection is {@code CONNECTING} and
+ * asserts that the call returns promptly (the message must be deferred, not waited on).
+ */
+final class ProxyToServerConnectionWriteBlockingTest {
+
+  private final DefaultHttpProxyServer proxyServer = mock();
+  private final ClientToProxyConnection clientConnection = mock();
+  private final HttpFilters filters = mock();
+  private final GlobalTrafficShapingHandler trafficHandler = mock();
+  private final FlowContext flowContext = mock();
+  private final FullFlowContext fullFlowContext = mock();
+  private final InetSocketAddress hostAddress = new InetSocketAddress("127.0.0.1", 8080);
+
+  private ProxyToServerConnection createConnection() throws UnknownHostException {
+    HostResolver hostResolver = mock();
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt())).thenReturn(hostAddress);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+    when(clientConnection.flowContext()).thenReturn(flowContext);
+    when(clientConnection.flowContextForServerConnection(any())).thenReturn(fullFlowContext);
+    // A write always originates from a client channel; the connection needs one to build the
+    // deferred-write future. `channel` is an inherited protected field, set directly (same
+    // package).
+    clientConnection.channel = new EmbeddedChannel();
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+    return ProxyToServerConnection.create(
+        proxyServer, clientConnection, "localhost:8080", filters, null, trafficHandler);
+  }
+
+  @Test
+  @DisplayName("upstream close during CONNECT negotiation fails queued writes")
+  void upstreamCloseDuringConnectNegotiationFailsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    // Mid-CONNECT: isConnecting() is true (so writes are queued) and isConnected() is true (so the
+    // pool can hand this connection to another client).
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    // The upstream closes while the CONNECT negotiation is still in flight.
+    connection.disconnected();
+
+    assertThat(deferred.isDone())
+        .as("the queued write's promise must be completed when the upstream closes")
+        .isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    content.release();
+  }
+
+  @Test
+  @DisplayName("a retry close does not drain queued writes")
+  void retryCloseKeepsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    serverChannel.pipeline().addLast(connection);
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    // resetConnectionForRetry(): remove the handler, then close the abandoned channel. The removed
+    // handler must not receive channelInactive, so the queued write survives for the retry.
+    serverChannel.pipeline().remove(connection);
+    serverChannel.close();
+
+    assertThat(deferred.isDone())
+        .as("a retry must keep the queued write so the retried request is not truncated")
+        .isFalse();
+
+    connection.failPendingWrites(null);
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("failPendingWritesFor only drains the given client's writes")
+  void failPendingWritesForOnlyDrainsThatClient() throws Exception {
+    ProxyToServerConnection connection = createPooledConnection();
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+
+    ClientToProxyConnection clientA = mock();
+    clientA.channel = new EmbeddedChannel();
+    when(clientA.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+    ClientToProxyConnection clientB = mock();
+    clientB.channel = new EmbeddedChannel();
+    when(clientB.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+
+    connection.setCurrentClientConnectionForRequest(clientA);
+    DefaultHttpContent contentA = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    ChannelFuture futureA = connection.write(contentA);
+
+    connection.setCurrentClientConnectionForRequest(clientB);
+    DefaultHttpContent contentB = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
+    ChannelFuture futureB = connection.write(contentB);
+
+    connection.failPendingWritesFor(clientA);
+
+    assertThat(futureA.isDone()).isTrue();
+    assertThat(futureA.isSuccess()).isFalse();
+    assertThat(contentA.refCnt()).isEqualTo(1);
+    assertThat(futureB.isDone())
+        .as("another client's queued write must be left untouched")
+        .isFalse();
+
+    connection.failPendingWrites(null);
+    contentA.release();
+    contentB.release();
+  }
+
+  @Test
+  @DisplayName("a fallback retry resolves with the initial request's filters")
+  void fallbackRetryResolvesWithInitialRequestFilters() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    ChainedProxyManager chainedProxyManager = mock();
+    when(proxyServer.getChainProxyManager()).thenReturn(chainedProxyManager);
+    doAnswer(
+            invocation -> {
+              Queue<ChainedProxy> proxies = invocation.getArgument(1);
+              proxies.add(chainedProxy);
+              proxies.add(ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION);
+              return null;
+            })
+        .when(chainedProxyManager)
+        .lookupChainedProxies(any(), any(), any());
+
+    ProxyToServerConnection connection = createConnection();
+    HttpFilters initialFilters = mock();
+    HttpFilters pipelinedFilters = mock();
+    connection.setInitialRequest(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    connection.setInitialRequestFilters(initialFilters);
+    // A pipelined request replaces currentFilters while the first attempt is still connecting.
+    connection.become(ConnectionState.CONNECTING);
+    DefaultHttpContent pipelined = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    connection.write(pipelined, pipelinedFilters);
+    // The retry reuses the connection instead of bootstrapping a real socket.
+    EmbeddedChannel parkedChannel = new EmbeddedChannel();
+    connection.channel = parkedChannel;
+    ChannelHandlerContext ctx = mock();
+    when(ctx.pipeline()).thenReturn(mock(ChannelPipeline.class));
+    connection.ctx = ctx;
+
+    assertThat(connection.connectionFailed(new IOException("upstream connect failed")))
+        .as("the FALLBACK sentinel must be retried")
+        .isTrue();
+
+    // Resolution must run against the retried request's filters, not the pipelined one's: a filter
+    // can select the upstream address.
+    verify(initialFilters).proxyToServerResolutionStarted("localhost:8080");
+    verify(initialFilters).proxyToServerResolutionSucceeded("localhost:8080", hostAddress);
+    verify(pipelinedFilters, never()).proxyToServerResolutionStarted("localhost:8080");
+
+    connection.failPendingWrites(null);
+    pipelined.release();
+    parkedChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a throwing filterRequest on the initial write fails the queued writes")
+  void throwingFilterRequestOnInitialWriteFailsQueuedWrites() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    doThrow(new IllegalStateException("filter rejected the request"))
+        .when(chainedProxy)
+        .filterRequest(any());
+
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    connection.setInitialRequest(
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload"));
+
+    assertThatCode(() -> connection.connectionSucceeded(clientConnection, true))
+        .as("a throwing chained-proxy filter must not escape connectionSucceeded")
+        .doesNotThrowAnyException();
+
+    assertThat(deferred.isDone()).as("the queued write must be failed, not leaked").isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "a throwing proxyToServerConnectionSucceeded fails the queued writes and releases the read gate")
+  void throwingConnectionSucceededCallbackFailsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    connection.setInitialRequest(
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload"));
+    doThrow(new IllegalStateException("filter rejected the connection"))
+        .when(filters)
+        .proxyToServerConnectionSucceeded(any());
+
+    assertThatCode(() -> connection.connectionSucceeded(clientConnection, true))
+        .as("a throwing state-transition callback must not escape connectionSucceeded")
+        .doesNotThrowAnyException();
+
+    assertThat(deferred.isDone()).as("the queued write must be failed, not leaked").isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    verify(clientConnection, times(1)).deferredWriteFinished();
+
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a write admitted after the terminal cleanup is failed instead of queued forever")
+  void writeAfterTerminalCleanupIsFailed() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+    connection.setInitialRequest(
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload"));
+    doThrow(new IllegalStateException("filter rejected the connection"))
+        .when(filters)
+        .proxyToServerConnectionSucceeded(any());
+
+    // The transition throws: the terminal cleanup drains the (empty) queue and starts an
+    // asynchronous close. The handler is deliberately not in the channel's pipeline, so
+    // channelInactive never arrives and the connection stays in the state the cleanup left it.
+    connection.connectionSucceeded(clientConnection, true);
+
+    // A chunk admitted after that drain must not be accepted: once the channel closes, nothing is
+    // left to flush or fail it, so it would keep its buffer and its client's read-gate hold.
+    DefaultHttpContent late = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    ChannelFuture lateWrite = connection.write(late);
+
+    assertThat(lateWrite.isDone()).as("the late write must be failed, not queued").isTrue();
+    assertThat(lateWrite.isSuccess()).isFalse();
+    assertThat(late.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    verify(clientConnection, never()).deferredWriteQueued();
+
+    late.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "a throwing initial write releases a reference-counted request without over-releasing")
+  void throwingInitialWriteReleasesReferenceCountedRequest() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    doThrow(new IllegalStateException("filter rejected the request"))
+        .when(chainedProxy)
+        .filterRequest(any());
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+
+    FullHttpRequest initial =
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.setInitialRequest(initial);
+
+    assertThatCode(() -> connection.connectionSucceeded(clientConnection, true))
+        .doesNotThrowAnyException();
+
+    assertThat(initial.refCnt())
+        .as("the initial request's reference must be released exactly once")
+        .isZero();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "an idle timeout while connecting fails the flow instead of only closing the channel")
+  void idleTimeoutWhileConnectingFailsFlow() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+
+    connection.timedOut();
+
+    ArgumentCaptor<Throwable> causeCaptor = ArgumentCaptor.forClass(Throwable.class);
+    verify(flow).fail(causeCaptor.capture());
+    assertThat(causeCaptor.getValue())
+        .isInstanceOf(ConnectTimeoutException.class)
+        .hasMessageContaining("Idle timeout while connecting to");
+    verify(clientConnection, never()).timedOut(connection);
+  }
+
+  @Test
+  @DisplayName("an unrecognized_name TLS warning retries without SNI instead of falling back")
+  void unrecognizedSniNameRetriesWithoutSni() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    connection.setInitialRequest(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    connection.become(ConnectionState.CONNECTING);
+    EmbeddedChannel parkedChannel = new EmbeddedChannel();
+    connection.channel = parkedChannel;
+    ChannelHandlerContext ctx = mock();
+    when(ctx.pipeline()).thenReturn(mock(ChannelPipeline.class));
+    connection.ctx = ctx;
+
+    SSLHandshakeException cause = new SSLHandshakeException("unrecognized_name");
+    assertThat(connection.connectionFailed(cause))
+        .as("the SNI retry must be reported as a handled retry")
+        .isTrue();
+    verify(chainedProxy, never()).connectionFailed(cause);
+
+    parkedChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a non-SSL server retries without TLS instead of falling back")
+  void nonSslServerRetriesWithoutTls() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    connection.setInitialRequest(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    connection.become(ConnectionState.CONNECTING);
+    EmbeddedChannel parkedChannel = new EmbeddedChannel();
+    connection.channel = parkedChannel;
+    ChannelHandlerContext ctx = mock();
+    when(ctx.pipeline()).thenReturn(mock(ChannelPipeline.class));
+    connection.ctx = ctx;
+
+    SSLException cause = new SSLException("not an SSL/TLS record");
+    assertThat(connection.connectionFailed(cause))
+        .as("the non-TLS retry must be reported as a handled retry")
+        .isTrue();
+    verify(chainedProxy, never()).connectionFailed(cause);
+
+    parkedChannel.finishAndReleaseAll();
+  }
+
+  private ProxyToServerConnection createChainedConnection(ChainedProxy chainedProxy)
+      throws UnknownHostException {
+    ChainedProxyManager chainedProxyManager = mock();
+    when(proxyServer.getChainProxyManager()).thenReturn(chainedProxyManager);
+    doAnswer(
+            invocation -> {
+              invocation.<Queue<ChainedProxy>>getArgument(1).add(chainedProxy);
+              return null;
+            })
+        .when(chainedProxyManager)
+        .lookupChainedProxies(any(), any(), any());
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    return createConnection();
+  }
+
+  private ProxyToServerConnection createPooledConnection() throws UnknownHostException {
+    HostResolver hostResolver = mock();
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt())).thenReturn(hostAddress);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+    when(clientConnection.flowContext()).thenReturn(flowContext);
+    when(clientConnection.flowContextForServerConnection(any())).thenReturn(fullFlowContext);
+    return ProxyToServerConnection.createForPool(
+        proxyServer,
+        mock(ServerConnectionPool.class),
+        clientConnection,
+        "localhost:8080",
+        null,
+        filters,
+        mock(HttpRequest.class),
+        trafficHandler);
+  }
+
+  @Test
+  @DisplayName("a ConnectionFlow.fail() keeps queued writes and reports the failure to the client")
+  void flowFailureKeepsQueuedWritesForRetry() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    // Install the handler for real, so the close below is delivered through the pipeline.
+    serverChannel.pipeline().addLast(connection);
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, connection, new Object());
+    connection.setConnectionFlow(flow);
+    // The client retries (e.g. with the next chained proxy) once it hears about the failure.
+    IOException cause = new IOException("upstream closed during CONNECT");
+    when(clientConnection.serverConnectionFailed(
+            connection, ConnectionState.NEGOTIATING_CONNECT, cause))
+        .thenReturn(true);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    // The real retry order: ConnectionFlow.fail() closes the channel first, while this handler is
+    // still in the pipeline, and the retry decision runs only in the close listener.
+    flow.fail(cause);
+    serverChannel.runPendingTasks();
+
+    // Without this the assertion below would also pass if the close were never forwarded to the
+    // flow: the queue would simply stay queued and no retry would ever be attempted.
+    verify(clientConnection)
+        .serverConnectionFailed(connection, ConnectionState.NEGOTIATING_CONNECT, cause);
+    assertThat(deferred.isDone())
+        .as("the queued write must survive the flow-failure close so the retry is not truncated")
+        .isFalse();
+
+    connection.failPendingWrites(null);
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("write() while CONNECTING must not block the calling thread")
+  void writeWhileConnectingDoesNotBlockCaller() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(1));
+    AtomicReference<ChannelFuture> result = new AtomicReference<>();
+    AtomicReference<Throwable> thrown = new AtomicReference<>();
+    Thread writer =
+        new Thread(
+            () -> {
+              try {
+                result.set(connection.write(content));
+              } catch (Throwable t) {
+                thrown.set(t);
+              }
+            },
+            "write-while-connecting");
+    writer.start();
+
+    // The write must return on its own, well within the old 30s connect lock timeout.
+    writer.join(2000);
+    boolean returnedPromptly = !writer.isAlive();
+
+    try {
+      // Clean up a still-blocked writer (pre-fix behaviour) so the test JVM does not leak the
+      // thread.
+      if (writer.isAlive()) {
+        writer.interrupt();
+        writer.join(5000);
+      }
+
+      assertThat(returnedPromptly)
+          .as(
+              "write() must not block the event-loop thread while the connection is still CONNECTING")
+          .isTrue();
+      // Terminating is not the same as returning normally: a write that threw would look like a
+      // prompt return.
+      assertThat(thrown.get()).as("write() must not throw while deferring").isNull();
+      assertThat(result.get()).as("write() must return the deferred promise").isNotNull();
+      assertThat(result.get().isDone()).as("the deferred write must still be pending").isFalse();
+    } finally {
+      // Drain and release the queued message so the test does not leak its retained buffer.
+      connection.failPendingWrites(null);
+      content.release();
+    }
+  }
+
+  @Test
+  @DisplayName("a message deferred during CONNECTING is written once the connection succeeds")
+  void deferredWriteIsDeliveredAfterConnectSucceeds() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(42));
+
+    ChannelFuture deferred = connection.write(content);
+
+    // The write returned immediately (message queued, not sent).
+    assertThat(deferred.isDone()).isFalse();
+    assertThat((Object) serverChannel.readOutbound()).isNull();
+
+    // Simulate the connection flow completing successfully.
+    connection.connectionSucceeded(clientConnection, false);
+    serverChannel.runPendingTasks();
+
+    assertThat(deferred.isSuccess()).as("deferred write future should succeed").isTrue();
+    Object outbound = serverChannel.readOutbound();
+    assertThat(outbound)
+        .as("queued message should have been written to the server channel")
+        .isSameAs(content);
+
+    // write() retained an extra reference for the queued message; readOutbound() transferred it to
+    // this test, so release both references.
+    ((ReferenceCounted) outbound).release();
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "a deferred message is dropped if the client disconnects before the connection succeeds")
+  void deferredWriteIsDroppedWhenClientDisconnects() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(7));
+    ChannelFuture deferred = connection.write(content);
+
+    // The client goes away while the connection is still being established (e.g. a shared-pool
+    // connection that is not tracked in serverConnectionsByHostAndPort).
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.DISCONNECTED);
+
+    connection.connectionSucceeded(clientConnection, false);
+    serverChannel.runPendingTasks();
+
+    assertThat(deferred.isDone()).isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat((Object) serverChannel.readOutbound())
+        .as("data must not be sent upstream for a disconnected client")
+        .isNull();
+    assertThat(content.refCnt()).as("the retained reference was released").isEqualTo(1);
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("failPendingWrites fails the promise and releases the retained buffer")
+  void failPendingWritesFailsPromiseAndReleasesBuffer() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    connection.failPendingWrites(new Exception("upstream failed"));
+
+    assertThat(deferred.isDone()).isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("back to the single reference held by the caller").isEqualTo(1);
+    content.release();
+  }
+
+  @Test
+  @DisplayName("draining on client disconnect does not report a connection failure to filters")
+  void clientDisconnectDrainDoesNotReportConnectionFailed() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+
+    connection.failPendingWrites(new Exception("client disconnected"));
+
+    verify(filters, never()).proxyToServerConnectionFailed();
+    assertThat(connection.getCurrentState())
+        .as("the client-disconnect drain must not change the connection state")
+        .isEqualTo(ConnectionState.CONNECTING);
+  }
+
+  @Test
+  @DisplayName("queued chunks are written after the initial request, in order")
+  void queuedChunksFollowInitialRequestInOrder() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    HttpRequest initialRequest =
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.setInitialRequest(initialRequest);
+    DefaultHttpContent chunk1 = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    DefaultHttpContent chunk2 = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
+    connection.write(chunk1);
+    connection.write(chunk2);
+
+    connection.connectionSucceeded(clientConnection, true);
+    serverChannel.runPendingTasks();
+
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(initialRequest);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(chunk1);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(chunk2);
+    assertThat((Object) serverChannel.readOutbound()).isNull();
+
+    // Each chunk carries one reference from the test and one retained by write(); the initial
+    // request is not reference counted.
+    chunk1.release();
+    chunk1.release();
+    chunk2.release();
+    chunk2.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a write racing connectionSucceeded is ordered after the initial request and chunks")
+  void concurrentWriteDuringConnectionSucceededIsOrderedCorrectly() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    HttpRequest initialRequest =
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.setInitialRequest(initialRequest);
+    DefaultHttpContent queuedChunk = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    connection.write(queuedChunk);
+
+    // connectionSucceeded() resumes reading before it writes the initial request and flushes the
+    // queued chunk. Simulate a chunk read at exactly that point, on another thread.
+    CountDownLatch insideSucceeded = new CountDownLatch(1);
+    CountDownLatch writerReady = new CountDownLatch(1);
+    doAnswer(
+            invocation -> {
+              insideSucceeded.countDown();
+              writerReady.await(5, TimeUnit.SECONDS);
+              // Give a write that (wrongly) skipped connectLock time to run ahead.
+              Thread.sleep(200);
+              return null;
+            })
+        .when(clientConnection)
+        .serverConnectionSucceeded(any(), anyBoolean());
+
+    Thread succeededThread =
+        new Thread(() -> connection.connectionSucceeded(clientConnection, true), "succeeded");
+    succeededThread.start();
+    assertThat(insideSucceeded.await(5, TimeUnit.SECONDS)).isTrue();
+
+    DefaultHttpContent racingChunk = new DefaultHttpContent(Unpooled.buffer(1).writeByte(2));
+    Thread writer =
+        new Thread(
+            () -> {
+              writerReady.countDown();
+              connection.write(racingChunk);
+            },
+            "racing-writer");
+    writer.start();
+
+    succeededThread.join(5000);
+    writer.join(5000);
+    serverChannel.runPendingTasks();
+
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(initialRequest);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(queuedChunk);
+    assertThat((Object) serverChannel.readOutbound()).isSameAs(racingChunk);
+    assertThat((Object) serverChannel.readOutbound()).isNull();
+
+    queuedChunk.release();
+    queuedChunk.release();
+    racingChunk.release();
+    racingChunk.release();
+    serverChannel.finishAndReleaseAll();
+  }
+}

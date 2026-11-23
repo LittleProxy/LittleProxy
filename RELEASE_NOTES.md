@@ -1,6 +1,7 @@
 # Release Notes
 
 - 2.11.0 (TBD, https://github.com/LittleProxy/LittleProxy/milestone/55?closed=1)
+  - #827 don't block the Netty event loop while an upstream connection is being established; buffer writes until the connection is ready
   - Bump Selenium from 4.53.0 to 4.54.0 (#851)
   - TBD
 

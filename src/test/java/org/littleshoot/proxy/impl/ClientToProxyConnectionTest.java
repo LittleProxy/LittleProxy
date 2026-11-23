@@ -2,19 +2,33 @@ package org.littleshoot.proxy.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.ReferenceCounted;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ActivityTracker;
+import org.littleshoot.proxy.HostResolver;
+import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.HttpFiltersSource;
 
 class ClientToProxyConnectionTest {
@@ -57,6 +71,129 @@ class ClientToProxyConnectionTest {
     connection.disconnected();
 
     verify(normalTracker).clientDisconnected(connection.flowContext(), null);
+  }
+
+  @Test
+  @DisplayName("client disconnect drains its queued writes on a pooled connection")
+  void clientDisconnectDrainsQueuedWritesOnPooledConnection() throws Exception {
+    ClientToProxyConnection client = createConnection();
+    client.channel = new EmbeddedChannel();
+    ProxyToServerConnection pooled = createPooledConnection(client);
+    // Mid-CONNECT: the write is queued, and the connection is not in
+    // serverConnectionsByHostAndPort because it is pooled.
+    pooled.become(ConnectionState.NEGOTIATING_CONNECT);
+    client.setCurrentServerConnection(pooled);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = pooled.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    client.disconnected();
+
+    assertThat(deferred.isDone())
+        .as("the client's queued write must be failed when the client disconnects")
+        .isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    content.release();
+  }
+
+  @Test
+  @DisplayName("client A's disconnect keeps client B's queued writes on a shared pooled connection")
+  void clientDisconnectKeepsOtherClientsQueuedWritesOnSharedPooledConnection() throws Exception {
+    when(proxyServer.isPoolSharedMitmConnections()).thenReturn(true);
+    ClientToProxyConnection clientA = createConnection();
+    clientA.channel = new EmbeddedChannel();
+    // A shared pooled MITM connection is tracked in the disconnecting client's map, exactly like a
+    // CONNECT that created it there in readHTTPInitial.
+    ProxyToServerConnection shared = createPooledConnection(clientA);
+    shared.become(ConnectionState.NEGOTIATING_CONNECT);
+    clientA.trackServerConnection("localhost:8080", shared);
+    clientA.setCurrentServerConnection(shared);
+
+    // Client B borrows the still-connecting connection; its write is deferred.
+    ClientToProxyConnection clientB = createConnection();
+    clientB.channel = new EmbeddedChannel();
+    shared.setCurrentClientConnectionForRequest(clientB);
+    DefaultHttpContent contentB = new DefaultHttpContent(Unpooled.buffer(4).writeInt(2));
+    ChannelFuture futureB = shared.write(contentB);
+    assertThat(futureB.isDone()).isFalse();
+
+    clientA.disconnected();
+
+    assertThat(futureB.isDone())
+        .as("a pooled connection that survives the client must keep another client's queued writes")
+        .isFalse();
+
+    shared.failPendingWrites(null);
+    contentB.release();
+  }
+
+  @Test
+  @DisplayName("flow completion resumes both the owning client and the borrowing client")
+  void flowCompletionResumesOwningAndBorrowingClient() throws Exception {
+    // Client A started the connection flow on its pooled connection.
+    ClientToProxyConnection clientA = createConnection();
+    clientA.channel = new EmbeddedChannel();
+    ProxyToServerConnection connection = createPooledConnection(clientA);
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+    HttpRequest initialRequest =
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.setInitialRequest(initialRequest);
+    ConnectionFlow flow = new ConnectionFlow(clientA, connection, new Object());
+    connection.setConnectionFlow(flow);
+    // What ConnectionFlow.start() does for the client that started the flow.
+    clientA.serverConnectionFlowStarted(connection);
+    assertThat(clientA.channel.config().isAutoRead()).isFalse();
+
+    // Client B borrows the connecting connection; its write is deferred, not sent.
+    ClientToProxyConnection clientB = createConnection();
+    clientB.channel = new EmbeddedChannel();
+    connection.setCurrentClientConnectionForRequest(clientB);
+    DefaultHttpContent contentB = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture futureB = connection.write(contentB);
+    assertThat(futureB.isDone()).isFalse();
+    assertThat(clientB.channel.config().isAutoRead()).isFalse();
+
+    // The flow completes successfully (ConnectionFlow.succeed()).
+    flow.succeed();
+    serverChannel.runPendingTasks();
+
+    assertThat(futureB.isSuccess()).isTrue();
+    assertThat(clientA.channel.config().isAutoRead())
+        .as("the client that started the flow must resume reading")
+        .isTrue();
+    assertThat(clientB.channel.config().isAutoRead())
+        .as("the client whose write was deferred must resume reading once it is written")
+        .isTrue();
+
+    Object outbound = serverChannel.readOutbound();
+    assertThat(outbound).isSameAs(initialRequest);
+    Object outboundChunk = serverChannel.readOutbound();
+    ((ReferenceCounted) outboundChunk).release();
+    contentB.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  private ProxyToServerConnection createPooledConnection(ClientToProxyConnection client)
+      throws UnknownHostException {
+    HostResolver hostResolver = mock();
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt()))
+        .thenReturn(new InetSocketAddress("127.0.0.1", 8080));
+    return ProxyToServerConnection.createForPool(
+        proxyServer,
+        mock(ServerConnectionPool.class),
+        client,
+        "localhost:8080",
+        null,
+        mock(HttpFilters.class),
+        mock(HttpRequest.class),
+        null);
   }
 
   @Test

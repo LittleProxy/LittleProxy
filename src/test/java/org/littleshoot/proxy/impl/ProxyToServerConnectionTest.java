@@ -3,6 +3,8 @@ package org.littleshoot.proxy.impl;
 import static java.util.Locale.ROOT;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -12,12 +14,30 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.proxy.ProxyConnectException;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
+import io.netty.util.ReferenceCountUtil;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.RejectedExecutionException;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
@@ -68,6 +88,205 @@ final class ProxyToServerConnectionTest {
     return requireNonNull(
         ProxyToServerConnection.create(
             proxyServer, clientConnection, "localhost:8080", filters, null, trafficHandler));
+  }
+
+  @Test
+  @DisplayName("createForPool returns null when the chained proxy manager has no proxies")
+  void createForPoolReturnsNullWhenNoChainedProxies() throws Exception {
+    ChainedProxyManager manager = mock();
+    when(proxyServer.getChainProxyManager()).thenReturn(manager);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+
+    ProxyToServerConnection connection =
+        ProxyToServerConnection.createForPool(
+            proxyServer,
+            mock(ServerConnectionPool.class),
+            clientConnection,
+            "localhost:8080",
+            null,
+            filters,
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+            trafficHandler);
+
+    assertThat(connection).isNull();
+  }
+
+  @Test
+  @DisplayName("createForPool keeps a resolved chained proxy even when the manager returns none")
+  void createForPoolKeepsResolvedChainedProxy() throws Exception {
+    ChainedProxyManager manager = mock();
+    when(proxyServer.getChainProxyManager()).thenReturn(manager);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+
+    ProxyToServerConnection connection =
+        ProxyToServerConnection.createForPool(
+            proxyServer,
+            mock(ServerConnectionPool.class),
+            clientConnection,
+            "localhost:8080",
+            chainedProxy,
+            filters,
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+            trafficHandler);
+
+    assertThat(connection).isNotNull();
+    assertThat(connection.getRemoteAddress()).isEqualTo(hostAddress);
+  }
+
+  @Test
+  @DisplayName("switchToWebSocketProtocol replaces the main handler with the pipe handler")
+  void switchToWebSocketProtocolReplacesMainHandler() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+    EmbeddedChannel channel = new EmbeddedChannel();
+    channel.pipeline().addLast("handler", new ChannelInboundHandlerAdapter());
+    connection.channel = channel;
+
+    connection.switchToWebSocketProtocol();
+
+    assertThat(channel.pipeline().get("handler")).isNull();
+    assertThat(channel.pipeline().get("pipe-to-client")).isNotNull();
+    channel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("isAvailableForNewRequest is true for a connected idle connection")
+  void isAvailableForNewRequestIsTrueWhenConnectedAndIdle() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+
+    assertThat(connection.isAvailableForNewRequest()).isTrue();
+  }
+
+  @Test
+  @DisplayName("isManagedByPool reflects whether the connection was created for a pool")
+  void isManagedByPoolReflectsThePool() throws Exception {
+    ProxyToServerConnection direct = createConnection();
+    assertThat(direct.isManagedByPool()).isFalse();
+
+    ProxyToServerConnection pooled =
+        ProxyToServerConnection.createForPool(
+            proxyServer,
+            mock(ServerConnectionPool.class),
+            clientConnection,
+            "localhost:8080",
+            null,
+            filters,
+            mock(HttpRequest.class),
+            trafficHandler);
+    assertThat(pooled).isNotNull();
+    assertThat(pooled.isManagedByPool()).isTrue();
+  }
+
+  @Test
+  @DisplayName("an idle timeout on an established connection notifies the client")
+  void timedOutWhenNotConnectingNotifiesClient() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+
+    connection.timedOut();
+
+    verify(clientConnection).timedOut(connection);
+  }
+
+  @Test
+  @DisplayName("switchToWebSocketProtocol enables tunneling without a main handler")
+  void switchToWebSocketProtocolWithoutMainHandlerEnablesTunneling() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel channel = new EmbeddedChannel();
+    connection.channel = channel;
+
+    connection.switchToWebSocketProtocol();
+
+    assertThat(connection.isTunneling()).isTrue();
+    channel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("isConnected covers every connected state")
+  void isConnectedCoversEveryConnectedState() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    for (ConnectionState state :
+        List.of(
+            ConnectionState.AWAITING_CHUNK,
+            ConnectionState.AWAITING_CONNECT_OK,
+            ConnectionState.AWAITING_INITIAL,
+            ConnectionState.NEGOTIATING_CONNECT)) {
+      connection.become(state);
+      assertThat(connection.isConnected()).as("state %s must be connected", state).isTrue();
+    }
+
+    connection.become(ConnectionState.CONNECTING);
+    assertThat(connection.isConnected()).isFalse();
+    assertThat(connection.isAvailableForNewRequest()).isFalse();
+  }
+
+  @Test
+  @DisplayName("a ProxyConnectException fails the connection flow")
+  void proxyConnectExceptionFailsFlow() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+
+    ProxyConnectException cause = new ProxyConnectException("proxy refused");
+    connection.exceptionCaught(cause);
+
+    verify(flow).fail(cause);
+    verify(clientConnection)
+        .serverConnectionFailed(connection, ConnectionState.AWAITING_INITIAL, cause);
+  }
+
+  @Test
+  @DisplayName("an IOException is reported without failing the flow directly")
+  void ioExceptionDoesNotFailFlowDirectly() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+
+    IOException cause = new IOException("upstream reset");
+    connection.exceptionCaught(cause);
+
+    verify(flow, never()).fail(cause);
+    verify(clientConnection)
+        .serverConnectionFailed(connection, ConnectionState.AWAITING_INITIAL, cause);
+  }
+
+  @Test
+  @DisplayName("a RejectedExecutionException is reported without failing the flow directly")
+  void rejectedExecutionExceptionDoesNotFailFlowDirectly() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+
+    RejectedExecutionException cause = new RejectedExecutionException("shutting down");
+    connection.exceptionCaught(cause);
+
+    verify(flow, never()).fail(cause);
+    verify(clientConnection)
+        .serverConnectionFailed(connection, ConnectionState.AWAITING_INITIAL, cause);
+  }
+
+  @Test
+  @DisplayName("an unexpected exception is reported without failing the flow directly")
+  void unexpectedExceptionDoesNotFailFlowDirectly() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+
+    RuntimeException cause = new RuntimeException("unexpected");
+    connection.exceptionCaught(cause);
+
+    verify(flow, never()).fail(cause);
+    verify(clientConnection)
+        .serverConnectionFailed(connection, ConnectionState.AWAITING_INITIAL, cause);
   }
 
   @Test
@@ -221,6 +440,191 @@ final class ProxyToServerConnectionTest {
     verify(succeedingTracker).connectionExceptionCaught(fullFlowContext, cause);
   }
 
+  @Test
+  @DisplayName("a saturated server connection notifies its client")
+  void becameSaturatedNotifiesClient() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+
+    connection.becameSaturated();
+
+    verify(clientConnection).serverBecameSaturated(connection);
+  }
+
+  @Test
+  @DisplayName("a writable server connection notifies its client")
+  void becameWritableNotifiesClient() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+
+    connection.becameWritable();
+
+    verify(clientConnection).serverBecameWriteable(connection);
+  }
+
+  @Test
+  @DisplayName("a connection with a request in flight is not available for a new request")
+  void isAvailableForNewRequestIsFalseWhileRequestInFlight() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+    EmbeddedChannel channel = new EmbeddedChannel();
+    connection.channel = channel;
+
+    connection.writeHttp(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+
+    assertThat(connection.isAvailableForNewRequest()).isFalse();
+    channel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a throwing chained-proxy connectionSucceeded callback does not escape")
+  void throwingChainedProxyConnectionSucceededDoesNotEscape() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(proxyAddress);
+    doThrow(new IllegalStateException("tracker failed")).when(chainedProxy).connectionSucceeded();
+    ProxyToServerConnection connection = createConnectionWithChainedProxy(chainedProxy);
+    connection.become(ConnectionState.CONNECTING);
+
+    assertThatCode(() -> connection.connectionSucceeded(clientConnection, false))
+        .doesNotThrowAnyException();
+    verify(clientConnection).serverConnectionSucceeded(connection, false);
+  }
+
+  @Test
+  @DisplayName("addressFor rejects an unparseable host and port")
+  void addressForRejectsUnparseableHostAndPort() {
+    assertThatThrownBy(
+            () -> ProxyToServerConnection.addressFor("example.com:notaport", proxyServer))
+        .isInstanceOf(UnknownHostException.class);
+  }
+
+  @Test
+  @DisplayName("a filter that rejects the upstream response fails the queued writes")
+  void filterRejectingUpstreamResponseFailsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    clientConnection.channel = new EmbeddedChannel();
+    connection.become(ConnectionState.CONNECTING);
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+    when(filters.serverToProxyResponse(any())).thenReturn(null);
+
+    connection.read(new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK));
+
+    assertThat(deferred.isDone()).as("the queued write must be failed").isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(connection.getCurrentState()).isEqualTo(ConnectionState.DISCONNECT_REQUESTED);
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    content.release();
+  }
+
+  @Test
+  @DisplayName("a queued write whose dispatch throws is failed instead of left pending")
+  void flushPendingWritesFailsWhenDispatchThrows() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    clientConnection.channel = new EmbeddedChannel();
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+    connection.become(ConnectionState.CONNECTING);
+    ChannelFuture deferred = connection.write("not a Netty message");
+    assertThat(deferred.isDone()).isFalse();
+
+    connection.connectionSucceeded(clientConnection, false);
+
+    assertThat(deferred.isDone()).as("the queued write must be failed").isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(deferred.cause()).isInstanceOf(ClassCastException.class);
+  }
+
+  @Test
+  @DisplayName("the transport protocol and filters are exposed for the connection")
+  void exposesTransportProtocolAndFilters() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+
+    assertThat(connection.getTransportProtocol()).isEqualTo(TransportProtocol.TCP);
+    assertThat(connection.getHttpFiltersFromProxyServer(mock(HttpRequest.class))).isSameAs(filters);
+  }
+
+  @Test
+  @DisplayName("createForPool polls the first chained proxy when none is resolved")
+  void createForPoolPollsTheFirstChainedProxyWhenNoneIsResolved() throws Exception {
+    ChainedProxyManager manager = mock();
+    when(proxyServer.getChainProxyManager()).thenReturn(manager);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    doAnswer(
+            invocation -> {
+              invocation.<Queue<ChainedProxy>>getArgument(1).add(chainedProxy);
+              return null;
+            })
+        .when(manager)
+        .lookupChainedProxies(any(), any(), any());
+
+    ProxyToServerConnection connection =
+        ProxyToServerConnection.createForPool(
+            proxyServer,
+            mock(ServerConnectionPool.class),
+            clientConnection,
+            "localhost:8080",
+            null,
+            filters,
+            mock(HttpRequest.class),
+            trafficHandler);
+
+    assertThat(connection).isNotNull();
+    assertThat(connection.getChainedProxy()).isSameAs(chainedProxy);
+  }
+
+  @Test
+  @DisplayName("flushPendingWrites fails the promise when the write future fails")
+  void flushPendingWritesFailsPromiseWhenTheWriteFutureFails() throws Exception {
+    EmbeddedChannel channel = new EmbeddedChannel();
+    channel
+        .pipeline()
+        .addFirst(
+            new ChannelOutboundHandlerAdapter() {
+              @Override
+              public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+                ReferenceCountUtil.release(msg);
+                promise.setFailure(new IllegalStateException("write rejected"));
+              }
+            });
+    ProxyToServerConnection connection = createConnection();
+    connection.channel = channel;
+    clientConnection.channel = new EmbeddedChannel();
+    when(clientConnection.getCurrentState()).thenReturn(ConnectionState.AWAITING_INITIAL);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture result = connection.write(content);
+    assertThat(result.isDone()).isFalse();
+
+    connection.connectionSucceeded(clientConnection, false);
+
+    assertThat(result.isDone()).isTrue();
+    assertThat(result.isSuccess()).isFalse();
+    assertThat(result.cause()).hasMessage("write rejected");
+
+    content.release();
+    channel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a throwing chained proxy disconnected callback does not escape")
+  void throwingChainedProxyDisconnectedDoesNotEscape() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    doThrow(new RuntimeException("tracker failed")).when(chainedProxy).disconnected();
+    ProxyToServerConnection connection = createConnectionWithChainedProxy(chainedProxy);
+    connection.become(ConnectionState.CONNECTING);
+
+    assertThatCode(connection::disconnected).doesNotThrowAnyException();
+  }
+
   private ProxyToServerConnection createConnectionWithChainedProxy(ChainedProxy chainedProxy)
       throws UnknownHostException {
     ChainedProxyManager chainedProxyManager = mock();
@@ -296,6 +700,14 @@ final class ProxyToServerConnectionTest {
       ProxyToServerConnection connection = createConnection();
 
       assertThat(connection.shouldRetryWithoutSsl(new RuntimeException("some error"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("should return false for SSL exceptions without a message")
+    void returnsFalse_forSslExceptionWithoutMessage() throws Exception {
+      ProxyToServerConnection connection = createConnection();
+
+      assertThat(connection.shouldRetryWithoutSsl(new SSLException((String) null))).isFalse();
     }
 
     @Test
