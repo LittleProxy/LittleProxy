@@ -32,8 +32,12 @@ import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
 public class TestUtils {
 
+  /**
+   * Fails a request whose response stalls instead of letting it hang until the CI step times out.
+   * The socket timeout limits the time between two packets, not the whole request.
+   */
   public static final RequestConfig REQUEST_TIMEOUT_CONFIG =
-      RequestConfig.custom().setConnectTimeout(5000).build();
+      RequestConfig.custom().setConnectTimeout(5000).setSocketTimeout(30_000).build();
 
   private TestUtils() {}
 
