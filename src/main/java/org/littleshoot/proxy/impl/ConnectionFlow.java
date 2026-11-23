@@ -164,11 +164,14 @@ class ConnectionFlow {
   /**
    * Does the work of processing the given step, checking the result and handling success/failure.
    *
-   * <p>The settlement check, the state transition and the reservation of the step happen atomically
-   * under {@link #settlementLock}. A settlement claimed after that reservation is deferred until
-   * {@code execute()} returns (see {@link #deferredSettlement}), so the step cannot act on a
-   * connection that a retry has rebound, and a step that arrives after the claim neither starts nor
-   * changes the connection's state. No lock is held while {@code execute()} runs.
+   * <p>The settlement check and the reservation of the step happen atomically under {@link
+   * #settlementLock}. A settlement claimed after that reservation is deferred until {@code
+   * execute()} returns (see {@link #deferredSettlement}), so the step cannot act on a connection
+   * that a retry has rebound, cannot have its state transition overwritten by a concurrent retry,
+   * and a step that arrives after the claim neither starts nor changes the connection's state. The
+   * transition itself runs outside the lock because {@link ProxyConnection#become} reports it to
+   * user-supplied filters; the reservation makes it safe from a concurrent settlement. No lock is
+   * held while {@code execute()} runs.
    */
   private void doProcessCurrentStep(
       final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
@@ -178,13 +181,17 @@ class ConnectionFlow {
         LOG.debug("Skipping step of a settled connection flow: {}", step);
         return;
       }
-      connection.become(step.getState());
-      suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
       stepStarting = true;
     }
 
     final Future<?> stepFuture;
     try {
+      // Applied after the reservation and outside the lock: become() reports the transition to
+      // user-supplied HttpFilters, which must not run while holding settlementLock. A settlement
+      // claimed from here on is deferred until execute() returns, so it cannot change the state
+      // underneath this transition.
+      connection.become(step.getState());
+      suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
       stepFuture = step.execute();
     } finally {
       final Runnable settlement;

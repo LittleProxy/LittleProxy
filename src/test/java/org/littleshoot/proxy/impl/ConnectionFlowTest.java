@@ -212,6 +212,71 @@ final class ConnectionFlowTest {
   }
 
   @Test
+  @DisplayName("a state transition does not block settlement")
+  void stateTransitionDoesNotBlockSettlement() throws Exception {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(stepConnection.getLOG()).thenReturn(logger);
+    AtomicBoolean becomeReturned = new AtomicBoolean();
+    AtomicBoolean tornDownWhileChangingState = new AtomicBoolean();
+    when(serverConnection.disconnect())
+        .thenAnswer(
+            invocation -> {
+              if (!becomeReturned.get()) {
+                tornDownWhileChangingState.set(true);
+              }
+              return channel.newPromise();
+            });
+
+    CountDownLatch becomeStarted = new CountDownLatch(1);
+    CountDownLatch releaseBecome = new CountDownLatch(1);
+    // become() reports the transition to user-supplied HttpFilters, so it must not run under the
+    // settlement lock: a slow filter must not delay a concurrent failure.
+    doAnswer(
+            invocation -> {
+              becomeStarted.countDown();
+              try {
+                releaseBecome.await();
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted while changing state", e);
+              }
+              becomeReturned.set(true);
+              return null;
+            })
+        .when(stepConnection)
+        .become(any());
+
+    RecordingStep step = new RecordingStep(stepConnection, channel.newPromise());
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+
+    Thread dispatcher = new Thread(flow::start, "flow-state-dispatcher");
+    dispatcher.start();
+    try {
+      assertThat(becomeStarted.await(5, TimeUnit.SECONDS))
+          .as("the state transition must have started")
+          .isTrue();
+
+      Thread settler =
+          new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
+      settler.start();
+      settler.join(5000);
+      assertThat(settler.isAlive()).as("settlement must not wait for a state transition").isFalse();
+      assertThat(tornDownWhileChangingState)
+          .as("the retry must be deferred until the step has started")
+          .isFalse();
+      verify(serverConnection, never()).disconnect();
+    } finally {
+      releaseBecome.countDown();
+    }
+
+    dispatcher.join(5000);
+    assertThat(dispatcher.isAlive()).as("the state transition must complete").isFalse();
+    assertThat(step.executeCount()).isEqualTo(1);
+    verify(serverConnection).disconnect();
+  }
+
+  @Test
   @DisplayName("a flow with no steps succeeds once and ignores later settlement")
   void emptyFlowSettlesOnce() {
     when(serverConnection.getLOG()).thenReturn(logger);
