@@ -217,6 +217,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   }
 
   /**
+   * Seeds the filters captured for the initial request. Package-private so tests can drive a {@link
+   * #connectionFailed(Throwable)} retry without a full request round-trip.
+   */
+  void setInitialRequestFilters(@Nullable HttpFilters filters) {
+    this.initialRequestFilters = filters;
+  }
+
+  /**
    * Seeds the connection flow. Package-private so tests can exercise {@link #disconnected()}
    * without driving a real {@code Bootstrap} connect.
    */
@@ -457,6 +465,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         if (filteredHttpObject == null) {
           LOG.debug("Filter returned null, forcing disconnect");
           become(DISCONNECT_REQUESTED);
+          // Terminate the attempt explicitly. DISCONNECT_REQUESTED is not a connecting state, so a
+          // later disconnected() will not settle the flow, and nothing else would ever release the
+          // writes queued while connecting (nor the read-gate holds they took).
+          ConnectionFlow flow = connectionFlow;
+          if (flow != null) {
+            flow.fail(new IOException("Filter rejected the upstream response while connecting"));
+          } else {
+            failPendingWrites(new IOException("Filter rejected the upstream response"));
+          }
           return;
         }
 
@@ -1697,6 +1714,15 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // Clear cached flow context so that setupConnectionParameters() creates a fresh one
     clientConnection.clearFlowContextForServerConnection(this);
 
+    // A pipelined request can replace currentFilters while this connection is still being
+    // established (see write(Object, HttpFilters)); every callback of this retry belongs to the
+    // request being retried, so resolve and reconnect with the filters captured when it was
+    // written. The constructor has captured no request yet and keeps the filters it was built
+    // with.
+    if (initialRequestFilters != null) {
+      currentFilters = initialRequestFilters;
+    }
+
     // Remove ourselves as handler on the old context
     ctx.pipeline().remove(this);
     ctx.close();
@@ -1868,20 +1894,27 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    *     was still connecting.
    */
   void connectionSucceeded(ClientToProxyConnection flowOwner, boolean shouldForwardInitialRequest) {
-    // Hold connectLock for the whole method so that the initial request and the queued messages are
-    // written in order, with no concurrent write() slipping in between (see flushPendingWrites()).
-    // ConnectionFlow.succeed() already holds this lock; taking it here covers direct callers too.
+    // Notify the ChainedProxy and the flow owner before taking connectLock: both are callbacks into
+    // code we do not control, and holding the lock across them would stall every client whose chunk
+    // is racing this connection's setup in write().
+    if (chainedProxy != null) {
+      // Notify the ChainedProxy that we successfully connected
+      try {
+        chainedProxy.connectionSucceeded();
+      } catch (Exception e) {
+        LOG.error("Unable to record connectionSucceeded", e);
+      }
+    }
+    // The flow owner only resumes reading here; a message it reads from now on is queued by write()
+    // and flushed below, still behind the initial request.
+    flowOwner.serverConnectionSucceeded(this, shouldForwardInitialRequest);
+
+    // Hold connectLock only for the ordered write section. become(AWAITING_INITIAL) must be inside
+    // it: write() decides between queueing and writing directly by reading this state under the
+    // same
+    // lock, so a racing chunk either queues here or is written after the flush below.
     synchronized (connectLock) {
       become(AWAITING_INITIAL);
-      if (chainedProxy != null) {
-        // Notify the ChainedProxy that we successfully connected
-        try {
-          chainedProxy.connectionSucceeded();
-        } catch (Exception e) {
-          LOG.error("Unable to record connectionSucceeded", e);
-        }
-      }
-      flowOwner.serverConnectionSucceeded(this, shouldForwardInitialRequest);
 
       if (shouldForwardInitialRequest) {
         LOG.debug("Writing initial request: {}", initialRequest);
@@ -1890,7 +1923,28 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         if (initialRequestFilters != null) {
           currentFilters = initialRequestFilters;
         }
-        write(initialRequest);
+        try {
+          write(initialRequest);
+        } catch (Throwable t) {
+          // The request never reached the channel. The flow has already settled and the connection
+          // is already AWAITING_INITIAL, so no connecting-state cleanup will run for it: without
+          // this, the messages queued while connecting keep their buffers and their read-gate holds
+          // forever, and the client that queued them stays paused.
+          LOG.error("Unable to write the initial request to the upstream server", t);
+          if (initialRequest instanceof ReferenceCounted) {
+            ReferenceCounted request = (ReferenceCounted) initialRequest;
+            // write(Object) retained the request for the channel write that did not happen. Never
+            // drop the last reference: resetInitialRequest() below releases the request's own one
+            // (and a rejected channel write already releases the message it was handed).
+            if (request.refCnt() > 1) {
+              request.release();
+            }
+          }
+          resetInitialRequest();
+          failPendingWrites(t);
+          disconnect();
+          return;
+        }
       } else {
         LOG.debug("Dropping initial request: {}", initialRequest);
       }

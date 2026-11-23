@@ -232,9 +232,28 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   /** Writes HttpObjects to the connection asynchronously. */
   protected ChannelFuture writeHttp(HttpObject httpObject) {
     if (ProxyUtils.isLastChunk(httpObject)) {
-      channel.write(httpObject);
+      // Keep the empty buffer that flushes the chunked transfer, but report the content's own write
+      // as well: the marker only flushes, so an outbound handler that rejects the content while
+      // accepting the marker would otherwise be reported to our callers as a successful write.
+      ChannelFuture contentFuture = channel.write(httpObject);
       LOG.debug("Writing an empty buffer to signal the end of our chunked transfer");
-      return writeToChannel(Unpooled.EMPTY_BUFFER);
+      ChannelFuture flushFuture = writeToChannel(Unpooled.EMPTY_BUFFER);
+      ChannelPromise result = channel.newPromise();
+      contentFuture.addListener(
+          future -> {
+            if (!future.isSuccess()) {
+              result.tryFailure(future.cause());
+            }
+          });
+      flushFuture.addListener(
+          future -> {
+            if (future.isSuccess()) {
+              result.trySuccess(null);
+            } else {
+              result.tryFailure(future.cause());
+            }
+          });
+      return result;
     } else {
       return writeToChannel(httpObject);
     }

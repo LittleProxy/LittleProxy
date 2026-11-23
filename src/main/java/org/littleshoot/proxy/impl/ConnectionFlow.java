@@ -127,12 +127,16 @@ class ConnectionFlow {
         .execute()
         .addListener(
             future -> {
-              synchronized (connectLock) {
-                if (future.isSuccess()) {
-                  LOG.debug("ConnectionFlowStep succeeded");
-                  currentStep.onSuccess(ConnectionFlow.this);
-                } else {
-                  LOG.debug("ConnectionFlowStep failed", future.cause());
+              if (future.isSuccess()) {
+                LOG.debug("ConnectionFlowStep succeeded");
+                // Deliberately not under connectLock: onSuccess() normally advances straight into
+                // succeed(), and the resulting connectionSucceeded() runs user callbacks
+                // (ChainedProxy, HttpFilters) that must not be able to stall write() callers. The
+                // ordering-critical part takes connectLock itself, inside connectionSucceeded().
+                currentStep.onSuccess(ConnectionFlow.this);
+              } else {
+                LOG.debug("ConnectionFlowStep failed", future.cause());
+                synchronized (connectLock) {
                   fail(future.cause());
                 }
               }
@@ -154,10 +158,8 @@ class ConnectionFlow {
       serverConnection.getLOG().debug("Ignoring repeated completion of connection flow");
       return;
     }
-    synchronized (connectLock) {
-      serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
-      serverConnection.connectionSucceeded(clientConnection, !suppressInitialRequest);
-    }
+    serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
+    serverConnection.connectionSucceeded(clientConnection, !suppressInitialRequest);
   }
 
   /**
