@@ -210,10 +210,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   /**
    * Seeds the initial request. Package-private so tests can exercise {@link
-   * #connectionSucceeded(boolean)} without driving a real connection flow.
+   * #connectionSucceeded(ClientToProxyConnection, boolean)} without driving a real connection flow.
    */
   void setInitialRequest(@Nullable HttpRequest initialRequest) {
     this.initialRequest = initialRequest;
+  }
+
+  /**
+   * Seeds the connection flow. Package-private so tests can exercise {@link #disconnected()}
+   * without driving a real {@code Bootstrap} connect.
+   */
+  void setConnectionFlow(@Nullable ConnectionFlow connectionFlow) {
+    this.connectionFlow = connectionFlow;
   }
 
   /**
@@ -611,11 +619,16 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         if (isConnecting()) {
           LOG.debug(
               "Attempted to write while still in the process of connecting, deferring until connected.");
-          getClientConnection().stopReading();
           // Do not block the calling event-loop thread waiting for the connection to be
           // established (issue #827). Queue the message and complete its promise when the
           // connection flow succeeds (flushPendingWrites) or fails (failPendingWrites).
           ClientToProxyConnection client = getClientConnection();
+          // Stop reading from the client that queued this message and take one read-gate hold on
+          // it, released exactly once when the message is flushed, dropped or failed. The client
+          // that queues a message is not necessarily the client that started the connection flow:
+          // a pooled connection can be borrowed while it is still connecting, and then both
+          // clients must get their reads back.
+          client.deferredWriteQueued();
           ChannelPromise promise = client.channel.newPromise();
           pendingWrites.add(new PendingWrite(msg, promise, client, currentFilters));
           return promise;
@@ -651,16 +664,21 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * <p>Must be called while holding {@link #connectLock}: {@link ConnectionFlow#succeed()} does so,
    * and that lock is what keeps the initial request and the queued messages ahead of a concurrent
    * {@link #write(Object)} on an already-established connection. {@link
-   * #connectionSucceeded(boolean)} also takes the lock itself so direct callers are covered.
+   * #connectionSucceeded(ClientToProxyConnection, boolean)} also takes the lock itself so direct
+   * callers are covered.
    *
    * <p>A message whose originating client has since disconnected is dropped rather than sent
    * upstream. Shared-pool connections are not tracked in the client's {@code
    * serverConnectionsByHostAndPort}, so without this check a pooled connection that completes its
    * connection flow after the client is gone would flush that client's queued data.
+   *
+   * <p>Each queued message holds one read gate on its originating client (see {@link
+   * ClientToProxyConnection#deferredWriteQueued()}); this releases them once the queue is written.
    */
   void flushPendingWrites() {
     assert Thread.holdsLock(connectLock)
         : "flushPendingWrites must be called while holding connectLock to preserve ordering";
+    List<ClientToProxyConnection> readGatesToRelease = new ArrayList<>();
     PendingWrite pending;
     while ((pending = pendingWrites.poll()) != null) {
       final PendingWrite queued = pending;
@@ -669,28 +687,36 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         releasePendingWrite(queued);
         queued.promise.tryFailure(
             new Exception("Client disconnected before pending message could be written"));
-        continue;
+      } else {
+        try {
+          // Restore the per-request state captured at enqueue time so this write and its callbacks
+          // run against the originating client and filters, not whatever request came last.
+          currentFilters = queued.filters;
+          setCurrentClientConnectionForRequest(queued.clientConnection);
+          doWrite(queued.message)
+              .addListener(
+                  future -> {
+                    if (future.isSuccess()) {
+                      queued.promise.trySuccess(null);
+                    } else {
+                      queued.promise.tryFailure(future.cause());
+                    }
+                  });
+        } catch (Throwable t) {
+          // doWrite threw before taking ownership of the message; release the reference retained
+          // by write() so the buffer does not leak.
+          releasePendingWrite(queued);
+          queued.promise.tryFailure(t);
+        }
       }
-      try {
-        // Restore the per-request state captured at enqueue time so this write and its callbacks
-        // run against the originating client and filters, not whatever request came last.
-        currentFilters = queued.filters;
-        setCurrentClientConnectionForRequest(queued.clientConnection);
-        doWrite(queued.message)
-            .addListener(
-                future -> {
-                  if (future.isSuccess()) {
-                    queued.promise.trySuccess(null);
-                  } else {
-                    queued.promise.tryFailure(future.cause());
-                  }
-                });
-      } catch (Throwable t) {
-        // doWrite threw before taking ownership of the message; release the reference retained
-        // by write() so the buffer does not leak.
-        releasePendingWrite(queued);
-        queued.promise.tryFailure(t);
+      if (targetClient != null) {
+        readGatesToRelease.add(targetClient);
       }
+    }
+    // Release the holds only once the whole queue has been written: resuming reading can deliver
+    // more of the request, and those messages must not overtake the ones still queued above.
+    for (ClientToProxyConnection client : readGatesToRelease) {
+      client.deferredWriteFinished();
     }
   }
 
@@ -709,6 +735,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           releasePendingWrite(pending);
           pending.promise.tryFailure(
               new Exception("Client disconnected before pending message could be written"));
+          releaseReadGate(pending.clientConnection);
         }
       }
     }
@@ -718,6 +745,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private static void releasePendingWrite(PendingWrite pending) {
     if (pending.message instanceof ReferenceCounted) {
       ((ReferenceCounted) pending.message).release();
+    }
+  }
+
+  /** Releases one read-gate hold taken by {@link ClientToProxyConnection#deferredWriteQueued()}. */
+  private static void releaseReadGate(@Nullable ClientToProxyConnection client) {
+    if (client != null) {
+      client.deferredWriteFinished();
     }
   }
 
@@ -742,6 +776,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       while ((pending = pendingWrites.poll()) != null) {
         releasePendingWrite(pending);
         pending.promise.tryFailure(failure);
+        releaseReadGate(pending.clientConnection);
       }
     }
   }
@@ -844,17 +879,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // Capture this before super.disconnected() moves us to DISCONNECTED.
     boolean wasConnecting = isConnecting();
     super.disconnected();
-    if (wasConnecting) {
-      // The connection flow never completed, so nothing will ever flush the writes that were
-      // queued while connecting. Fail them now instead of leaving their promises unresolved and
-      // their buffers retained. This happens, for example, when a shared-pool connection is handed
-      // to another client while still negotiating CONNECT and the upstream then closes.
-      //
-      // The chained-proxy/SSL retry path is unaffected: resetConnectionForRetry() removes this
-      // handler from the pipeline before closing the old channel, so channelInactive (and thus
-      // this method) is not delivered for the abandoned channel and the queued writes survive.
-      failPendingWrites(new Exception("Upstream connection closed before it was established"));
-    }
     recordServerDisconnected();
     if (chainedProxy != null) {
       // Let the ChainedProxy know that we disconnected
@@ -874,6 +898,28 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     ClientToProxyConnection clientConn = getClientConnection();
     if (clientConn != null) {
       clientConn.serverDisconnected(this);
+    }
+    if (wasConnecting) {
+      // The flow never completed. Let it decide what happens next instead of draining here: a retry
+      // (the next chained proxy, a direct connection, or a second attempt without SNI or TLS) must
+      // keep the writes queued while connecting, otherwise the retried request is truncated. If the
+      // flow gives up, connectionFailedUnrecoverably() drains them for us.
+      //
+      // This path is reachable even when the flow itself closed the channel: ConnectionFlow.fail()
+      // closes first and only runs resetConnectionForRetry() (which removes this handler) from the
+      // close listener, so a channelInactive delivered before that removal arrives here with the
+      // flow still pending. ConnectionFlow.fail() is idempotent, so reporting the close is safe
+      // when the flow has already reported a failure of its own.
+      //
+      // Run this after this connection's own teardown above: a retry installs a new channel and
+      // context, and the rest of this method must not observe them.
+      ConnectionFlow flow = connectionFlow;
+      if (flow != null) {
+        flow.fail(new IOException("Upstream connection closed before it was established"));
+      } else {
+        // No flow was ever started, so nothing will flush or fail these writes.
+        failPendingWrites(new Exception("Upstream connection closed before it was established"));
+      }
     }
   }
 
@@ -1815,8 +1861,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    *
    * @param shouldForwardInitialRequest whether we should forward the initial HttpRequest to the
    *     server after the connection has been established.
+   * @param flowOwner the client that started this connection flow, i.e. the one whose reading
+   *     {@link ClientToProxyConnection#serverConnectionFlowStarted(ProxyToServerConnection)}
+   *     stopped and therefore the one that must be told the flow succeeded. This is not {@link
+   *     #getClientConnection()} when a pooled connection was borrowed by another client while it
+   *     was still connecting.
    */
-  void connectionSucceeded(boolean shouldForwardInitialRequest) {
+  void connectionSucceeded(ClientToProxyConnection flowOwner, boolean shouldForwardInitialRequest) {
     // Hold connectLock for the whole method so that the initial request and the queued messages are
     // written in order, with no concurrent write() slipping in between (see flushPendingWrites()).
     // ConnectionFlow.succeed() already holds this lock; taking it here covers direct callers too.
@@ -1830,7 +1881,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           LOG.error("Unable to record connectionSucceeded", e);
         }
       }
-      getClientConnection().serverConnectionSucceeded(this, shouldForwardInitialRequest);
+      flowOwner.serverConnectionSucceeded(this, shouldForwardInitialRequest);
 
       if (shouldForwardInitialRequest) {
         LOG.debug("Writing initial request: {}", initialRequest);

@@ -171,6 +171,37 @@ final class ProxyToServerConnectionWriteBlockingTest {
   }
 
   @Test
+  @DisplayName("a ConnectionFlow.fail() close keeps queued writes for the retry decision")
+  void flowFailureCloseBeforeRetryDecisionKeepsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    // Install the handler for real, so the close below is delivered through the pipeline.
+    serverChannel.pipeline().addLast(connection);
+    connection.become(ConnectionState.NEGOTIATING_CONNECT);
+    connection.setConnectionFlow(new ConnectionFlow(clientConnection, connection, new Object()));
+    // The client retries (e.g. with the next chained proxy) once it hears about the failure.
+    when(clientConnection.serverConnectionFailed(any(), any(), any())).thenReturn(true);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    // The real retry order: ConnectionFlow.fail() closes the channel first, while this handler is
+    // still in the pipeline -- on an EmbeddedChannel channelInactive fires synchronously inside
+    // close() -- and the retry decision runs only in the close listener.
+    serverChannel.close();
+    serverChannel.runPendingTasks();
+
+    assertThat(deferred.isDone())
+        .as("the queued write must survive the flow-failure close so the retry is not truncated")
+        .isFalse();
+
+    connection.failPendingWrites(null);
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
   @DisplayName("write() while CONNECTING must not block the calling thread")
   void writeWhileConnectingDoesNotBlockCaller() throws Exception {
     ProxyToServerConnection connection = createConnection();
@@ -218,7 +249,7 @@ final class ProxyToServerConnectionWriteBlockingTest {
     assertThat((Object) serverChannel.readOutbound()).isNull();
 
     // Simulate the connection flow completing successfully.
-    connection.connectionSucceeded(false);
+    connection.connectionSucceeded(clientConnection, false);
     serverChannel.runPendingTasks();
 
     assertThat(deferred.isSuccess()).as("deferred write future should succeed").isTrue();
@@ -252,7 +283,7 @@ final class ProxyToServerConnectionWriteBlockingTest {
     // connection that is not tracked in serverConnectionsByHostAndPort).
     when(clientConnection.getCurrentState()).thenReturn(ConnectionState.DISCONNECTED);
 
-    connection.connectionSucceeded(false);
+    connection.connectionSucceeded(clientConnection, false);
     serverChannel.runPendingTasks();
 
     assertThat(deferred.isDone()).isTrue();
@@ -315,7 +346,7 @@ final class ProxyToServerConnectionWriteBlockingTest {
     connection.write(chunk1);
     connection.write(chunk2);
 
-    connection.connectionSucceeded(true);
+    connection.connectionSucceeded(clientConnection, true);
     serverChannel.runPendingTasks();
 
     assertThat((Object) serverChannel.readOutbound()).isSameAs(initialRequest);
@@ -363,7 +394,8 @@ final class ProxyToServerConnectionWriteBlockingTest {
         .when(clientConnection)
         .serverConnectionSucceeded(any(), anyBoolean());
 
-    Thread succeededThread = new Thread(() -> connection.connectionSucceeded(true), "succeeded");
+    Thread succeededThread =
+        new Thread(() -> connection.connectionSucceeded(clientConnection, true), "succeeded");
     succeededThread.start();
     assertThat(insideSucceeded.await(5, TimeUnit.SECONDS)).isTrue();
 

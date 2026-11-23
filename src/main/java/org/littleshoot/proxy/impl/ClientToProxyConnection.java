@@ -109,8 +109,13 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   private final Map<String, ProxyToServerConnection> serverConnectionsByHostAndPort =
       new ConcurrentHashMap<>();
 
-  /** Keep track of how many servers are currently in the process of connecting. */
-  private final AtomicInteger numberOfCurrentlyConnectingServers = new AtomicInteger(0);
+  /**
+   * How many reasons this client's reads are currently paused: one per server connection whose
+   * connection flow is in progress, plus one per message queued on a connection that is still being
+   * established (see {@link #deferredWriteQueued()}). Reading resumes when this reaches zero, so
+   * every increment must be matched by exactly one {@link #resumeReadingIfNecessary()}.
+   */
+  private final AtomicInteger readGateHolds = new AtomicInteger(0);
 
   /** Keep track of proxy protocol header */
   @Nullable private volatile HAProxyMessage haProxyMessage;
@@ -130,6 +135,16 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
    */
   void setCurrentServerConnection(@Nullable ProxyToServerConnection serverConnection) {
     this.currentServerConnection = serverConnection;
+  }
+
+  /**
+   * Tracks a server connection for {@code serverHostAndPort} in {@code
+   * serverConnectionsByHostAndPort}. Package-private so tests can drive {@link #disconnected()}
+   * without a full request round-trip; production code only populates the map in {@code
+   * readHTTPInitial} (for non-pooled connections, and for CONNECT over a shared MITM pool).
+   */
+  void trackServerConnection(String serverHostAndPort, ProxyToServerConnection serverConnection) {
+    serverConnectionsByHostAndPort.put(serverHostAndPort, requireNonNull(serverConnection));
   }
 
   private final Map<ProxyToServerConnection, FullFlowContext> serverFlowContexts =
@@ -715,7 +730,9 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // A pooled connection is not tracked in serverConnectionsByHostAndPort, so drain this client's
     // queued writes explicitly before the connection can be handed to another client. The client
     // stops reading while a connection flow is in progress, so at most one connection can hold
-    // writes queued by this client.
+    // writes queued by this client. The current connection may also be tracked in
+    // serverConnectionsByHostAndPort below (non-pooled and CONNECT connections are), in which case
+    // it is drained a second time there; that is harmless because both drains are client-scoped.
     ProxyToServerConnection current = currentServerConnection;
     if (current != null) {
       current.failPendingWritesFor(this);
@@ -723,12 +740,21 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     boolean poolSharedMitm = proxyServer.isPoolSharedMitmConnections();
     boolean poolPerRequest = proxyServer.isPoolPerRequestInMitm();
     for (ProxyToServerConnection serverConnection : serverConnectionsByHostAndPort.values()) {
-      // Any messages queued while the server connection was still connecting can no longer be
-      // delivered once the client is gone; release them.
-      serverConnection.failPendingWrites(new Exception("Client disconnected"));
+      boolean survives = poolSharedMitm && !poolPerRequest && serverConnection.isManagedByPool();
+      if (survives) {
+        // The connection is released to the pool below, so it survives this client: only the writes
+        // queued by THIS client can be failed. Another client may have borrowed the connection
+        // while it was still connecting and queued writes on it; those must survive so that
+        // client's request is not truncated.
+        serverConnection.failPendingWritesFor(this);
+      } else {
+        // This connection dies with the client, so nothing queued on it can ever be written;
+        // release them all.
+        serverConnection.failPendingWrites(new Exception("Client disconnected"));
+      }
       // Phase 1: release pooled MITM connections back to the pool
       // Phase 2: connections are already in pool after each response, no release needed
-      if (poolSharedMitm && !poolPerRequest && serverConnection.isManagedByPool()) {
+      if (survives) {
         serverConnection.releaseToPool();
       } else {
         serverConnection.disconnect();
@@ -737,10 +763,16 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     recordClientDisconnected();
   }
 
-  /** Called when {@link ProxyToServerConnection} starts its connection flow. */
+  /**
+   * Called when this client starts waiting on a server connection's setup: either the connection's
+   * {@link ConnectionFlow} is starting, or one of this client's writes was deferred on the
+   * still-connecting connection ({@link ProxyToServerConnection#write(Object)}). Stops reading and
+   * counts the wait, so that reading resumes exactly when this client's last wait on a connecting
+   * server ends.
+   */
   protected void serverConnectionFlowStarted(ProxyToServerConnection serverConnection) {
     stopReading();
-    numberOfCurrentlyConnectingServers.incrementAndGet();
+    readGateHolds.incrementAndGet();
   }
 
   /**
@@ -825,9 +857,26 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     }
   }
 
+  /**
+   * Pauses reading from this client while a message it wrote is queued on a connection that is
+   * still being established, and takes one read-gate hold for it. Used for every client that queues
+   * a write, not only the one that started the connection flow: a pooled connection can be borrowed
+   * while it is still connecting, and each client's reads must balance on their own.
+   */
+  void deferredWriteQueued() {
+    stopReading();
+    readGateHolds.incrementAndGet();
+  }
+
+  /** Releases one hold taken by {@link #deferredWriteQueued()}. */
+  void deferredWriteFinished() {
+    resumeReadingIfNecessary();
+  }
+
+  /** Releases one hold on this client's reads, resuming them once none is left. */
   private void resumeReadingIfNecessary() {
-    if (numberOfCurrentlyConnectingServers.decrementAndGet() == 0) {
-      LOG.debug("All servers have finished attempting to connect, resuming reading from client.");
+    if (readGateHolds.decrementAndGet() == 0) {
+      LOG.debug("No connection setup is pending, resuming reading from client.");
       resumeReading();
     }
   }

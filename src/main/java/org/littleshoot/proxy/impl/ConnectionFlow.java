@@ -3,6 +3,7 @@ package org.littleshoot.proxy.impl;
 import io.netty.util.concurrent.Future;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Coordinates the various steps involved in establishing a connection, such as establishing a
@@ -18,14 +19,23 @@ class ConnectionFlow {
   private final Object connectLock;
 
   /**
+   * Set once this flow has reported success or failure to its client. A single attempt can be
+   * reported more than once: an idle timeout ({@code timedOut()}), a stale step-failure listener
+   * and an upstream close can all call {@link #fail(Throwable)} for the same attempt. Reporting
+   * twice would notify {@code serverConnectionFailed}/{@code serverConnectionSucceeded} twice,
+   * unbalancing the client's read gate and possibly starting a second retry on top of the first.
+   */
+  private final AtomicBoolean settled = new AtomicBoolean();
+
+  /**
    * Construct a new {@link ConnectionFlow} for the given client and server connections.
    *
    * @param clientConnection
    * @param serverConnection
    * @param connectLock an object shared by {@link ConnectionFlow} and {@link
    *     ProxyToServerConnection} that serializes connection-flow step completion, {@link
-   *     ProxyToServerConnection#connectionSucceeded(boolean)} and deferred writes. It is a mutual
-   *     exclusion lock, not a wait/notify monitor.
+   *     ProxyToServerConnection#connectionSucceeded(ClientToProxyConnection, boolean)} and deferred
+   *     writes. It is a mutual exclusion lock, not a wait/notify monitor.
    */
   ConnectionFlow(
       ClientToProxyConnection clientConnection,
@@ -132,11 +142,21 @@ class ConnectionFlow {
   /**
    * Called when the flow is complete and successful. Notifies the {@link ProxyToServerConnection}
    * that we succeeded.
+   *
+   * <p>The success is reported to {@code clientConnection}, the client that started this flow and
+   * was told so by {@link #start()}. A pooled connection can meanwhile have been borrowed by
+   * another client, whose writes are only queued on it while it is still connecting; notifying that
+   * other client would decrement a connecting count it never incremented and leave both clients
+   * with reading paused.
    */
   void succeed() {
+    if (!settled.compareAndSet(false, true)) {
+      serverConnection.getLOG().debug("Ignoring repeated completion of connection flow");
+      return;
+    }
     synchronized (connectLock) {
       serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
-      serverConnection.connectionSucceeded(!suppressInitialRequest);
+      serverConnection.connectionSucceeded(clientConnection, !suppressInitialRequest);
     }
   }
 
@@ -146,6 +166,13 @@ class ConnectionFlow {
    * failed.
    */
   void fail(final Throwable cause) {
+    if (!settled.compareAndSet(false, true)) {
+      // Already reported for this attempt: a stale close notification, or the idle timeout racing
+      // the failing step's own future. Reporting again would tell the client twice (unbalancing its
+      // read gate) and could start a second retry while the first one is already connecting.
+      serverConnection.getLOG().debug("Ignoring repeated failure of connection flow", cause);
+      return;
+    }
     final ConnectionState lastStateBeforeFailure = serverConnection.getCurrentState();
     serverConnection
         .disconnect()
