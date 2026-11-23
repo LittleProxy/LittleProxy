@@ -1914,7 +1914,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     // same
     // lock, so a racing chunk either queues here or is written after the flush below.
     synchronized (connectLock) {
-      become(AWAITING_INITIAL);
+      try {
+        become(AWAITING_INITIAL);
+      } catch (Throwable t) {
+        // A filter's proxyToServerConnectionSucceeded() threw. become() never committed the state
+        // change, and the flow has already settled, so no connecting-state cleanup will run for
+        // this attempt: fail the queued writes here or they keep their buffers and their read-gate
+        // holds forever.
+        LOG.error(
+            "Unable to notify filters that the connection to the upstream server succeeded", t);
+        failAfterConnectionSucceeded(t);
+        return;
+      }
 
       if (shouldForwardInitialRequest) {
         LOG.debug("Writing initial request: {}", initialRequest);
@@ -1934,15 +1945,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           if (initialRequest instanceof ReferenceCounted) {
             ReferenceCounted request = (ReferenceCounted) initialRequest;
             // write(Object) retained the request for the channel write that did not happen. Never
-            // drop the last reference: resetInitialRequest() below releases the request's own one
-            // (and a rejected channel write already releases the message it was handed).
+            // drop the last reference: failAfterConnectionSucceeded() below releases the request's
+            // own one (and a rejected channel write already releases the message it was handed).
             if (request.refCnt() > 1) {
               request.release();
             }
           }
-          resetInitialRequest();
-          failPendingWrites(t);
-          disconnect();
+          failAfterConnectionSucceeded(t);
           return;
         }
       } else {
@@ -1968,6 +1977,18 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         releaseToPool();
       }
     }
+  }
+
+  /**
+   * Terminal cleanup for an attempt whose connection flow has already settled successfully but
+   * which cannot be used to forward requests, because the state-transition callback or the initial
+   * write threw. No later connecting-state cleanup will run for it, so the queued writes must be
+   * failed (releasing their references and read-gate holds) and the connection closed here.
+   */
+  private void failAfterConnectionSucceeded(Throwable cause) {
+    resetInitialRequest();
+    failPendingWrites(cause);
+    disconnect();
   }
 
   private void resetInitialRequest() {

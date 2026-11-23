@@ -12,6 +12,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLEngine;
 import org.jspecify.annotations.NullMarked;
@@ -239,23 +240,27 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
       LOG.debug("Writing an empty buffer to signal the end of our chunked transfer");
       ChannelFuture flushFuture = writeToChannel(Unpooled.EMPTY_BUFFER);
       ChannelPromise result = channel.newPromise();
-      contentFuture.addListener(
-          future -> {
-            if (!future.isSuccess()) {
-              result.tryFailure(future.cause());
-            }
-          });
-      flushFuture.addListener(
-          future -> {
-            if (future.isSuccess()) {
-              result.trySuccess(null);
-            } else {
-              result.tryFailure(future.cause());
-            }
-          });
+      // Writes on one channel normally complete in order, but the result must not rely on it:
+      // succeed only after both writes have succeeded, and fail on the first failure.
+      AtomicInteger pendingWrites = new AtomicInteger(2);
+      contentFuture.addListener(future -> completeCompositeWrite(future, result, pendingWrites));
+      flushFuture.addListener(future -> completeCompositeWrite(future, result, pendingWrites));
       return result;
     } else {
       return writeToChannel(httpObject);
+    }
+  }
+
+  /**
+   * Completes the composite promise of a {@link LastHttpContent} write once both of its futures
+   * have succeeded, or fails it with the first failure.
+   */
+  private static void completeCompositeWrite(
+      Future<?> future, ChannelPromise result, AtomicInteger pendingWrites) {
+    if (!future.isSuccess()) {
+      result.tryFailure(future.cause());
+    } else if (pendingWrites.decrementAndGet() == 0) {
+      result.trySuccess(null);
     }
   }
 

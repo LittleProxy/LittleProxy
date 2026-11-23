@@ -3,7 +3,6 @@ package org.littleshoot.proxy.impl;
 import io.netty.util.concurrent.Future;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Coordinates the various steps involved in establishing a connection, such as establishing a
@@ -24,8 +23,21 @@ class ConnectionFlow {
    * and an upstream close can all call {@link #fail(Throwable)} for the same attempt. Reporting
    * twice would notify {@code serverConnectionFailed}/{@code serverConnectionSucceeded} twice,
    * unbalancing the client's read gate and possibly starting a second retry on top of the first.
+   *
+   * <p>Guarded by {@link #settlementLock}.
    */
-  private final AtomicBoolean settled = new AtomicBoolean();
+  private boolean settled;
+
+  /**
+   * Guards the transition from "this attempt is still live" to "this attempt has settled", and the
+   * decision of which step to run next. {@link #advance()} holds it while it checks {@link
+   * #settled} and polls the next step, and {@link #succeed()}/{@link #fail(Throwable)} hold it
+   * while they claim settlement. An {@code advance()} that races a settlement therefore either
+   * wins, and the step it picked belongs to the live attempt, or loses and starts nothing. It is
+   * never held while a step is executed or a callback into user code runs, and it is distinct from
+   * {@code connectLock}, so claiming settlement can never wait on the connection's write ordering.
+   */
+  private final Object settlementLock = new Object();
 
   /**
    * Construct a new {@link ConnectionFlow} for the given client and server connections.
@@ -81,18 +93,31 @@ class ConnectionFlow {
   /**
    * Advances the flow. {@link #advance()} will be called until we're either out of steps, or a step
    * has failed.
+   *
+   * <p>The "is this attempt still live?" check and the next-step poll happen atomically with
+   * respect to {@link #fail(Throwable)}'s settlement claim (see {@link #settlementLock}), so a step
+   * that completes after the attempt failed or succeeded cannot start another step of the dead
+   * attempt. The step itself is then run outside the lock.
    */
   void advance() {
-    currentStep = steps.poll();
-    if (currentStep == null) {
+    final ConnectionFlowStep<?> nextStep;
+    synchronized (settlementLock) {
+      if (settled) {
+        serverConnection.getLOG().debug("Ignoring advance of a settled connection flow");
+        return;
+      }
+      nextStep = steps.poll();
+      currentStep = nextStep;
+    }
+    if (nextStep == null) {
       succeed();
     } else {
-      processCurrentStep();
+      processCurrentStep(nextStep);
     }
   }
 
   /**
-   * Process the current {@link ConnectionFlowStep}. With each step, we:
+   * Process the given {@link ConnectionFlowStep}. With each step, we:
    *
    * <ol>
    *   <li>Change the state of the associated {@link ProxyConnection} to the value of {@link
@@ -104,27 +129,27 @@ class ConnectionFlow {
    *   <li>If unsuccessful, we call {@link #fail()}, stopping the connection flow
    * </ol>
    */
-  private void processCurrentStep() {
-    final ProxyConnection<?> connection = currentStep.getConnection();
+  private void processCurrentStep(ConnectionFlowStep<?> step) {
+    final ProxyConnection<?> connection = step.getConnection();
     final ProxyConnectionLogger LOG = connection.getLOG();
 
-    LOG.debug("Processing connection flow step: {}", currentStep);
-    connection.become(currentStep.getState());
-    suppressInitialRequest = suppressInitialRequest || currentStep.shouldSuppressInitialRequest();
+    LOG.debug("Processing connection flow step: {}", step);
+    connection.become(step.getState());
+    suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
 
-    if (currentStep.shouldExecuteOnEventLoop()) {
-      connection.ctx.executor().submit(() -> doProcessCurrentStep(LOG));
+    if (step.shouldExecuteOnEventLoop()) {
+      connection.ctx.executor().submit(() -> doProcessCurrentStep(step, LOG));
     } else {
-      doProcessCurrentStep(LOG);
+      doProcessCurrentStep(step, LOG);
     }
   }
 
   /**
-   * Does the work of processing the current step, checking the result and handling success/failure.
+   * Does the work of processing the given step, checking the result and handling success/failure.
    */
-  private void doProcessCurrentStep(final ProxyConnectionLogger LOG) {
-    currentStep
-        .execute()
+  private void doProcessCurrentStep(
+      final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
+    step.execute()
         .addListener(
             future -> {
               if (future.isSuccess()) {
@@ -133,7 +158,7 @@ class ConnectionFlow {
                 // succeed(), and the resulting connectionSucceeded() runs user callbacks
                 // (ChainedProxy, HttpFilters) that must not be able to stall write() callers. The
                 // ordering-critical part takes connectLock itself, inside connectionSucceeded().
-                currentStep.onSuccess(ConnectionFlow.this);
+                step.onSuccess(ConnectionFlow.this);
               } else {
                 LOG.debug("ConnectionFlowStep failed", future.cause());
                 synchronized (connectLock) {
@@ -154,12 +179,23 @@ class ConnectionFlow {
    * with reading paused.
    */
   void succeed() {
-    if (!settled.compareAndSet(false, true)) {
+    if (!settle()) {
       serverConnection.getLOG().debug("Ignoring repeated completion of connection flow");
       return;
     }
     serverConnection.getLOG().debug("Connection flow completed successfully: {}", currentStep);
     serverConnection.connectionSucceeded(clientConnection, !suppressInitialRequest);
+  }
+
+  /** Claims the single settlement of this attempt, returning {@code false} if it was claimed. */
+  private boolean settle() {
+    synchronized (settlementLock) {
+      if (settled) {
+        return false;
+      }
+      settled = true;
+      return true;
+    }
   }
 
   /**
@@ -168,7 +204,7 @@ class ConnectionFlow {
    * failed.
    */
   void fail(final Throwable cause) {
-    if (!settled.compareAndSet(false, true)) {
+    if (!settle()) {
       // Already reported for this attempt: a stale close notification, or the idle timeout racing
       // the failing step's own future. Reporting again would tell the client twice (unbalancing its
       // read gate) and could start a second retry while the first one is already connecting.

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -242,6 +243,40 @@ final class ProxyToServerConnectionWriteBlockingTest {
     assertThat(deferred.isDone()).as("the queued write must be failed, not leaked").isTrue();
     assertThat(deferred.isSuccess()).isFalse();
     assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+
+    content.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "a throwing proxyToServerConnectionSucceeded fails the queued writes and releases the read gate")
+  void throwingConnectionSucceededCallbackFailsQueuedWrites() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+
+    DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4).writeInt(1));
+    ChannelFuture deferred = connection.write(content);
+    assertThat(deferred.isDone()).isFalse();
+
+    connection.setInitialRequest(
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload"));
+    doThrow(new IllegalStateException("filter rejected the connection"))
+        .when(filters)
+        .proxyToServerConnectionSucceeded(any());
+
+    assertThatCode(() -> connection.connectionSucceeded(clientConnection, true))
+        .as("a throwing state-transition callback must not escape connectionSucceeded")
+        .doesNotThrowAnyException();
+
+    assertThat(deferred.isDone()).as("the queued write must be failed, not leaked").isTrue();
+    assertThat(deferred.isSuccess()).isFalse();
+    assertThat(content.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    verify(clientConnection, times(1)).deferredWriteFinished();
 
     content.release();
     serverChannel.finishAndReleaseAll();
