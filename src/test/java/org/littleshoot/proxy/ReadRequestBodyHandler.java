@@ -10,6 +10,8 @@ import java.io.InputStream;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Jetty handler that fully reads the request body before responding with 200 OK.
@@ -22,6 +24,8 @@ import org.jspecify.annotations.Nullable;
  * <p>If the request URI contains "hang", the handler sleeps for 90 seconds before responding.
  */
 final class ReadRequestBodyHandler extends AbstractHandler {
+  private static final Logger log = LoggerFactory.getLogger(ReadRequestBodyHandler.class);
+
   private final byte @Nullable [] content;
 
   /**
@@ -37,11 +41,11 @@ final class ReadRequestBodyHandler extends AbstractHandler {
       String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response)
       throws IOException {
     if (request.getRequestURI().contains("hang")) {
-      System.out.println("Hanging as requested");
+      log.info("Hanging as requested");
       try {
         Thread.sleep(90000);
       } catch (InterruptedException ie) {
-        System.out.println("Stopped hanging due to interruption");
+        log.info("Stopped hanging due to interruption");
       }
     }
 
@@ -51,7 +55,7 @@ final class ReadRequestBodyHandler extends AbstractHandler {
         numberOfBytesRead += 1;
       }
     }
-    System.out.println("Done reading # of bytes: " + numberOfBytesRead);
+    log.debug("Done reading # of bytes: {}", numberOfBytesRead);
 
     byte[] body =
         content != null ? content : ("Received " + numberOfBytesRead + " bytes\n").getBytes(UTF_8);
