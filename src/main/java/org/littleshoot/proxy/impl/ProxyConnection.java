@@ -1,5 +1,6 @@
 package org.littleshoot.proxy.impl;
 
+import static java.util.Objects.requireNonNull;
 import static org.littleshoot.proxy.impl.ConnectionState.*;
 
 import io.netty.buffer.ByteBuf;
@@ -67,6 +68,12 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   private volatile ConnectionState currentState;
   protected volatile boolean tunneling;
   protected volatile long lastReadTime;
+
+  /**
+   * Whether the last call was {@link #resumeReading()} (true) or {@link #stopReading()} (false).
+   * The channel's auto-read setting is updated on its event loop to match the latest value.
+   */
+  private volatile boolean readingRequested = true;
 
   /** If using encryption, this holds our {@link SSLEngine}. */
   @Nullable protected volatile SSLEngine sslEngine;
@@ -348,7 +355,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
       sslEngine.setNeedClientAuth(true);
     }
     if (null != channel) {
-      channel.config().setAutoRead(true);
+      resumeReading();
     }
     SslHandler handler = new SslHandler(sslEngine);
     if (pipeline.get("ssl") == null) {
@@ -491,23 +498,53 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   /** Call this to stop reading. */
   protected void stopReading() {
     LOG.debug("Stopped reading");
-    channel.config().setAutoRead(false);
+    readingRequested = false;
+    applyReadingRequested();
   }
 
   /**
    * Call this to resume reading.
    *
-   * <p>Does nothing while reads are suspended by traffic shaping: re-enabling auto-read then would
-   * bypass the throttling, and the traffic shaping handler resumes reading itself once the
-   * throttling delay has passed.
+   * <p>Does not re-enable reading while reads are suspended by traffic shaping: that would bypass
+   * the throttling, and the traffic shaping handler resumes reading itself once the throttling
+   * delay has passed.
    */
   protected void resumeReading() {
-    if (isReadSuspendedByTrafficShaping(channel)) {
-      LOG.debug("Not resuming reading: reads are suspended by traffic shaping");
-      return;
-    }
     LOG.debug("Resumed reading");
-    channel.config().setAutoRead(true);
+    readingRequested = true;
+    applyReadingRequested();
+  }
+
+  /**
+   * Updates the channel's auto-read setting to match {@link #readingRequested}, on the channel's
+   * event loop.
+   *
+   * <p>The traffic shaping handler runs on the channel's event loop and suspends reads in two steps
+   * (disable auto-read, then mark reads as suspended). Updating auto-read from another thread could
+   * slip in between and re-enable reading behind its back.
+   *
+   * <p>A call from another thread is queued, so it may run after a later call made on the event
+   * loop. That's why the task applies the latest requested state instead of the one requested when
+   * it was queued.
+   */
+  private void applyReadingRequested() {
+    Channel ch = requireNonNull(channel);
+    EventLoop eventLoop = ch.eventLoop();
+    if (eventLoop.inEventLoop()) {
+      applyReadingRequested(ch);
+    } else {
+      eventLoop.execute(() -> applyReadingRequested(ch));
+    }
+  }
+
+  private void applyReadingRequested(Channel ch) {
+    if (!readingRequested) {
+      ch.config().setAutoRead(false);
+    } else if (isReadSuspendedByTrafficShaping(ch)) {
+      LOG.debug("Not resuming reading: reads are suspended by traffic shaping");
+    } else {
+      ch.config().setAutoRead(true);
+    }
   }
 
   /**
