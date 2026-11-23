@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.littleshoot.proxy.TestUtils.createProxiedHttpClient;
 
 import java.util.Arrays;
+import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -261,12 +262,17 @@ public final class ThrottlingTest {
     int proxyPort = proxyServer.getListenAddress().getPort();
 
     final HttpGet request = createHttpGet();
+    // Close the upstream connection after the first response: the traffic shaper may still be
+    // suspending reads on it (up to ~2.6 s at this read limit), which would delay the second,
+    // timed request if it reused the same connection.
+    final HttpGet firstRequest = createHttpGet();
+    firstRequest.setHeader(HttpHeaders.CONNECTION, "close");
 
     try (CloseableHttpClient httpClient = createProxiedHttpClient(proxyPort)) {
 
       long firstStart = System.currentTimeMillis();
       org.apache.http.HttpResponse response =
-          httpClient.execute(new HttpHost("127.0.0.1", readWebServerPort), request);
+          httpClient.execute(new HttpHost("127.0.0.1", readWebServerPort), firstRequest);
       byte[] readContent = new byte[LARGE_DATA_SIZE];
 
       int bytesRead = 0;

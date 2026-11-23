@@ -9,6 +9,8 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.traffic.AbstractTrafficShapingHandler;
+import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
@@ -492,10 +494,33 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
     channel.config().setAutoRead(false);
   }
 
-  /** Call this to resume reading. */
+  /**
+   * Call this to resume reading.
+   *
+   * <p>Does nothing while reads are suspended by traffic shaping: re-enabling auto-read then would
+   * bypass the throttling, and the traffic shaping handler resumes reading itself once the
+   * throttling delay has passed.
+   */
   protected void resumeReading() {
+    if (isReadSuspendedByTrafficShaping(channel)) {
+      LOG.debug("Not resuming reading: reads are suspended by traffic shaping");
+      return;
+    }
     LOG.debug("Resumed reading");
     channel.config().setAutoRead(true);
+  }
+
+  /**
+   * The attribute {@link AbstractTrafficShapingHandler} sets on a channel while it has suspended
+   * reads to enforce the read limit. Netty keeps the key package-private, but {@link
+   * AttributeKey#valueOf(String)} returns the same key instance for the same name.
+   */
+  static final AttributeKey<Boolean> TRAFFIC_SHAPING_READ_SUSPENDED =
+      AttributeKey.valueOf(AbstractTrafficShapingHandler.class.getName() + ".READ_SUSPENDED");
+
+  static boolean isReadSuspendedByTrafficShaping(Channel channel) {
+    return channel.hasAttr(TRAFFIC_SHAPING_READ_SUSPENDED)
+        && Boolean.TRUE.equals(channel.attr(TRAFFIC_SHAPING_READ_SUSPENDED).get());
   }
 
   /**
