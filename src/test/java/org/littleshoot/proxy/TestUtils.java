@@ -3,11 +3,7 @@ package org.littleshoot.proxy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.sun.management.UnixOperatingSystemMXBean;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
@@ -31,7 +27,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.eclipse.jetty.server.*;
-import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.littleshoot.proxy.extras.SelfSignedSslEngineSource;
 
@@ -112,39 +107,7 @@ public class TestUtils {
 
   private static Server createWebServer() {
     final Server httpServer = new Server(0);
-
-    httpServer.setHandler(
-        new AbstractHandler() {
-          @Override
-          public void handle(
-              String target,
-              Request baseRequest,
-              HttpServletRequest request,
-              HttpServletResponse response)
-              throws IOException {
-            if (request.getRequestURI().contains("hang")) {
-              System.out.println("Hanging as requested");
-              try {
-                Thread.sleep(90000);
-              } catch (InterruptedException ie) {
-                System.out.println("Stopped hanging due to interruption");
-              }
-            }
-
-            long numberOfBytesRead = 0;
-            try (InputStream in = new BufferedInputStream(request.getInputStream())) {
-              while (in.read() != -1) {
-                numberOfBytesRead += 1;
-              }
-            }
-            System.out.println("Done reading # of bytes: " + numberOfBytesRead);
-            response.setStatus(HttpServletResponse.SC_OK);
-            baseRequest.setHandled(true);
-            byte[] content = ("Received " + numberOfBytesRead + " bytes\n").getBytes();
-            response.addHeader("Content-Length", Integer.toString(content.length));
-            response.getOutputStream().write(content);
-          }
-        });
+    httpServer.setHandler(new ReadRequestBodyHandler(null));
     return httpServer;
   }
 
@@ -158,38 +121,7 @@ public class TestUtils {
    */
   public static Server startWebServerWithResponse(boolean enableHttps, final byte[] content) {
     final Server httpServer = new Server(0);
-    httpServer.setHandler(
-        new AbstractHandler() {
-          @Override
-          public void handle(
-              String target,
-              Request baseRequest,
-              HttpServletRequest request,
-              HttpServletResponse response)
-              throws IOException {
-            if (request.getRequestURI().contains("hang")) {
-              System.out.println("Hanging as requested");
-              try {
-                Thread.sleep(90000);
-              } catch (InterruptedException ie) {
-                System.out.println("Stopped hanging due to interruption");
-              }
-            }
-
-            long numberOfBytesRead = 0;
-            try (InputStream in = new BufferedInputStream(request.getInputStream())) {
-              while (in.read() != -1) {
-                numberOfBytesRead += 1;
-              }
-            }
-            System.out.println("Done reading # of bytes: " + numberOfBytesRead);
-            response.setStatus(HttpServletResponse.SC_OK);
-            baseRequest.setHandled(true);
-
-            response.addHeader("Content-Length", Integer.toString(content.length));
-            response.getOutputStream().write(content);
-          }
-        });
+    httpServer.setHandler(new ReadRequestBodyHandler(content));
 
     if (enableHttps) {
       // Add SSL connector

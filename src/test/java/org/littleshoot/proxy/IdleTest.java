@@ -34,8 +34,7 @@ public final class IdleTest {
     requireUnix();
     disableOnMac();
 
-    webServer = new Server(0);
-    webServer.start();
+    webServer = TestUtils.startWebServer();
     webServerPort = TestUtils.findLocalHttpPort(webServer);
 
     proxyServer = DefaultHttpProxyServer.bootstrap().withPort(0).start();
