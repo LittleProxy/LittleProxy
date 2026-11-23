@@ -9,6 +9,7 @@ import java.util.Set;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
+import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.extras.TestMitmManager;
 
 /** Tests a proxy that runs as a MITM and which is chained with another proxy. */
@@ -90,6 +91,7 @@ public class MitmWithChainedProxyTest extends BaseChainedProxyTest {
     return true;
   }
 
+  @Test
   @Override
   public void testSimpleGetRequest() {
     super.testSimpleGetRequest();
@@ -100,6 +102,7 @@ public class MitmWithChainedProxyTest extends BaseChainedProxyTest {
     }
   }
 
+  @Test
   @Override
   public void testSimpleGetRequestOverHTTPS() {
     super.testSimpleGetRequestOverHTTPS();
@@ -111,6 +114,7 @@ public class MitmWithChainedProxyTest extends BaseChainedProxyTest {
     }
   }
 
+  @Test
   @Override
   public void testSimplePostRequest() {
     super.testSimplePostRequest();
@@ -121,6 +125,7 @@ public class MitmWithChainedProxyTest extends BaseChainedProxyTest {
     }
   }
 
+  @Test
   @Override
   public void testSimplePostRequestOverHTTPS() {
     super.testSimplePostRequestOverHTTPS();

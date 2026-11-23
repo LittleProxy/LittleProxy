@@ -9,15 +9,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
+import java.io.IOException;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import org.junit.jupiter.api.DisplayName;
@@ -142,6 +147,44 @@ final class ProxyConnectionLifecycleTest {
                 connection.exceptionCaught(
                     mock(ChannelHandlerContext.class), new RuntimeException("ignored")))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  @DisplayName("disconnect reports a channel close failure")
+  @SuppressWarnings("unchecked")
+  void disconnectReportsCloseFailure() {
+    ProxyConnection<HttpRequest> connection = newConnection();
+    Channel channel = mock(Channel.class);
+    ChannelFuture writeFuture = mock(ChannelFuture.class);
+    when(writeFuture.isSuccess()).thenReturn(true);
+    when(writeFuture.addListener(any()))
+        .thenAnswer(
+            invocation -> {
+              GenericFutureListener<Future<? super Void>> listener = invocation.getArgument(0);
+              listener.operationComplete(writeFuture);
+              return writeFuture;
+            });
+    when(channel.writeAndFlush(any())).thenReturn(writeFuture);
+    ChannelFuture closeFuture = mock(ChannelFuture.class);
+    when(closeFuture.isSuccess()).thenReturn(false);
+    IOException cause = new IOException("close failed");
+    when(closeFuture.cause()).thenReturn(cause);
+    when(closeFuture.addListener(any()))
+        .thenAnswer(
+            invocation -> {
+              GenericFutureListener<Future<? super Void>> listener = invocation.getArgument(0);
+              listener.operationComplete(closeFuture);
+              return closeFuture;
+            });
+    when(channel.close()).thenReturn(closeFuture);
+    ChannelPromise promise = mock(ChannelPromise.class);
+    when(channel.newPromise()).thenReturn(promise);
+    connection.channel = channel;
+
+    Future<Void> result = connection.disconnect();
+
+    assertThat(result).isSameAs(promise);
+    verify(promise).setFailure(cause);
   }
 
   private ProxyConnection<HttpRequest> newConnection() {
