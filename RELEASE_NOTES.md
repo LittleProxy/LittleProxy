@@ -1,5 +1,9 @@
 # Release Notes
 
+- 2.11.0 (TBD, https://github.com/LittleProxy/LittleProxy/milestone/55?closed=1)
+  - Bump Selenium from 4.53.0 to 4.54.0 (#851)
+  - TBD
+
 - 2.10.0 (23.11.2026, https://github.com/LittleProxy/LittleProxy/milestone/54?closed=1)
   - #83 add optional shared server connection pool, pluggable via Java ServiceLoader (disabled by default; see `docs/pooling-features.md`) (#724) (#799) (#802) (#807) (#826) by Charles Lescot
   - #6 fail connection flow on idle timeout while connecting to upstream (e.g. chained proxy never answering CONNECT): client socket no longer stays in CLOSE_WAIT by Andrei Solntsev (#849)
