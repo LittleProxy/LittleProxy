@@ -199,24 +199,6 @@ class ConnectionFlow {
     serverConnection.connectionSucceeded(clientConnection, !suppressInitialRequest);
   }
 
-  /**
-   * Claims the single failure settlement of this attempt so that the caller can report the failure
-   * itself, as {@link ProxyToServerConnection#exceptionCaught(Throwable)} does.
-   *
-   * <p>One attempt can produce more than one failure notification: a socket read can fail with an
-   * {@link java.io.IOException} and the {@link io.netty.handler.ssl.SslHandler} can then report the
-   * same close, and the in-flight step's future can fail as well. If every notification reported
-   * the failure, the client's read gate would be decremented more than once and the connection
-   * could be retried a second time on top of the retry the first notification already started.
-   * Claiming the settlement here makes the later notifications no-ops.
-   *
-   * @return {@code true} if this attempt was still live and is now claimed by the caller, {@code
-   *     false} if it had already been settled and its outcome reported
-   */
-  boolean settleFailure() {
-    return settle();
-  }
-
   /** Claims the single settlement of this attempt, returning {@code false} if it was claimed. */
   private boolean settle() {
     synchronized (settlementLock) {

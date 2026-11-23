@@ -942,6 +942,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   @Override
   protected void exceptionCaught(Throwable cause) {
+    // Bind this notification to the attempt that was current when it arrived. A chained-proxy or
+    // SSL retry can run synchronously from fail() and install a replacement ConnectionFlow; the
+    // finally block must not settle or report against that replacement.
+    ConnectionFlow attempt = connectionFlow;
     try {
       if (!is(DISCONNECTED)) {
         recordConnectionExceptionCaught(cause);
@@ -949,7 +953,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       if (cause instanceof ProxyConnectException) {
         LOG.info(
             "A ProxyConnectException occurred on ProxyToServerConnection: " + cause.getMessage());
-        connectionFlow.fail(cause);
+        if (attempt != null) {
+          attempt.fail(cause);
+        }
       } else if (cause instanceof IOException) {
         // IOExceptions are expected errors, for example when a server drops the connection. rather
         // than flood
@@ -968,15 +974,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
     } finally {
       if (!is(DISCONNECTED)) {
-        ConnectionFlow flow = connectionFlow;
-        if (isConnecting() && flow != null && !flow.settleFailure()) {
-          // A second failure notification for an attempt whose failure is already being handled.
-          // The socket read and the SslHandler can both report the same close, and the in-flight
-          // step's own future can fail too. Reporting each of them would decrement the client's
-          // read gate more than once and could abort the retry the first notification started (the
-          // retry's state is CONNECTING by the time the stale notification arrives).
-          LOG.debug(
-              "Ignoring failure notification for an already settled connection attempt", cause);
+        if (isConnecting() && attempt != null) {
+          // The flow owns reporting for a connecting attempt: it claims the attempt's single
+          // settlement and notifies the client that started the flow, which is not necessarily the
+          // current client when a pooled connection was borrowed during setup. A second
+          // notification for the same attempt (the socket read and the SslHandler can both report
+          // the same close, and the in-flight step's own future can fail too) is ignored, so the
+          // client's read gate is released once and a retry is not aborted by a stale report.
+          attempt.fail(cause);
         } else {
           // Capture the state before disconnecting: serverConnectionFailed reports it as the state
           // before the failure, and disconnecting moves us to DISCONNECTED.

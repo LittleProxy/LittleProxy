@@ -3,10 +3,13 @@ package org.littleshoot.proxy.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.netty.buffer.Unpooled;
@@ -18,6 +21,7 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.proxy.ProxyConnectException;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -122,6 +126,56 @@ final class ProxyToServerConnectionFlowSettlementTest {
         .as("one connection attempt must report its failure exactly once")
         .isEqualTo(1);
     verify(clientConnection).serverConnectionFailed(connection, ConnectionState.HANDSHAKING, reset);
+
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a synchronous retry does not make the finally block touch the replacement attempt")
+  void failureStaysBoundToTheAttemptThatWasCurrentWhenItArrived() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.HANDSHAKING);
+    ConnectionFlow original = mock();
+    ConnectionFlow replacement = mock();
+    connection.setConnectionFlow(original);
+
+    ProxyConnectException cause = new ProxyConnectException("proxy refused");
+    // The original attempt's failure can synchronously install a retry's flow
+    // (resetConnectionForRetry + connectAndWrite assign the field) before exceptionCaught reaches
+    // its finally block.
+    doAnswer(
+            invocation -> {
+              connection.setConnectionFlow(replacement);
+              return null;
+            })
+        .when(original)
+        .fail(cause);
+
+    connection.exceptionCaught(cause);
+
+    verifyNoInteractions(replacement);
+  }
+
+  @Test
+  @DisplayName("a connecting failure is reported to the client that started the flow")
+  void connectingFailureIsReportedToTheFlowOwner() throws Exception {
+    // The connection was created for clientConnection, but another client owns this attempt's
+    // flow, as happens when a pool lends a still-connecting connection to a second client.
+    ProxyToServerConnection connection = createConnection();
+    ClientToProxyConnection flowOwner = mock();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.HANDSHAKING);
+    connection.setConnectionFlow(new ConnectionFlow(flowOwner, connection, new Object()));
+
+    IOException cause = new IOException("upstream reset");
+    connection.exceptionCaught(cause);
+
+    verify(flowOwner).serverConnectionFailed(connection, ConnectionState.HANDSHAKING, cause);
+    verify(clientConnection, never())
+        .serverConnectionFailed(connection, ConnectionState.HANDSHAKING, cause);
 
     serverChannel.finishAndReleaseAll();
   }
