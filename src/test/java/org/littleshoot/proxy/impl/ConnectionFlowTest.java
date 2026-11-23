@@ -169,19 +169,72 @@ final class ConnectionFlowTest {
     Thread settler =
         new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
     settler.start();
-    awaitParked(settler);
+    try {
+      awaitParked(settler);
 
-    assertThat(settler.getState())
-        .as("a settlement must not claim the attempt while a step is starting")
-        .isEqualTo(Thread.State.WAITING);
-
-    releaseExecute.countDown();
+      assertThat(settler.getState())
+          .as("a settlement must not claim the attempt while a step is starting")
+          .isEqualTo(Thread.State.WAITING);
+    } finally {
+      // Release the dispatcher even when the assertion above fails, so a failing run does not
+      // leave it parked until the test JVM exits.
+      releaseExecute.countDown();
+    }
     dispatcher.join(5000);
     settler.join(5000);
     assertThat(settler.isAlive())
         .as("the settlement must complete after the step started")
         .isFalse();
     assertThat(step.executeCount()).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("a step's slow preparation does not block settlement and the step is not started")
+  void slowPreparationDoesNotBlockSettlement() throws Exception {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(stepConnection.getLOG()).thenReturn(logger);
+    when(serverConnection.disconnect()).thenReturn(channel.newPromise());
+
+    CountDownLatch prepareStarted = new CountDownLatch(1);
+    CountDownLatch releasePrepare = new CountDownLatch(1);
+    RecordingStep step =
+        new RecordingStep(stepConnection, channel.newPromise()) {
+          @Override
+          void prepare() {
+            prepareStarted.countDown();
+            try {
+              releasePrepare.await();
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+              throw new IllegalStateException("interrupted while preparing the step", e);
+            }
+          }
+        };
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+
+    Thread dispatcher = new Thread(flow::start, "flow-step-dispatcher");
+    dispatcher.start();
+    assertThat(prepareStarted.await(5, TimeUnit.SECONDS))
+        .as("the step's preparation must have started")
+        .isTrue();
+
+    Thread settler =
+        new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
+    settler.start();
+    settler.join(5000);
+    try {
+      assertThat(settler.isAlive())
+          .as("a settlement must not wait for a step's preparation")
+          .isFalse();
+    } finally {
+      releasePrepare.countDown();
+    }
+
+    dispatcher.join(5000);
+    assertThat(step.executeCount())
+        .as("a step whose flow settled during preparation must not start")
+        .isZero();
   }
 
   /** Waits until the given thread parks (or dies), so its state can be asserted exactly. */

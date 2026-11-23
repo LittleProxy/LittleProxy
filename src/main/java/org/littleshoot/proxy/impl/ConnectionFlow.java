@@ -51,6 +51,9 @@ class ConnectionFlow {
    * fit between them, letting a step of a dead attempt act on a connection that a retry has already
    * rebound to a new channel.
    *
+   * <p>Slow or user-supplied work belongs in {@link ConnectionFlowStep#prepare()}, which runs
+   * before this lock is taken, so it cannot delay a settlement.
+   *
    * <p>Reentrant because a step can, unusually, fail synchronously in a way that settles its own
    * flow on the same thread; that must not deadlock against its own start.
    */
@@ -170,12 +173,20 @@ class ConnectionFlow {
    *
    * <p>Re-checks {@link #settled}: for a step submitted to the event loop, the attempt can fail
    * between the submission and this task running, and the step must not then act on a connection
-   * that a retry may already have rebound to a new channel. The check and {@link
-   * ConnectionFlowStep#execute()} are performed while holding {@link #stepStartLock}, which {@link
-   * #settle()} also takes, so a settlement cannot slip in between them.
+   * that a retry may already have rebound to a new channel. {@link ConnectionFlowStep#prepare()}
+   * runs outside {@link #stepStartLock} so slow or user-supplied preparation cannot delay a
+   * settlement; the settlement check and {@link ConnectionFlowStep#execute()} are performed while
+   * holding that lock, which {@link #settle()} also takes, so a settlement cannot slip in between
+   * them.
    */
   private void doProcessCurrentStep(
       final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
+    if (isSettled()) {
+      LOG.debug("Skipping step of a settled connection flow: {}", step);
+      return;
+    }
+    step.prepare();
+
     final Future<?> stepFuture;
     stepStartLock.lock();
     try {
