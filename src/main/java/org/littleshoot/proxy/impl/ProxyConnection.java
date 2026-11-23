@@ -1,6 +1,5 @@
 package org.littleshoot.proxy.impl;
 
-import static java.util.Objects.requireNonNull;
 import static org.littleshoot.proxy.impl.ConnectionState.*;
 
 import io.netty.buffer.ByteBuf;
@@ -15,6 +14,7 @@ import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLEngine;
 import org.jspecify.annotations.NullMarked;
@@ -354,9 +354,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
     if (authenticateClients) {
       sslEngine.setNeedClientAuth(true);
     }
-    if (null != channel) {
-      resumeReading();
-    }
+    resumeReading();
     SslHandler handler = new SslHandler(sslEngine);
     if (pipeline.get("ssl") == null) {
       pipeline.addFirst("ssl", handler);
@@ -497,7 +495,6 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   /** Call this to stop reading. */
   protected void stopReading() {
-    LOG.debug("Stopped reading");
     readingRequested = false;
     applyReadingRequested();
   }
@@ -510,7 +507,6 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    * delay has passed.
    */
   protected void resumeReading() {
-    LOG.debug("Resumed reading");
     readingRequested = true;
     applyReadingRequested();
   }
@@ -526,23 +522,35 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
    * <p>A call from another thread is queued, so it may run after a later call made on the event
    * loop. That's why the task applies the latest requested state instead of the one requested when
    * it was queued.
+   *
+   * <p>Does nothing if the channel isn't set yet, or if its event loop is shutting down.
    */
   private void applyReadingRequested() {
-    Channel ch = requireNonNull(channel);
+    Channel ch = channel;
+    if (ch == null) {
+      LOG.debug("Not changing reading: no channel yet");
+      return;
+    }
     EventLoop eventLoop = ch.eventLoop();
     if (eventLoop.inEventLoop()) {
       applyReadingRequested(ch);
     } else {
-      eventLoop.execute(() -> applyReadingRequested(ch));
+      try {
+        eventLoop.execute(() -> applyReadingRequested(ch));
+      } catch (RejectedExecutionException e) {
+        LOG.debug("Not changing reading: event loop is shutting down", e);
+      }
     }
   }
 
   private void applyReadingRequested(Channel ch) {
     if (!readingRequested) {
+      LOG.debug("Stopped reading");
       ch.config().setAutoRead(false);
     } else if (isReadSuspendedByTrafficShaping(ch)) {
       LOG.debug("Not resuming reading: reads are suspended by traffic shaping");
     } else {
+      LOG.debug("Resumed reading");
       ch.config().setAutoRead(true);
     }
   }
