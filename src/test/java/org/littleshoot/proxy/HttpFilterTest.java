@@ -45,8 +45,7 @@ public final class HttpFilterTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    webServer = new Server(0);
-    webServer.start();
+    webServer = TestUtils.startWebServer();
     webServerPort = TestUtils.findLocalHttpPort(webServer);
 
     mockServer = new WireMockServer(options().dynamicPort());
