@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -34,6 +35,8 @@ import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
  */
 final class ServerClosesBeforeResponseCompleteTest {
 
+  private static final String UPSTREAM_HOST = "127.0.0.1";
+
   /** Short, so that a regression fails with a read timeout instead of hanging the build. */
   private static final RequestConfig SHORT_TIMEOUT =
       RequestConfig.custom().setConnectTimeout(5000).setSocketTimeout(5000).build();
@@ -41,12 +44,19 @@ final class ServerClosesBeforeResponseCompleteTest {
   /** What the upstream server writes after reading the request, before it closes the connection. */
   private final AtomicReference<String> responseBeforeClose = new AtomicReference<>("");
 
+  /**
+   * How many requests reached the upstream server. Without it, a 502 because the proxy could not
+   * reach the upstream at all would look like a pass.
+   */
+  private final AtomicInteger requestsReceived = new AtomicInteger();
+
   private ServerSocket upstream;
   private HttpProxyServer proxyServer;
 
   @BeforeEach
   void setUp() throws IOException {
-    upstream = new ServerSocket(0, 50, InetAddress.getLoopbackAddress());
+    // Bind to the same address upstreamHost() targets: getLoopbackAddress() may return ::1.
+    upstream = new ServerSocket(0, 50, InetAddress.getByName(UPSTREAM_HOST));
     Thread acceptor = new Thread(this::serveAndClose, "closing-upstream");
     acceptor.setDaemon(true);
     acceptor.start();
@@ -66,6 +76,9 @@ final class ServerClosesBeforeResponseCompleteTest {
     try (CloseableHttpClient client = proxiedClient()) {
       HttpResponse response = client.execute(upstreamHost(), get());
 
+      assertThat(requestsReceived.get())
+          .as("the request must reach the upstream, so the 502 is for its early close")
+          .isEqualTo(1);
       assertThat(response.getStatusLine().getStatusCode()).isEqualTo(502);
       EntityUtils.consume(response.getEntity());
     }
@@ -92,7 +105,7 @@ final class ServerClosesBeforeResponseCompleteTest {
   }
 
   private HttpHost upstreamHost() {
-    return new HttpHost("127.0.0.1", upstream.getLocalPort());
+    return new HttpHost(UPSTREAM_HOST, upstream.getLocalPort());
   }
 
   private static HttpGet get() {
@@ -106,6 +119,7 @@ final class ServerClosesBeforeResponseCompleteTest {
     while (!upstream.isClosed()) {
       try (Socket socket = upstream.accept()) {
         readHeaders(socket.getInputStream());
+        requestsReceived.incrementAndGet();
         OutputStream out = socket.getOutputStream();
         out.write(responseBeforeClose.get().getBytes(US_ASCII));
         out.flush();
