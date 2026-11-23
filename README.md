@@ -338,13 +338,13 @@ You can embed LittleProxy in your own projects through Maven with the following 
     <dependency>
         <groupId>io.github.littleproxy</groupId>
         <artifactId>littleproxy</artifactId>
-        <version>2.9.1</version>
+        <version>2.10.0</version>
     </dependency>
 ```
 
 Or with Gradle like this
 
-`implementation "io.github.littleproxy:littleproxy:2.9.1"`
+`implementation "io.github.littleproxy:littleproxy:2.10.0"`
 
 Once you've included LittleProxy, you can start the server with the following:
 
@@ -353,6 +353,54 @@ HttpProxyServer server =
         DefaultHttpProxyServer.bootstrap()
                 .withPort(8080)
                 .start();
+```
+
+### Running on Android
+
+LittleProxy can be embedded in an Android app, and the device does not need to be rooted. Some things to keep in mind:
+
+- **Dependencies.** The core library only needs Netty, Guava, commons-lang3 and slf4j-api. Log4j, dnssec4j/dnsjava
+  and commons-cli are optional and are not pulled in transitively. Add an slf4j binding for Android (for example
+  `slf4j-android`) if you want to see LittleProxy's logs in logcat. Older `xyz.rogfam:littleproxy` 2.0.x releases
+  depended on `barchart-udt-bundle`, which ships native libraries and causes `INSTALL_FAILED_NO_MATCHING_ABIS`.
+  Upgrade to `io.github.littleproxy:littleproxy`, or exclude `com.barchart.udt:barchart-udt-bundle`.
+- **Keep the proxy alive.** `start()` returns once the server is bound. The proxy runs only while your app's process
+  is alive. If you start it from an `Activity`, Android may freeze or kill the process when the user switches to
+  another app, such as the browser, and every request through the proxy then fails. Start the proxy from a
+  [foreground service](https://developer.android.com/develop/background-work/services/fgs) instead, and call
+  `server.stop()` when the service is destroyed. Some vendors (Huawei, Xiaomi, Samsung, ...) also need the app to be
+  excluded from battery optimization.
+- **Don't start it on the main thread.** Starting the proxy binds a socket, so do it on a background thread.
+- **Permissions.** Your app needs `android.permission.INTERNET`.
+- **Pointing traffic at the proxy.** Bind to `127.0.0.1` with any free port above 1024. Then either set
+  `127.0.0.1:<port>` as the manual proxy in the Wi-Fi network settings, which applies to apps that honor the system
+  proxy, or set the proxy only for your own app. For a `WebView`, use `ProxyController.setProxyOverride(...)` from
+  `androidx.webkit`. For OkHttp or `HttpURLConnection`, use `java.net.Proxy` / `ProxySelector`.
+
+```java
+public class ProxyService extends Service {
+  private volatile HttpProxyServer server;
+
+  @Override
+  public int onStartCommand(Intent intent, int flags, int startId) {
+    startForeground(NOTIFICATION_ID, buildNotification());
+    new Thread(() -> server = DefaultHttpProxyServer.bootstrap()
+        .withAddress(new InetSocketAddress("127.0.0.1", 8100))
+        .withFiltersSource(filtersSource)
+        .start()).start();
+    return START_STICKY;
+  }
+
+  @Override
+  public void onDestroy() {
+    if (server != null) server.stop();
+  }
+
+  @Override
+  public IBinder onBind(Intent intent) {
+    return null;
+  }
+}
 ```
 
 ### Shared server connection pool configuration
