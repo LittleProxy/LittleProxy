@@ -3,6 +3,7 @@ package org.littleshoot.proxy.impl;
 import io.netty.util.concurrent.Future;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Coordinates the various steps involved in establishing a connection, such as establishing a
@@ -34,10 +35,26 @@ class ConnectionFlow {
    * #settled} and polls the next step, and {@link #succeed()}/{@link #fail(Throwable)} hold it
    * while they claim settlement. An {@code advance()} that races a settlement therefore either
    * wins, and the step it picked belongs to the live attempt, or loses and starts nothing. It is
-   * never held while a step is executed or a callback into user code runs, and it is distinct from
-   * {@code connectLock}, so claiming settlement can never wait on the connection's write ordering.
+   * held only for those short bookkeeping sections, never while a step is executed or a callback
+   * into user code runs, and it is distinct from {@code connectLock}, so claiming settlement can
+   * never wait on the connection's write ordering.
    */
   private final Object settlementLock = new Object();
+
+  /**
+   * Serialises the start of a step with settlement. {@link #doProcessCurrentStep} holds it across
+   * the "is this attempt still live?" check and the call to {@link ConnectionFlowStep#execute()},
+   * and {@link #settle()} holds it while it claims the attempt. A settlement that arrives while a
+   * step is starting therefore waits for the synchronous part of that step to return, and a step
+   * that arrives after the claim sees {@link #settled} and does not start. Without this lock the
+   * check and {@code execute()} are two separate actions, and a settlement on another thread can
+   * fit between them, letting a step of a dead attempt act on a connection that a retry has already
+   * rebound to a new channel.
+   *
+   * <p>Reentrant because a step can, unusually, fail synchronously in a way that settles its own
+   * flow on the same thread; that must not deadlock against its own start.
+   */
+  private final ReentrantLock stepStartLock = new ReentrantLock();
 
   /**
    * Construct a new {@link ConnectionFlow} for the given client and server connections.
@@ -153,31 +170,39 @@ class ConnectionFlow {
    *
    * <p>Re-checks {@link #settled}: for a step submitted to the event loop, the attempt can fail
    * between the submission and this task running, and the step must not then act on a connection
-   * that a retry may already have rebound to a new channel.
+   * that a retry may already have rebound to a new channel. The check and {@link
+   * ConnectionFlowStep#execute()} are performed while holding {@link #stepStartLock}, which {@link
+   * #settle()} also takes, so a settlement cannot slip in between them.
    */
   private void doProcessCurrentStep(
       final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
-    if (isSettled()) {
-      LOG.debug("Skipping step of a settled connection flow: {}", step);
-      return;
+    final Future<?> stepFuture;
+    stepStartLock.lock();
+    try {
+      if (isSettled()) {
+        LOG.debug("Skipping step of a settled connection flow: {}", step);
+        return;
+      }
+      stepFuture = step.execute();
+    } finally {
+      stepStartLock.unlock();
     }
-    step.execute()
-        .addListener(
-            future -> {
-              if (future.isSuccess()) {
-                LOG.debug("ConnectionFlowStep succeeded");
-                // Deliberately not under connectLock: onSuccess() normally advances straight into
-                // succeed(), and the resulting connectionSucceeded() runs user callbacks
-                // (ChainedProxy, HttpFilters) that must not be able to stall write() callers. The
-                // ordering-critical part takes connectLock itself, inside connectionSucceeded().
-                step.onSuccess(ConnectionFlow.this);
-              } else {
-                LOG.debug("ConnectionFlowStep failed", future.cause());
-                synchronized (connectLock) {
-                  fail(future.cause());
-                }
-              }
-            });
+    stepFuture.addListener(
+        future -> {
+          if (future.isSuccess()) {
+            LOG.debug("ConnectionFlowStep succeeded");
+            // Deliberately not under connectLock: onSuccess() normally advances straight into
+            // succeed(), and the resulting connectionSucceeded() runs user callbacks
+            // (ChainedProxy, HttpFilters) that must not be able to stall write() callers. The
+            // ordering-critical part takes connectLock itself, inside connectionSucceeded().
+            step.onSuccess(ConnectionFlow.this);
+          } else {
+            LOG.debug("ConnectionFlowStep failed", future.cause());
+            synchronized (connectLock) {
+              fail(future.cause());
+            }
+          }
+        });
   }
 
   /**
@@ -201,12 +226,19 @@ class ConnectionFlow {
 
   /** Claims the single settlement of this attempt, returning {@code false} if it was claimed. */
   private boolean settle() {
-    synchronized (settlementLock) {
-      if (settled) {
-        return false;
+    // Take the step-start lock first: a step that is starting must be allowed to finish starting,
+    // and no step may start once settlement has been claimed. See stepStartLock.
+    stepStartLock.lock();
+    try {
+      synchronized (settlementLock) {
+        if (settled) {
+          return false;
+        }
+        settled = true;
+        return true;
       }
-      settled = true;
-      return true;
+    } finally {
+      stepStartLock.unlock();
     }
   }
 

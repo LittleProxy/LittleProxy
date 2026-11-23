@@ -17,6 +17,8 @@ import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -132,6 +134,64 @@ final class ConnectionFlowTest {
     assertThat(step.executeCount())
         .as("a step must not run after the flow settled during its dispatch")
         .isZero();
+  }
+
+  @Test
+  @DisplayName("a settlement waits for a step that is starting")
+  void settlementWaitsForTheStepThatIsStarting() throws Exception {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(stepConnection.getLOG()).thenReturn(logger);
+    when(serverConnection.disconnect()).thenReturn(channel.newPromise());
+
+    CountDownLatch executeStarted = new CountDownLatch(1);
+    CountDownLatch releaseExecute = new CountDownLatch(1);
+    RecordingStep step =
+        new RecordingStep(stepConnection, channel.newPromise()) {
+          @Override
+          protected Future<?> execute() {
+            executeStarted.countDown();
+            try {
+              releaseExecute.await();
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+              throw new IllegalStateException("interrupted while starting the step", e);
+            }
+            return super.execute();
+          }
+        };
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+
+    Thread dispatcher = new Thread(flow::start, "flow-step-dispatcher");
+    dispatcher.start();
+    assertThat(executeStarted.await(5, TimeUnit.SECONDS)).as("the step must have started").isTrue();
+
+    Thread settler =
+        new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
+    settler.start();
+    awaitParked(settler);
+
+    assertThat(settler.getState())
+        .as("a settlement must not claim the attempt while a step is starting")
+        .isEqualTo(Thread.State.WAITING);
+
+    releaseExecute.countDown();
+    dispatcher.join(5000);
+    settler.join(5000);
+    assertThat(settler.isAlive())
+        .as("the settlement must complete after the step started")
+        .isFalse();
+    assertThat(step.executeCount()).isEqualTo(1);
+  }
+
+  /** Waits until the given thread parks (or dies), so its state can be asserted exactly. */
+  private static void awaitParked(Thread thread) {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (thread.isAlive()
+        && thread.getState() != Thread.State.WAITING
+        && System.nanoTime() < deadline) {
+      Thread.onSpinWait();
+    }
   }
 
   @Test
