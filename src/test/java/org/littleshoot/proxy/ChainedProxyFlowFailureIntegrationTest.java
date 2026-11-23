@@ -15,9 +15,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterEach;
@@ -344,7 +346,8 @@ final class ChainedProxyFlowFailureIntegrationTest {
             true, true, proxyServer.getListenAddress().getPort(), null, null)) {
       HttpGet request = new HttpGet("/");
       request.setConfig(TestUtils.REQUEST_TIMEOUT_CONFIG);
-      return client.execute(new HttpHost("127.0.0.1", httpsWebPort, "https"), request);
+      return withBufferedBody(
+          client.execute(new HttpHost("127.0.0.1", httpsWebPort, "https"), request));
     }
   }
 
@@ -354,8 +357,21 @@ final class ChainedProxyFlowFailureIntegrationTest {
             true, false, proxyServer.getListenAddress().getPort(), null, null)) {
       HttpGet request = new HttpGet("/");
       request.setConfig(TestUtils.REQUEST_TIMEOUT_CONFIG);
-      return client.execute(new HttpHost("127.0.0.1", httpWebPort, "http"), request);
+      return withBufferedBody(
+          client.execute(new HttpHost("127.0.0.1", httpWebPort, "http"), request));
     }
+  }
+
+  /**
+   * Reads the response body into memory before the client's try-with-resources block closes its
+   * connection manager, so callers can still read the entity after the helper returns.
+   */
+  private static HttpResponse withBufferedBody(HttpResponse response) throws IOException {
+    HttpEntity entity = response.getEntity();
+    if (entity != null) {
+      response.setEntity(new ByteArrayEntity(EntityUtils.toByteArray(entity)));
+    }
+    return response;
   }
 
   @FunctionalInterface
