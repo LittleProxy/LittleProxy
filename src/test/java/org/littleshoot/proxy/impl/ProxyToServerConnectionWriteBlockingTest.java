@@ -17,9 +17,12 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ConnectTimeoutException;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
@@ -33,6 +36,8 @@ import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.ChainedProxy;
@@ -44,6 +49,7 @@ import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.TransportProtocol;
+import org.mockito.ArgumentCaptor;
 
 /**
  * Regression test for <a href="https://github.com/LittleProxy/LittleProxy/issues/827">issue
@@ -314,6 +320,102 @@ final class ProxyToServerConnectionWriteBlockingTest {
 
     late.release();
     serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "a throwing initial write releases a reference-counted request without over-releasing")
+  void throwingInitialWriteReleasesReferenceCountedRequest() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    doThrow(new IllegalStateException("filter rejected the request"))
+        .when(chainedProxy)
+        .filterRequest(any());
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+
+    FullHttpRequest initial =
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload");
+    connection.setInitialRequest(initial);
+
+    assertThatCode(() -> connection.connectionSucceeded(clientConnection, true))
+        .doesNotThrowAnyException();
+
+    assertThat(initial.refCnt())
+        .as("the initial request's reference must be released exactly once")
+        .isZero();
+    serverChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName(
+      "an idle timeout while connecting fails the flow instead of only closing the channel")
+  void idleTimeoutWhileConnectingFailsFlow() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+
+    connection.timedOut();
+
+    ArgumentCaptor<Throwable> causeCaptor = ArgumentCaptor.forClass(Throwable.class);
+    verify(flow).fail(causeCaptor.capture());
+    assertThat(causeCaptor.getValue())
+        .isInstanceOf(ConnectTimeoutException.class)
+        .hasMessageContaining("Idle timeout while connecting to");
+    verify(clientConnection, never()).timedOut(connection);
+  }
+
+  @Test
+  @DisplayName("an unrecognized_name TLS warning retries without SNI instead of falling back")
+  void unrecognizedSniNameRetriesWithoutSni() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    connection.setInitialRequest(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    connection.become(ConnectionState.CONNECTING);
+    EmbeddedChannel parkedChannel = new EmbeddedChannel();
+    connection.channel = parkedChannel;
+    ChannelHandlerContext ctx = mock();
+    when(ctx.pipeline()).thenReturn(mock(ChannelPipeline.class));
+    connection.ctx = ctx;
+
+    SSLHandshakeException cause = new SSLHandshakeException("unrecognized_name");
+    assertThat(connection.connectionFailed(cause))
+        .as("the SNI retry must be reported as a handled retry")
+        .isTrue();
+    verify(chainedProxy, never()).connectionFailed(cause);
+
+    parkedChannel.finishAndReleaseAll();
+  }
+
+  @Test
+  @DisplayName("a non-SSL server retries without TLS instead of falling back")
+  void nonSslServerRetriesWithoutTls() throws Exception {
+    ChainedProxy chainedProxy = mock();
+    when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+    when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+    when(chainedProxy.getChainedProxyAddress()).thenReturn(hostAddress);
+    ProxyToServerConnection connection = createChainedConnection(chainedProxy);
+    connection.setInitialRequest(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    connection.become(ConnectionState.CONNECTING);
+    EmbeddedChannel parkedChannel = new EmbeddedChannel();
+    connection.channel = parkedChannel;
+    ChannelHandlerContext ctx = mock();
+    when(ctx.pipeline()).thenReturn(mock(ChannelPipeline.class));
+    connection.ctx = ctx;
+
+    SSLException cause = new SSLException("not an SSL/TLS record");
+    assertThat(connection.connectionFailed(cause))
+        .as("the non-TLS retry must be reported as a handled retry")
+        .isTrue();
+    verify(chainedProxy, never()).connectionFailed(cause);
+
+    parkedChannel.finishAndReleaseAll();
   }
 
   private ProxyToServerConnection createChainedConnection(ChainedProxy chainedProxy)

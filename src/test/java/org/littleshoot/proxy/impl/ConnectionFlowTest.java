@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -12,6 +15,8 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -19,11 +24,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Regression test for review item: a connection-flow attempt that has already settled must not
- * start another of its steps. The step that was in flight when the attempt failed can still
- * complete successfully afterwards; without an atomic "still live?" check, {@link
- * ConnectionFlow#advance()} would poll and execute the next step of the dead attempt, even though a
- * retry has already replaced it.
+ * Regression tests for the settlement of a connection-flow attempt: once an attempt has settled
+ * (succeeded or failed), it must not report again or start another of its steps. The step that was
+ * in flight when the attempt failed can still complete successfully afterwards; without an atomic
+ * "still live?" check, {@link ConnectionFlow#advance()} would poll and execute the next step of the
+ * dead attempt, even though a retry has already replaced it.
  */
 final class ConnectionFlowTest {
 
@@ -104,11 +109,91 @@ final class ConnectionFlowTest {
         .isZero();
   }
 
+  @Test
+  @DisplayName("a step is not started when the flow settles while the step is being dispatched")
+  void settledFlowDoesNotStartADispatchedStep() {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(serverConnection.disconnect()).thenReturn(channel.newPromise());
+    RecordingStep step = new RecordingStep(serverConnection, channel.newPromise());
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+    // advance() polls the step and then calls processCurrentStep(), which re-checks settlement
+    // before executing. Settle the flow from the logger lookup that happens between those two
+    // points, so the guard is exercised deterministically instead of relying on a race.
+    when(serverConnection.getLOG())
+        .thenAnswer(
+            invocation -> {
+              flow.fail(new IllegalStateException("settled while dispatching"));
+              return logger;
+            });
+
+    flow.advance();
+
+    assertThat(step.executeCount())
+        .as("a step must not run after the flow settled during its dispatch")
+        .isZero();
+  }
+
+  @Test
+  @DisplayName("a flow with no steps succeeds once and ignores later settlement")
+  void emptyFlowSettlesOnce() {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+
+    flow.start();
+    // An idle timeout or a close can report after the flow already succeeded; both must be no-ops.
+    flow.succeed();
+    flow.fail(new IllegalStateException("late"));
+
+    verify(serverConnection, times(1)).connectionSucceeded(clientConnection, true);
+    verify(serverConnection, never()).disconnect();
+  }
+
+  @Test
+  @DisplayName("a step that suppresses the initial request is reported as not forwarding it")
+  void suppressedInitialRequestIsReported() {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(stepConnection.getLOG()).thenReturn(logger);
+
+    RecordingStep step =
+        new RecordingStep(stepConnection, channel.newPromise()) {
+          @Override
+          boolean shouldSuppressInitialRequest() {
+            return true;
+          }
+        };
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+
+    flow.start();
+    step.succeed();
+
+    verify(serverConnection).connectionSucceeded(clientConnection, false);
+  }
+
+  @Test
+  @DisplayName("read is delegated to the current step and ignored before the flow starts")
+  void readIsDelegatedToTheCurrentStep() {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(stepConnection.getLOG()).thenReturn(logger);
+    RecordingStep step = new RecordingStep(stepConnection, channel.newPromise());
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+
+    flow.read("before start");
+    assertThat(step.readMessages()).isEmpty();
+
+    flow.start();
+    flow.read("while the step is pending");
+    assertThat(step.readMessages()).containsExactly("while the step is pending");
+  }
+
   /** A step that records how often it was started and completes its future on demand. */
-  private static final class RecordingStep extends ConnectionFlowStep<HttpResponse> {
+  private static class RecordingStep extends ConnectionFlowStep<HttpResponse> {
     private final ChannelPromise executeResult;
     private final boolean executeOnEventLoop;
     private final AtomicInteger executeCount = new AtomicInteger();
+    private final List<Object> readMessages = new ArrayList<>();
 
     RecordingStep(ProxyConnection<HttpResponse> connection, ChannelPromise executeResult) {
       this(connection, executeResult, false);
@@ -134,8 +219,17 @@ final class ConnectionFlowTest {
       return executeResult;
     }
 
+    @Override
+    void read(ConnectionFlow flow, Object msg) {
+      readMessages.add(msg);
+    }
+
     int executeCount() {
       return executeCount.get();
+    }
+
+    List<Object> readMessages() {
+      return readMessages;
     }
 
     void succeed() {
