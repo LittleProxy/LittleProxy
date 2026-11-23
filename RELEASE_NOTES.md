@@ -1,7 +1,14 @@
 # Release Notes
 
-- 2.10.0 (Under construction, https://github.com/LittleProxy/LittleProxy/milestone/54?closed=1)
-  - TBD
+- 2.10.0 (23.11.2026, https://github.com/LittleProxy/LittleProxy/milestone/54?closed=1)
+  - #83 add optional shared server connection pool, pluggable via Java ServiceLoader (disabled by default; see `docs/pooling-features.md`) (#724) (#799) (#802) (#807) (#826) by Charles Lescot
+  - #6 fail connection flow on idle timeout while connecting to upstream (e.g. chained proxy never answering CONNECT): client socket no longer stays in CLOSE_WAIT by Andrei Solntsev (#849)
+  - #152 fix ByteBuf leak of the copied request (with request aggregation enabled) for CONNECT tunnels and client disconnects by Andrei Solntsev (#847)
+  - fix `ActivityLogger` leaking outstanding requests when a flow ends without a response (timeout or exception) by Charles Lescot
+  - Remove dead MITM TLS-detection code from ProxyToServerConnection by Charles Lescot (#825)
+  - #98 document running LittleProxy on Android by Andrei Solntsev (#848)
+  - Bump Netty from 4.2.17.Final to 4.2.21.Final (#838) (#846)
+  - Bump Selenium from 4.48.0 to 4.53.0 (#820) (#835) (#850)
 
 - 2.9.1 (28.08.2026, https://github.com/LittleProxy/LittleProxy/milestone/53?closed=1)
   - Bump Netty from 4.2.16.Final to 4.2.17.Final (#782)
