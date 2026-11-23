@@ -667,6 +667,52 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     // first request (readHTTPInitial). The header isn't available yet at channel-active time.
   }
 
+  /**
+   * Called when {@code serverConnection} closed after a request was written to it but before the
+   * response to that request was complete. Without this, a client whose connection to the proxy
+   * stays open would wait forever for a response that will never come (#854).
+   *
+   * <p>If no part of the response has reached the client yet, it gets a 502 Bad Gateway. If the
+   * response was cut off in the middle, the only way left to tell the client is to close its
+   * connection.
+   *
+   * @param responseStarted whether the server had already started sending the response
+   */
+  void serverClosedBeforeResponseCompleted(
+      ProxyToServerConnection serverConnection, boolean responseStarted) {
+    if (currentServerConnection != serverConnection || isTunneling()) {
+      // not the connection this client is waiting on, or raw bytes for which no HTTP response fits
+      return;
+    }
+    // Keep currentServerConnection as it is: a DISCONNECTED server connection reconnects on its
+    // next write, and clearing it here would make the client's idle timeout treat the client as
+    // idle and close it (e.g. right after a 504 for a server idle timeout, which also ends here).
+    if (responseStarted) {
+      LOG.warn("Server closed the connection in the middle of the response, closing the client");
+      disconnect();
+      return;
+    }
+    // currentRequest is cleared once any response reaches the client (e.g. a 504 after an idle
+    // timeout); if it is gone, the client is not waiting for anything any more.
+    HttpRequest request = currentRequest.get();
+    if (request == null) {
+      return;
+    }
+    LOG.warn("Server closed the connection before responding to {}", request.uri());
+    // if the client is still sending the request body, the rest of it cannot be parsed as a new
+    // request: close the connection after the 502 instead of keeping it alive
+    boolean clientStillSendingBody = is(AWAITING_CHUNK);
+    boolean keepAlive = writeBadGateway(request);
+    if (keepAlive && !clientStillSendingBody) {
+      become(AWAITING_INITIAL);
+    } else {
+      become(DISCONNECT_REQUESTED);
+      if (keepAlive) {
+        disconnect();
+      }
+    }
+  }
+
   void timedOut(ProxyToServerConnection serverConnection) {
     if (currentServerConnection == serverConnection
         && lastReadTime > currentServerConnection.lastReadTime) {

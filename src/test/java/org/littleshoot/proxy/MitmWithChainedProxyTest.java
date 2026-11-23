@@ -9,7 +9,6 @@ import java.util.Set;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.littleshoot.proxy.extras.TestMitmManager;
 
@@ -117,7 +116,6 @@ public class MitmWithChainedProxyTest extends BaseChainedProxyTest {
 
   @Test
   @Override
-  @Disabled("POST response intermittently lost with MITM + chained proxy, see #854")
   public void testSimplePostRequest() {
     super.testSimplePostRequest();
     if (isChained() && !expectBadGatewayForEverything()) {
