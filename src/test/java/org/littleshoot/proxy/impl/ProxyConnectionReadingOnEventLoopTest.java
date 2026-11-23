@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.local.LocalChannel;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,7 @@ class ProxyConnectionReadingOnEventLoopTest {
 
   @AfterEach
   void tearDown() throws Exception {
-    channel.close().sync();
+    channel.close().await(5, SECONDS);
     eventLoop.shutdownGracefully(0, 0, SECONDS).sync();
   }
 
@@ -75,18 +76,38 @@ class ProxyConnectionReadingOnEventLoopTest {
     assertThat(channel.config().isAutoRead()).isTrue();
   }
 
+  @Test
+  void stopAndResumeReadingAfterEventLoopShutDown() throws Exception {
+    eventLoop.shutdownGracefully(0, 0, SECONDS).sync();
+
+    connection.stopReading();
+    connection.resumeReading();
+  }
+
   private void runOnEventLoop(Runnable task) throws Exception {
     eventLoop.submit(task).get(5, SECONDS);
   }
 
   private static void runOnAnotherThread(Runnable task) {
-    Thread thread = new Thread(task);
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+    Thread thread =
+        new Thread(
+            () -> {
+              try {
+                task.run();
+              } catch (Throwable t) {
+                failure.set(t);
+              }
+            });
     thread.start();
     try {
       thread.join(5000);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(e);
+    }
+    if (failure.get() != null) {
+      throw new AssertionError("Task failed on another thread", failure.get());
     }
   }
 
