@@ -153,8 +153,6 @@ class ConnectionFlow {
       return;
     }
     LOG.debug("Processing connection flow step: {}", step);
-    connection.become(step.getState());
-    suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
 
     if (step.shouldExecuteOnEventLoop()) {
       connection.ctx.executor().submit(() -> doProcessCurrentStep(step, LOG));
@@ -166,19 +164,22 @@ class ConnectionFlow {
   /**
    * Does the work of processing the given step, checking the result and handling success/failure.
    *
-   * <p>The settlement check and the reservation of the step happen atomically under {@link
-   * #settlementLock}. A settlement claimed after that reservation is deferred until {@code
-   * execute()} returns (see {@link #deferredSettlement}), so the step cannot act on a connection
-   * that a retry has rebound, and a step that arrives after the claim does not start at all. No
-   * lock is held while {@code execute()} runs.
+   * <p>The settlement check, the state transition and the reservation of the step happen atomically
+   * under {@link #settlementLock}. A settlement claimed after that reservation is deferred until
+   * {@code execute()} returns (see {@link #deferredSettlement}), so the step cannot act on a
+   * connection that a retry has rebound, and a step that arrives after the claim neither starts nor
+   * changes the connection's state. No lock is held while {@code execute()} runs.
    */
   private void doProcessCurrentStep(
       final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
+    final ProxyConnection<?> connection = step.getConnection();
     synchronized (settlementLock) {
       if (settled) {
         LOG.debug("Skipping step of a settled connection flow: {}", step);
         return;
       }
+      connection.become(step.getState());
+      suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
       stepStarting = true;
     }
 

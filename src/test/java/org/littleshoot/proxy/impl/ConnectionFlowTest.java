@@ -155,6 +155,9 @@ final class ConnectionFlowTest {
 
     CountDownLatch executeStarted = new CountDownLatch(1);
     CountDownLatch releaseExecute = new CountDownLatch(1);
+    // Step execution is where slow or user-supplied work runs, including the MITM step's
+    // clientSslEngineFor() certificate creation. Holding it open here is the same situation as an
+    // upstream close arriving while that callback is running.
     RecordingStep step =
         new RecordingStep(stepConnection, channel.newPromise()) {
           @Override
@@ -178,14 +181,16 @@ final class ConnectionFlowTest {
 
     Thread dispatcher = new Thread(flow::start, "flow-step-dispatcher");
     dispatcher.start();
-    assertThat(executeStarted.await(5, TimeUnit.SECONDS)).as("the step must have started").isTrue();
-
-    // The settling thread must not block (it would block an event loop), and it must not tear the
-    // connection down while the admitted step is still starting.
-    Thread settler =
-        new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
-    settler.start();
     try {
+      assertThat(executeStarted.await(5, TimeUnit.SECONDS))
+          .as("the step must have started")
+          .isTrue();
+
+      // The settling thread must not block (it would block an event loop), and it must not tear the
+      // connection down while the admitted step is still starting.
+      Thread settler =
+          new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
+      settler.start();
       settler.join(5000);
       assertThat(settler.isAlive())
           .as("settlement must not wait for a step that is starting")
@@ -195,6 +200,8 @@ final class ConnectionFlowTest {
           .isFalse();
       verify(serverConnection, never()).disconnect();
     } finally {
+      // Release the dispatcher even when an assertion above fails, so a failing run does not leave
+      // it parked until the test JVM exits.
       releaseExecute.countDown();
     }
 
