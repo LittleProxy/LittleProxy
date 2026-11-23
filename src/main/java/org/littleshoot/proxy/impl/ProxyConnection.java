@@ -9,9 +9,12 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.traffic.AbstractTrafficShapingHandler;
+import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLEngine;
@@ -66,6 +69,12 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
   private volatile ConnectionState currentState;
   protected volatile boolean tunneling;
   protected volatile long lastReadTime;
+
+  /**
+   * Whether the last call was {@link #resumeReading()} (true) or {@link #stopReading()} (false).
+   * The channel's auto-read setting is updated on its event loop to match the latest value.
+   */
+  private volatile boolean readingRequested = true;
 
   /** If using encryption, this holds our {@link SSLEngine}. */
   @Nullable protected volatile SSLEngine sslEngine;
@@ -369,9 +378,7 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
     if (authenticateClients) {
       sslEngine.setNeedClientAuth(true);
     }
-    if (null != channel) {
-      channel.config().setAutoRead(true);
-    }
+    resumeReading();
     SslHandler handler = new SslHandler(sslEngine);
     if (pipeline.get("ssl") == null) {
       pipeline.addFirst("ssl", handler);
@@ -512,14 +519,77 @@ abstract class ProxyConnection<I extends HttpObject> extends SimpleChannelInboun
 
   /** Call this to stop reading. */
   protected void stopReading() {
-    LOG.debug("Stopped reading");
-    channel.config().setAutoRead(false);
+    readingRequested = false;
+    applyReadingRequested();
   }
 
-  /** Call this to resume reading. */
+  /**
+   * Call this to resume reading.
+   *
+   * <p>Does not re-enable reading while reads are suspended by traffic shaping: that would bypass
+   * the throttling, and the traffic shaping handler resumes reading itself once the throttling
+   * delay has passed.
+   */
   protected void resumeReading() {
-    LOG.debug("Resumed reading");
-    channel.config().setAutoRead(true);
+    readingRequested = true;
+    applyReadingRequested();
+  }
+
+  /**
+   * Updates the channel's auto-read setting to match {@link #readingRequested}, on the channel's
+   * event loop.
+   *
+   * <p>The traffic shaping handler runs on the channel's event loop and suspends reads in two steps
+   * (disable auto-read, then mark reads as suspended). Updating auto-read from another thread could
+   * slip in between and re-enable reading behind its back.
+   *
+   * <p>A call from another thread is queued, so it may run after a later call made on the event
+   * loop. That's why the task applies the latest requested state instead of the one requested when
+   * it was queued.
+   *
+   * <p>Does nothing if the channel isn't set yet, or if its event loop is shutting down.
+   */
+  private void applyReadingRequested() {
+    Channel ch = channel;
+    if (ch == null) {
+      LOG.debug("Not changing reading: no channel yet");
+      return;
+    }
+    EventLoop eventLoop = ch.eventLoop();
+    if (eventLoop.inEventLoop()) {
+      applyReadingRequested(ch);
+    } else {
+      try {
+        eventLoop.execute(() -> applyReadingRequested(ch));
+      } catch (RejectedExecutionException e) {
+        LOG.debug("Not changing reading: event loop is shutting down", e);
+      }
+    }
+  }
+
+  private void applyReadingRequested(Channel ch) {
+    if (!readingRequested) {
+      LOG.debug("Stopped reading");
+      ch.config().setAutoRead(false);
+    } else if (isReadSuspendedByTrafficShaping(ch)) {
+      LOG.debug("Not resuming reading: reads are suspended by traffic shaping");
+    } else {
+      LOG.debug("Resumed reading");
+      ch.config().setAutoRead(true);
+    }
+  }
+
+  /**
+   * The attribute {@link AbstractTrafficShapingHandler} sets on a channel while it has suspended
+   * reads to enforce the read limit. Netty keeps the key package-private, but {@link
+   * AttributeKey#valueOf(String)} returns the same key instance for the same name.
+   */
+  static final AttributeKey<Boolean> TRAFFIC_SHAPING_READ_SUSPENDED =
+      AttributeKey.valueOf(AbstractTrafficShapingHandler.class.getName() + ".READ_SUSPENDED");
+
+  static boolean isReadSuspendedByTrafficShaping(Channel channel) {
+    return channel.hasAttr(TRAFFIC_SHAPING_READ_SUSPENDED)
+        && Boolean.TRUE.equals(channel.attr(TRAFFIC_SHAPING_READ_SUSPENDED).get());
   }
 
   /**
