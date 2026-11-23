@@ -45,13 +45,6 @@ abstract class ConnectionFlowStep<T extends HttpObject> {
     return true;
   }
 
-  /**
-   * Performs work that must happen before the step starts, such as a slow or user-supplied
-   * callback. Called without the step-start lock, so it cannot delay a concurrent settlement; if
-   * the flow settles while it runs, {@link #execute()} is not called. Defaults to doing nothing.
-   */
-  void prepare() {}
-
   /** Implement this method to actually do the work involved in this step of the flow. */
   protected abstract Future<?> execute();
 

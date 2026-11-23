@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -137,11 +138,20 @@ final class ConnectionFlowTest {
   }
 
   @Test
-  @DisplayName("a settlement waits for a step that is starting")
-  void settlementWaitsForTheStepThatIsStarting() throws Exception {
+  @DisplayName("a settlement claimed while a step is starting is deferred until the step returns")
+  void settlementDuringStepStartIsDeferred() throws Exception {
     when(serverConnection.getLOG()).thenReturn(logger);
     when(stepConnection.getLOG()).thenReturn(logger);
-    when(serverConnection.disconnect()).thenReturn(channel.newPromise());
+    AtomicBoolean executeReturned = new AtomicBoolean();
+    AtomicBoolean tornDownWhileStepWasStarting = new AtomicBoolean();
+    when(serverConnection.disconnect())
+        .thenAnswer(
+            invocation -> {
+              if (!executeReturned.get()) {
+                tornDownWhileStepWasStarting.set(true);
+              }
+              return channel.newPromise();
+            });
 
     CountDownLatch executeStarted = new CountDownLatch(1);
     CountDownLatch releaseExecute = new CountDownLatch(1);
@@ -156,7 +166,11 @@ final class ConnectionFlowTest {
               Thread.currentThread().interrupt();
               throw new IllegalStateException("interrupted while starting the step", e);
             }
-            return super.execute();
+            try {
+              return super.execute();
+            } finally {
+              executeReturned.set(true);
+            }
           }
         };
     ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
@@ -166,85 +180,28 @@ final class ConnectionFlowTest {
     dispatcher.start();
     assertThat(executeStarted.await(5, TimeUnit.SECONDS)).as("the step must have started").isTrue();
 
+    // The settling thread must not block (it would block an event loop), and it must not tear the
+    // connection down while the admitted step is still starting.
     Thread settler =
         new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
     settler.start();
     try {
-      awaitParked(settler);
-
-      assertThat(settler.getState())
-          .as("a settlement must not claim the attempt while a step is starting")
-          .isEqualTo(Thread.State.WAITING);
+      settler.join(5000);
+      assertThat(settler.isAlive())
+          .as("settlement must not wait for a step that is starting")
+          .isFalse();
+      assertThat(tornDownWhileStepWasStarting)
+          .as("the retry must be deferred until the step has started")
+          .isFalse();
+      verify(serverConnection, never()).disconnect();
     } finally {
-      // Release the dispatcher even when the assertion above fails, so a failing run does not
-      // leave it parked until the test JVM exits.
       releaseExecute.countDown();
     }
+
     dispatcher.join(5000);
-    settler.join(5000);
-    assertThat(settler.isAlive())
-        .as("the settlement must complete after the step started")
-        .isFalse();
+    assertThat(dispatcher.isAlive()).as("the step must complete").isFalse();
     assertThat(step.executeCount()).isEqualTo(1);
-  }
-
-  @Test
-  @DisplayName("a step's slow preparation does not block settlement and the step is not started")
-  void slowPreparationDoesNotBlockSettlement() throws Exception {
-    when(serverConnection.getLOG()).thenReturn(logger);
-    when(stepConnection.getLOG()).thenReturn(logger);
-    when(serverConnection.disconnect()).thenReturn(channel.newPromise());
-
-    CountDownLatch prepareStarted = new CountDownLatch(1);
-    CountDownLatch releasePrepare = new CountDownLatch(1);
-    RecordingStep step =
-        new RecordingStep(stepConnection, channel.newPromise()) {
-          @Override
-          void prepare() {
-            prepareStarted.countDown();
-            try {
-              releasePrepare.await();
-            } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
-              throw new IllegalStateException("interrupted while preparing the step", e);
-            }
-          }
-        };
-    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
-    flow.then(step);
-
-    Thread dispatcher = new Thread(flow::start, "flow-step-dispatcher");
-    dispatcher.start();
-    assertThat(prepareStarted.await(5, TimeUnit.SECONDS))
-        .as("the step's preparation must have started")
-        .isTrue();
-
-    Thread settler =
-        new Thread(() -> flow.fail(new IllegalStateException("settled")), "flow-settler");
-    settler.start();
-    settler.join(5000);
-    try {
-      assertThat(settler.isAlive())
-          .as("a settlement must not wait for a step's preparation")
-          .isFalse();
-    } finally {
-      releasePrepare.countDown();
-    }
-
-    dispatcher.join(5000);
-    assertThat(step.executeCount())
-        .as("a step whose flow settled during preparation must not start")
-        .isZero();
-  }
-
-  /** Waits until the given thread parks (or dies), so its state can be asserted exactly. */
-  private static void awaitParked(Thread thread) {
-    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-    while (thread.isAlive()
-        && thread.getState() != Thread.State.WAITING
-        && System.nanoTime() < deadline) {
-      Thread.onSpinWait();
-    }
+    verify(serverConnection).disconnect();
   }
 
   @Test

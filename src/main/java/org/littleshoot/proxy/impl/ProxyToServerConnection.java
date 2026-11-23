@@ -1611,21 +1611,6 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    */
   private final ConnectionFlowStep<HttpResponse> MitmEncryptClientChannel =
       new ConnectionFlowStep<>(this, HANDSHAKING) {
-        /**
-         * Created in {@link #prepare()}, outside the step-start lock: a {@link MitmManager} can
-         * mint a certificate here, and holding the lock across that would delay a settlement that
-         * arrives from the server connection meanwhile. {@link #execute()} only installs it.
-         */
-        private SSLEngine clientSslEngine;
-
-        @Override
-        void prepare() {
-          clientSslEngine =
-              proxyServer
-                  .getMitmManager()
-                  .clientSslEngineFor(initialRequest, sslEngine.getSession());
-        }
-
         @Override
         boolean shouldExecuteOnEventLoop() {
           return false;
@@ -1639,7 +1624,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         @Override
         protected Future<?> execute() {
           return getClientConnection()
-              .encrypt(clientSslEngine, false)
+              .encrypt(
+                  proxyServer
+                      .getMitmManager()
+                      .clientSslEngineFor(initialRequest, sslEngine.getSession()),
+                  false)
               .addListener(
                   future -> {
                     if (future.isSuccess()) {
