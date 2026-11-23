@@ -1984,8 +1984,14 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * which cannot be used to forward requests, because the state-transition callback or the initial
    * write threw. No later connecting-state cleanup will run for it, so the queued writes must be
    * failed (releasing their references and read-gate holds) and the connection closed here.
+   *
+   * <p>The state leaves the connecting states before the drain: {@link #write(Object)} reads that
+   * state under {@code connectLock} to decide between queueing and writing directly, and the lock
+   * is released before the asynchronous close completes. A write admitted after the drain would
+   * otherwise be queued with nothing left to flush or fail it.
    */
   private void failAfterConnectionSucceeded(Throwable cause) {
+    become(DISCONNECT_REQUESTED);
     resetInitialRequest();
     failPendingWrites(cause);
     disconnect();

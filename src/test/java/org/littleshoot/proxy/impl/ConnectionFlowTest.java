@@ -1,14 +1,19 @@
 package org.littleshoot.proxy.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,19 +65,67 @@ final class ConnectionFlowTest {
     assertThat(second.executeCount()).as("a settled flow must not execute another step").isZero();
   }
 
+  @Test
+  @DisplayName("a step submitted before the flow failed does not run after it")
+  void submittedStepIsSkippedWhenFlowSettlesFirst() {
+    when(serverConnection.getLOG()).thenReturn(logger);
+    when(stepConnection.getLOG()).thenReturn(logger);
+    when(serverConnection.disconnect()).thenReturn(channel.newPromise());
+
+    // A real event loop that does not run the task until this test tells it to.
+    ChannelHandlerContext ctx = mock();
+    EventExecutor executor = mock();
+    AtomicReference<Runnable> submitted = new AtomicReference<>();
+    when(ctx.executor()).thenReturn(executor);
+    doAnswer(
+            invocation -> {
+              submitted.set(invocation.getArgument(0));
+              return null;
+            })
+        .when(executor)
+        .submit(any(Runnable.class));
+    stepConnection.ctx = ctx;
+
+    RecordingStep step = new RecordingStep(stepConnection, channel.newPromise(), true);
+    ConnectionFlow flow = new ConnectionFlow(clientConnection, serverConnection, new Object());
+    flow.then(step);
+
+    flow.start();
+    assertThat(step.executeCount()).isZero();
+    Runnable submittedTask = submitted.get();
+    assertThat(submittedTask).as("the step must be submitted to the event loop").isNotNull();
+
+    // The attempt fails before the event loop gets to run the submitted task.
+    flow.fail(new IllegalStateException("upstream closed"));
+    submittedTask.run();
+
+    assertThat(step.executeCount())
+        .as("a step submitted before settlement must not run after it")
+        .isZero();
+  }
+
   /** A step that records how often it was started and completes its future on demand. */
   private static final class RecordingStep extends ConnectionFlowStep<HttpResponse> {
     private final ChannelPromise executeResult;
+    private final boolean executeOnEventLoop;
     private final AtomicInteger executeCount = new AtomicInteger();
 
     RecordingStep(ProxyConnection<HttpResponse> connection, ChannelPromise executeResult) {
+      this(connection, executeResult, false);
+    }
+
+    RecordingStep(
+        ProxyConnection<HttpResponse> connection,
+        ChannelPromise executeResult,
+        boolean executeOnEventLoop) {
       super(connection, ConnectionState.CONNECTING);
       this.executeResult = executeResult;
+      this.executeOnEventLoop = executeOnEventLoop;
     }
 
     @Override
     boolean shouldExecuteOnEventLoop() {
-      return false;
+      return executeOnEventLoop;
     }
 
     @Override

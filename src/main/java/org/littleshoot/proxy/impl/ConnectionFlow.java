@@ -133,6 +133,10 @@ class ConnectionFlow {
     final ProxyConnection<?> connection = step.getConnection();
     final ProxyConnectionLogger LOG = connection.getLOG();
 
+    if (isSettled()) {
+      LOG.debug("Skipping step of a settled connection flow: {}", step);
+      return;
+    }
     LOG.debug("Processing connection flow step: {}", step);
     connection.become(step.getState());
     suppressInitialRequest = suppressInitialRequest || step.shouldSuppressInitialRequest();
@@ -146,9 +150,17 @@ class ConnectionFlow {
 
   /**
    * Does the work of processing the given step, checking the result and handling success/failure.
+   *
+   * <p>Re-checks {@link #settled}: for a step submitted to the event loop, the attempt can fail
+   * between the submission and this task running, and the step must not then act on a connection
+   * that a retry may already have rebound to a new channel.
    */
   private void doProcessCurrentStep(
       final ConnectionFlowStep<?> step, final ProxyConnectionLogger LOG) {
+    if (isSettled()) {
+      LOG.debug("Skipping step of a settled connection flow: {}", step);
+      return;
+    }
     step.execute()
         .addListener(
             future -> {
@@ -195,6 +207,13 @@ class ConnectionFlow {
       }
       settled = true;
       return true;
+    }
+  }
+
+  /** Whether this attempt has already been reported as succeeded or failed. */
+  private boolean isSettled() {
+    synchronized (settlementLock) {
+      return settled;
     }
   }
 

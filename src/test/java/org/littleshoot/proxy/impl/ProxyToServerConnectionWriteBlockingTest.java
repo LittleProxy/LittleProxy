@@ -282,6 +282,40 @@ final class ProxyToServerConnectionWriteBlockingTest {
     serverChannel.finishAndReleaseAll();
   }
 
+  @Test
+  @DisplayName("a write admitted after the terminal cleanup is failed instead of queued forever")
+  void writeAfterTerminalCleanupIsFailed() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    EmbeddedChannel serverChannel = new EmbeddedChannel();
+    ChannelHandlerContext ctx = mock();
+    when(ctx.channel()).thenReturn(serverChannel);
+    connection.handlerAdded(ctx);
+    connection.become(ConnectionState.CONNECTING);
+    connection.setInitialRequest(
+        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/upload"));
+    doThrow(new IllegalStateException("filter rejected the connection"))
+        .when(filters)
+        .proxyToServerConnectionSucceeded(any());
+
+    // The transition throws: the terminal cleanup drains the (empty) queue and starts an
+    // asynchronous close. The handler is deliberately not in the channel's pipeline, so
+    // channelInactive never arrives and the connection stays in the state the cleanup left it.
+    connection.connectionSucceeded(clientConnection, true);
+
+    // A chunk admitted after that drain must not be accepted: once the channel closes, nothing is
+    // left to flush or fail it, so it would keep its buffer and its client's read-gate hold.
+    DefaultHttpContent late = new DefaultHttpContent(Unpooled.buffer(1).writeByte(1));
+    ChannelFuture lateWrite = connection.write(late);
+
+    assertThat(lateWrite.isDone()).as("the late write must be failed, not queued").isTrue();
+    assertThat(lateWrite.isSuccess()).isFalse();
+    assertThat(late.refCnt()).as("the retained reference must be released").isEqualTo(1);
+    verify(clientConnection, never()).deferredWriteQueued();
+
+    late.release();
+    serverChannel.finishAndReleaseAll();
+  }
+
   private ProxyToServerConnection createChainedConnection(ChainedProxy chainedProxy)
       throws UnknownHostException {
     ChainedProxyManager chainedProxyManager = mock();
