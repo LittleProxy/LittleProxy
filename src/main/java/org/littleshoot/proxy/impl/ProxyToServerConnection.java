@@ -895,6 +895,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   protected void disconnected() {
     // Capture this before super.disconnected() moves us to DISCONNECTED.
     boolean wasConnecting = isConnecting();
+    // A request was written to the server but its response never completed: the server closed the
+    // connection without answering (e.g. a chained proxy rejecting our TLS 1.3 client certificate
+    // only after the handshake had already completed on our side), or in the middle of the
+    // response. Capture who is waiting for that response before super.disconnected() clears it.
+    boolean responseIncomplete = !wasConnecting && currentHttpRequest != null;
+    boolean responseStarted = is(AWAITING_CHUNK);
+    ClientToProxyConnection waitingClient = getClientConnection();
     super.disconnected();
     recordServerDisconnected();
     if (chainedProxy != null) {
@@ -911,6 +918,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       if (channel != null) {
         connectionPool.drainPendingRequests(channel);
       }
+    }
+    if (responseIncomplete && waitingClient != null) {
+      // Before serverDisconnected(): for MITM it closes the client, and the 502 must go out first.
+      waitingClient.serverClosedBeforeResponseCompleted(this, responseStarted);
     }
     ClientToProxyConnection clientConn = getClientConnection();
     if (clientConn != null) {
