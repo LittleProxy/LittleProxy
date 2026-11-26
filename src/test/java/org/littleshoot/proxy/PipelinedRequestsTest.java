@@ -20,8 +20,9 @@ import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 
 /**
@@ -75,8 +76,9 @@ final class PipelinedRequestsTest {
     upstream.close();
   }
 
-  @Test
-  void getFollowedByPipelinedHeadGetsBothResponsesIntact()
+  @ParameterizedTest(name = "{0} /a, then {1} /b")
+  @CsvSource({"GET, HEAD", "HEAD, GET"})
+  void pipelinedRequestsGetTheirOwnResponsesIntact(String firstMethod, String secondMethod)
       throws IOException, InterruptedException {
     String target = "http://" + UPSTREAM_HOST + ":" + upstream.getLocalPort();
     String host = UPSTREAM_HOST + ":" + upstream.getLocalPort();
@@ -84,32 +86,16 @@ final class PipelinedRequestsTest {
       client.setSoTimeout(5000);
       OutputStream out = client.getOutputStream();
       out.write(
-          ("GET "
-                  + target
-                  + "/a HTTP/1.1\r\nHost: "
-                  + host
-                  + "\r\n\r\n"
-                  + "HEAD "
-                  + target
-                  + "/b HTTP/1.1\r\nHost: "
-                  + host
-                  + "\r\n\r\n")
+          (request(firstMethod, target + "/a", host) + request(secondMethod, target + "/b", host))
               .getBytes(US_ASCII));
       out.flush();
 
       InputStream in = client.getInputStream();
-      Response first = readResponse(in, false);
-      assertThat(first.statusLine).as("response to GET /a").contains(" 200 ");
-      assertThat(first.body).as("body of GET /a").isEqualTo(GET_BODY);
-
-      Response second = readResponse(in, true);
-      assertThat(second.statusLine).as("response to HEAD /b").contains(" 200 ");
-      assertThat(second.headers)
-          .as("headers of HEAD /b")
-          .containsIgnoringCase("content-length: " + HEAD_CONTENT_LENGTH);
+      assertResponse(readResponse(in, firstMethod), firstMethod + " /a");
+      assertResponse(readResponse(in, secondMethod), secondMethod + " /b");
     }
     assertThat(upstreamSawBothRequestsFirst)
-        .as("the proxy must forward the HEAD before the GET is answered, or nothing is pipelined")
+        .as("the proxy must forward the second request before the first is answered")
         .isTrue();
     assertThat(allResponsesReceived.await(5, TimeUnit.SECONDS)).isTrue();
     assertThat(responsesReceived)
@@ -117,9 +103,24 @@ final class PipelinedRequestsTest {
         .containsExactly("/a", "/b");
   }
 
+  private static String request(String method, String uri, String host) {
+    return method + " " + uri + " HTTP/1.1\r\nHost: " + host + "\r\n\r\n";
+  }
+
+  private static void assertResponse(Response response, String request) {
+    assertThat(response.statusLine).as("response to " + request).contains(" 200 ");
+    if (request.startsWith("HEAD")) {
+      assertThat(response.headers)
+          .as("headers of " + request)
+          .containsIgnoringCase("content-length: " + HEAD_CONTENT_LENGTH);
+    } else {
+      assertThat(response.body).as("body of " + request).isEqualTo(GET_BODY);
+    }
+  }
+
   /**
-   * Reads both requests (or gives up waiting for the second one), then answers them in order: GET
-   * /a with a body, HEAD /b with only headers.
+   * Reads both requests (or gives up waiting for the second one), then answers them in order: a GET
+   * with a body, a HEAD with only headers, advertising a longer body than a GET's.
    */
   private void serve() {
     while (!upstream.isClosed()) {
@@ -140,17 +141,15 @@ final class PipelinedRequestsTest {
         socket.setSoTimeout(0);
 
         OutputStream out = socket.getOutputStream();
-        out.write(
-            ("HTTP/1.1 200 OK\r\nContent-Length: " + GET_BODY.length() + "\r\n\r\n" + GET_BODY)
-                .getBytes(US_ASCII));
+        out.write(responseTo(firstRequest));
         if (secondRequest == null) {
-          // The proxy is waiting for the GET's response before it forwards the HEAD.
+          // The proxy is waiting for the first response before it forwards the second request.
           out.flush();
           secondRequest = readHeaders(in);
         }
-        out.write(
-            ("HTTP/1.1 200 OK\r\nContent-Length: " + HEAD_CONTENT_LENGTH + "\r\n\r\n")
-                .getBytes(US_ASCII));
+        if (secondRequest != null) {
+          out.write(responseTo(secondRequest));
+        }
         out.flush();
         while (in.read() >= 0) {
           // keep the connection open until the proxy closes it
@@ -161,6 +160,14 @@ final class PipelinedRequestsTest {
         }
       }
     }
+  }
+
+  private static byte[] responseTo(String request) {
+    String response =
+        request.startsWith("HEAD ")
+            ? "HTTP/1.1 200 OK\r\nContent-Length: " + HEAD_CONTENT_LENGTH + "\r\n\r\n"
+            : "HTTP/1.1 200 OK\r\nContent-Length: " + GET_BODY.length() + "\r\n\r\n" + GET_BODY;
+    return response.getBytes(US_ASCII);
   }
 
   /** Reads one request's or response's headers, or returns null at the end of the stream. */
@@ -179,12 +186,12 @@ final class PipelinedRequestsTest {
     return headers.toString(US_ASCII.name());
   }
 
-  private static Response readResponse(InputStream in, boolean isHead) throws IOException {
+  private static Response readResponse(InputStream in, String method) throws IOException {
     String headers = readHeaders(in);
     assertThat(headers).as("response headers").isNotNull();
     String statusLine = headers.substring(0, headers.indexOf("\r\n"));
     StringBuilder body = new StringBuilder();
-    if (!isHead) {
+    if (!"HEAD".equals(method)) {
       int length = contentLength(headers);
       for (int i = 0; i < length; i++) {
         int b = in.read();

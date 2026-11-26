@@ -685,14 +685,23 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * Writing
    **************************************************************************/
 
-  /** Like {@link #write(Object)} and also sets the current filters to the given value. */
+  /**
+   * Like {@link #write(Object)} and also sets the current filters to the given value. A request is
+   * paired with {@code filters} themselves, not with {@link #currentFilters}: the connection flow
+   * can switch that field to another request's filters before this write reaches {@link
+   * #connectLock} (#863).
+   */
   void write(Object msg, HttpFilters filters) {
     currentFilters = filters;
-    write(msg);
+    writeWithFilters(msg, filters);
   }
 
   @Override
   ChannelFuture write(Object msg) {
+    return writeWithFilters(msg, currentFilters);
+  }
+
+  private ChannelFuture writeWithFilters(Object msg, HttpFilters filters) {
     LOG.debug("Requested write of {}", msg);
 
     if (msg instanceof ReferenceCounted) {
@@ -711,7 +720,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       // Remember the filters for this request; connectAndWrite() must not re-capture them, because
       // on a chained-proxy/SSL retry it is called again with the same initial request while a
       // pipelined request may already have switched currentFilters.
-      this.initialRequestFilters = currentFilters;
+      this.initialRequestFilters = filters;
       connectAndWrite((HttpRequest) msg);
       return getClientConnection().channel.newSucceededFuture();
     } else {
@@ -734,7 +743,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           // clients must get their reads back.
           client.deferredWriteQueued();
           ChannelPromise promise = client.channel.newPromise();
-          pendingWrites.add(new PendingWrite(msg, promise, client, currentFilters));
+          pendingWrites.add(new PendingWrite(msg, promise, client, filters));
           return promise;
         }
       }
@@ -757,7 +766,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
 
       LOG.debug("Using existing connection to: {}", remoteAddress);
-      return doWrite(msg);
+      return doWrite(msg, filters);
     }
   }
 
@@ -797,7 +806,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           // run against the originating client and filters, not whatever request came last.
           currentFilters = queued.filters;
           setCurrentClientConnectionForRequest(queued.clientConnection);
-          doWrite(queued.message)
+          doWrite(queued.message, queued.filters)
               .addListener(
                   future -> {
                     if (future.isSuccess()) {
@@ -885,32 +894,39 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
   }
 
-  @Override
-  protected ChannelFuture writeHttp(HttpObject httpObject) {
-    if (chainedProxy != null) {
-      chainedProxy.filterRequest(httpObject);
-    }
-    if (httpObject instanceof HttpRequest) {
+  /**
+   * Writes a message of the request that {@code filters} belong to. A request is first recorded as
+   * waiting for its response, paired with {@code filters}, so that it is recorded before its
+   * response can arrive.
+   */
+  ChannelFuture doWrite(Object msg, HttpFilters filters) {
+    if (msg instanceof HttpRequest) {
+      HttpRequest request = (HttpRequest) msg;
       if (connectionPool == null) {
-        // Remember that we issued this HttpRequest for later. Queue it before writing it, so that
-        // it is queued before its response can arrive.
-        currentHttpRequest = (HttpRequest) httpObject;
-        unansweredRequests.add(
-            new PendingRequest(getClientConnection(), (HttpRequest) httpObject, currentFilters));
+        // Remember that we issued this HttpRequest for later
+        currentHttpRequest = request;
+        unansweredRequests.add(new PendingRequest(getClientConnection(), request, filters));
       }
 
       // For pooled connections, register pending request to support HTTP pipelining
       if (connectionPool != null && channel != null) {
         ClientToProxyConnection clientConn = getClientConnection();
         if (clientConn != null) {
-          connectionPool.registerPendingRequest(
-              channel, clientConn, (HttpRequest) httpObject, currentFilters);
+          connectionPool.registerPendingRequest(channel, clientConn, request, filters);
           // Only when no response is in progress: markResponseComplete clears the field with a
           // compare-and-set and then looks for this pending request again, so a request registered
           // while the previous response completes is never lost (#858).
-          CURRENT_HTTP_REQUEST.compareAndSet(this, null, (HttpRequest) httpObject);
+          CURRENT_HTTP_REQUEST.compareAndSet(this, null, request);
         }
       }
+    }
+    return doWrite(msg);
+  }
+
+  @Override
+  protected ChannelFuture writeHttp(HttpObject httpObject) {
+    if (chainedProxy != null) {
+      chainedProxy.filterRequest(httpObject);
     }
     return super.writeHttp(httpObject);
   }
@@ -2089,7 +2105,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
           currentFilters = initialRequestFilters;
         }
         try {
-          write(initialRequest);
+          writeWithFilters(
+              initialRequest,
+              initialRequestFilters != null ? initialRequestFilters : currentFilters);
         } catch (Throwable t) {
           // The request never reached the channel. The flow has already settled and the connection
           // is already AWAITING_INITIAL, so no connecting-state cleanup will run for it: without

@@ -468,7 +468,7 @@ final class ProxyToServerConnectionTest {
     EmbeddedChannel channel = new EmbeddedChannel();
     connection.channel = channel;
 
-    connection.writeHttp(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    connection.doWrite(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"), filters);
 
     assertThat(connection.isAvailableForNewRequest()).isFalse();
     channel.finishAndReleaseAll();
