@@ -560,15 +560,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       httpResponse = substituteResponse;
     }
 
-    // A 1xx interim response is followed by the final response to the same request, so it neither
-    // takes the request off the pending queue nor completes it.
+    // A 1xx interim response is followed by the final response to the same request, so it doesn't
+    // complete the request.
     boolean interim = isInterimResponse(httpResponse);
 
     // For pooled connections, look up the pending request to get the correct client connection
     // This supports HTTP pipelining where multiple requests are sent and responses come back in
-    // order
-    if (!interim && connectionPool != null && channel != null) {
-      PendingRequest pendingRequest = connectionPool.removePendingRequest(channel);
+    // order. An interim response only peeks: the request stays queued for its final response, but
+    // the interim response must still go through that request's filters, not a later one's.
+    if (connectionPool != null && channel != null) {
+      PendingRequest pendingRequest =
+          interim
+              ? connectionPool.peekPendingRequest(channel)
+              : connectionPool.removePendingRequest(channel);
       if (pendingRequest != null) {
         this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
         this.currentHttpRequest = pendingRequest.getRequest();

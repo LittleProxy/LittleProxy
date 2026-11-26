@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -128,13 +129,51 @@ class ProxyToServerConnectionPipeliningTest {
     assertThat(connection.currentHttpRequest()).isSameAs(requestA);
   }
 
+  @Test
+  void interimResponseGoesThroughTheFiltersOfTheRequestItPrecedes() throws Exception {
+    // Writing B made B's filters the connection's current ones.
+    ProxyToServerConnection connection = pooledConnection(filtersB);
+    pool.registerPendingRequest(channel, clientA, requestA, filtersA);
+    pool.registerPendingRequest(channel, clientB, requestB, filtersB);
+
+    FullHttpResponse interimA =
+        new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE);
+    FullHttpResponse finalA = response();
+    FullHttpResponse responseB = response();
+    connection.readHTTPInitial(interimA);
+    connection.readHTTPInitial(finalA);
+    connection.readHTTPInitial(responseB);
+
+    ArgumentCaptor<HttpResponse> remembered = ArgumentCaptor.forClass(HttpResponse.class);
+    verify(clientA)
+        .respond(eq(connection), eq(filtersA), eq(requestA), remembered.capture(), eq(interimA));
+    verify(clientA)
+        .respond(eq(connection), eq(filtersA), eq(requestA), remembered.capture(), eq(finalA));
+    verify(clientB)
+        .respond(eq(connection), eq(filtersB), eq(requestB), remembered.capture(), eq(responseB));
+    verify(filtersA, times(1)).serverToProxyResponseReceived();
+    verify(filtersB, times(1)).serverToProxyResponseReceived();
+  }
+
   private ProxyToServerConnection pooledConnection() throws UnknownHostException {
+    return pooledConnection(filtersA);
+  }
+
+  private ProxyToServerConnection pooledConnection(HttpFilters initialFilters)
+      throws UnknownHostException {
     when(proxyServer.getActivityTrackers()).thenReturn(Collections.emptyList());
     when(proxyServer.getServerResolver()).thenReturn(hostResolver);
     when(hostResolver.resolve(any(), anyInt())).thenReturn(new InetSocketAddress("127.0.0.1", 80));
     ProxyToServerConnection connection =
         ProxyToServerConnection.createForPool(
-            proxyServer, pool, clientA, "localhost:80", null, filtersA, requestA, trafficHandler);
+            proxyServer,
+            pool,
+            clientA,
+            "localhost:80",
+            null,
+            initialFilters,
+            requestA,
+            trafficHandler);
     connection.channel = channel;
     assertThat(connection.currentHttpRequest()).isNull();
     return connection;

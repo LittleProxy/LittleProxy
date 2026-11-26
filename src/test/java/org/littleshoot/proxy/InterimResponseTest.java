@@ -13,6 +13,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
@@ -44,6 +46,12 @@ final class InterimResponseTest {
   /** The request URI each {@code serverToProxyResponseReceived} was called for. */
   private final Queue<String> responsesReceived = new ConcurrentLinkedQueue<>();
 
+  /**
+   * The client can have the whole response before the proxy calls {@code
+   * serverToProxyResponseReceived} for it.
+   */
+  private final CountDownLatch responseReceived = new CountDownLatch(1);
+
   private ServerSocket upstream;
   @Nullable private HttpProxyServer proxyServer;
 
@@ -65,7 +73,7 @@ final class InterimResponseTest {
   }
 
   @Test
-  void finalResponseAfterInterimResponseKeepsItsBody() throws IOException {
+  void finalResponseAfterInterimResponseKeepsItsBody() throws IOException, InterruptedException {
     proxyServer =
         DefaultHttpProxyServer.bootstrap()
             .withPort(0)
@@ -78,6 +86,7 @@ final class InterimResponseTest {
                       @Override
                       public void serverToProxyResponseReceived() {
                         responsesReceived.add(uri);
+                        responseReceived.countDown();
                       }
 
                       @Override
@@ -100,6 +109,9 @@ final class InterimResponseTest {
       assertThat(response.getStatusLine().getStatusCode()).isEqualTo(200);
       assertThat(EntityUtils.toString(response.getEntity())).isEqualTo("hello");
     }
+    assertThat(responseReceived.await(5, TimeUnit.SECONDS))
+        .as("serverToProxyResponseReceived must be called for the final response")
+        .isTrue();
     assertThat(responsesReceived)
         .as("only the final response completes the request, and on the request's own filters")
         .hasSize(1)
