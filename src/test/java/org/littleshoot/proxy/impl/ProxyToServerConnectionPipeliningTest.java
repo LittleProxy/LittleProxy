@@ -94,7 +94,7 @@ class ProxyToServerConnectionPipeliningTest {
     pool.registerPendingRequest(channel, clientA, requestA, filtersA);
     // The client's next request reaches the connection on the client's event loop after
     // markResponseComplete found no pending request, but before it cleared the current one.
-    pool.onFirstEmptyPeek = () -> connection.writeHttp(requestB);
+    pool.onFirstEmptyPeek = () -> connection.doWrite(requestB, filtersB);
 
     connection.readHTTPInitial(response());
 
@@ -113,7 +113,7 @@ class ProxyToServerConnectionPipeliningTest {
     connection.readHTTPInitial(response());
     assertThat(connection.currentHttpRequest()).isNull();
 
-    connection.writeHttp(requestB);
+    connection.doWrite(requestB, filtersB);
 
     assertThat(connection.currentHttpRequest()).isSameAs(requestB);
   }
@@ -121,10 +121,10 @@ class ProxyToServerConnectionPipeliningTest {
   @Test
   void requestWrittenDuringAResponseDoesNotReplaceTheCurrentOne() throws Exception {
     ProxyToServerConnection connection = pooledConnection();
-    connection.writeHttp(requestA);
+    connection.doWrite(requestA, filtersA);
     assertThat(connection.currentHttpRequest()).isSameAs(requestA);
 
-    connection.writeHttp(requestB);
+    connection.doWrite(requestB, filtersB);
 
     assertThat(connection.currentHttpRequest()).isSameAs(requestA);
   }
@@ -164,17 +164,38 @@ class ProxyToServerConnectionPipeliningTest {
         ProxyToServerConnection.create(
             proxyServer, clientA, "localhost:80", filtersA, requestA, trafficHandler);
     connection.channel = channel;
-    connection.writeHttp(requestA);
+    connection.doWrite(requestA, filtersA);
 
     // The server closes without answering; the connection reconnects for the next request.
     connection.disconnected();
-    connection.writeHttp(requestB);
+    connection.doWrite(requestB, filtersB);
     FullHttpResponse responseB = response();
     connection.readHTTPInitial(responseB);
 
     ArgumentCaptor<HttpResponse> remembered = ArgumentCaptor.forClass(HttpResponse.class);
     verify(clientA)
-        .respond(eq(connection), eq(filtersA), eq(requestB), remembered.capture(), eq(responseB));
+        .respond(eq(connection), eq(filtersB), eq(requestB), remembered.capture(), eq(responseB));
+  }
+
+  @Test
+  void requestIsPairedWithItsOwnFiltersNotTheCurrentOnes() throws Exception {
+    when(proxyServer.getActivityTrackers()).thenReturn(Collections.emptyList());
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt())).thenReturn(new InetSocketAddress("127.0.0.1", 80));
+    // While a connection is set up, the connection flow sets the current filters to those of the
+    // initial request; a request written meanwhile must keep its own (#863 review).
+    ProxyToServerConnection connection =
+        ProxyToServerConnection.create(
+            proxyServer, clientA, "localhost:80", filtersA, requestA, trafficHandler);
+    connection.channel = channel;
+
+    connection.doWrite(requestB, filtersB);
+    FullHttpResponse responseB = response();
+    connection.readHTTPInitial(responseB);
+
+    ArgumentCaptor<HttpResponse> remembered = ArgumentCaptor.forClass(HttpResponse.class);
+    verify(clientA)
+        .respond(eq(connection), eq(filtersB), eq(requestB), remembered.capture(), eq(responseB));
   }
 
   private ProxyToServerConnection pooledConnection() throws UnknownHostException {
