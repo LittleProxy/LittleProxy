@@ -155,6 +155,28 @@ class ProxyToServerConnectionPipeliningTest {
     verify(filtersB, times(1)).serverToProxyResponseReceived();
   }
 
+  @Test
+  void nonPooledConnectionForgetsUnansweredRequestsWhenItDisconnects() throws Exception {
+    when(proxyServer.getActivityTrackers()).thenReturn(Collections.emptyList());
+    when(proxyServer.getServerResolver()).thenReturn(hostResolver);
+    when(hostResolver.resolve(any(), anyInt())).thenReturn(new InetSocketAddress("127.0.0.1", 80));
+    ProxyToServerConnection connection =
+        ProxyToServerConnection.create(
+            proxyServer, clientA, "localhost:80", filtersA, requestA, trafficHandler);
+    connection.channel = channel;
+    connection.writeHttp(requestA);
+
+    // The server closes without answering; the connection reconnects for the next request.
+    connection.disconnected();
+    connection.writeHttp(requestB);
+    FullHttpResponse responseB = response();
+    connection.readHTTPInitial(responseB);
+
+    ArgumentCaptor<HttpResponse> remembered = ArgumentCaptor.forClass(HttpResponse.class);
+    verify(clientA)
+        .respond(eq(connection), eq(filtersA), eq(requestB), remembered.capture(), eq(responseB));
+  }
+
   private ProxyToServerConnection pooledConnection() throws UnknownHostException {
     return pooledConnection(filtersA);
   }
