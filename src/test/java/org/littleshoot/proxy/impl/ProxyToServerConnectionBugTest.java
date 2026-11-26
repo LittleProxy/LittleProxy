@@ -13,7 +13,6 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -230,12 +229,14 @@ class ProxyToServerConnectionBugTest {
   }
 
   // ============================================================
-  // Bug 5: markResponseComplete must dequeue and wire next pipelined request
+  // Bug 5: markResponseComplete must wire the next pipelined request, leaving it queued for
+  // readHTTPInitial to take when its response arrives
   // ============================================================
 
   @Test
-  @DisplayName("markResponseComplete should dequeue pending request and keep connection in use")
-  void markResponseCompleteShouldDequeueAndWireNextPending() throws Exception {
+  @DisplayName(
+      "markResponseComplete should wire the next pending request and keep connection in use")
+  void markResponseCompleteShouldWireNextPending() throws Exception {
     ServerConnectionPool mockPool = mock();
     ProxyToServerConnection conn = createConnectionWithPool(mockPool, Collections.emptyList());
     EmbeddedChannel ch = new EmbeddedChannel();
@@ -249,9 +250,9 @@ class ProxyToServerConnectionBugTest {
     HttpFilters pendingFilters = mock();
     PendingRequest pending = new PendingRequest(pendingClient, pendingReq, pendingFilters);
 
-    when(mockPool.removePendingRequest(ch)).thenReturn(pending);
+    when(mockPool.peekPendingRequest(ch)).thenReturn(pending);
 
-    invokeMarkResponseComplete(conn);
+    conn.markResponseComplete();
 
     assertThat(getField(conn, "currentHttpRequest")).isSameAs(pendingReq);
     assertThat(getField(conn, "currentClientConnectionForRequest")).isSameAs(pendingClient);
@@ -259,7 +260,7 @@ class ProxyToServerConnectionBugTest {
     assertThat(getField(conn, "currentHttpResponse")).isNull();
 
     verify(mockPool, never()).releaseConnection(conn);
-    verify(mockPool, never()).peekPendingRequest(any());
+    verify(mockPool, never()).removePendingRequest(ch);
   }
 
   @Test
@@ -271,20 +272,14 @@ class ProxyToServerConnectionBugTest {
     EmbeddedChannel ch = new EmbeddedChannel();
     conn.channel = ch;
 
-    when(mockPool.removePendingRequest(ch)).thenReturn(null);
+    when(mockPool.peekPendingRequest(ch)).thenReturn(null);
 
-    invokeMarkResponseComplete(conn);
+    conn.markResponseComplete();
 
     assertThat(getField(conn, "currentHttpRequest")).isNull();
     assertThat(getField(conn, "currentHttpResponse")).isNull();
 
     verify(mockPool).releaseConnection(conn);
-  }
-
-  private static void invokeMarkResponseComplete(ProxyToServerConnection conn) throws Exception {
-    Method m = ProxyToServerConnection.class.getDeclaredMethod("markResponseComplete");
-    m.setAccessible(true);
-    m.invoke(conn);
   }
 
   private static Object getField(Object obj, String name) throws Exception {
