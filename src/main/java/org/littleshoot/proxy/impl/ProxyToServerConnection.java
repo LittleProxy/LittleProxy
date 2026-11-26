@@ -80,6 +80,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLProtocolException;
@@ -239,6 +240,25 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   @Nullable private volatile HttpRequest currentHttpRequest;
 
   /**
+   * {@link #writeHttp} sets {@link #currentHttpRequest} on the client-to-proxy event loop, while
+   * responses complete on this connection's event loop, so clearing it must not overwrite a request
+   * written in the meantime (#858).
+   */
+  private static final AtomicReferenceFieldUpdater<ProxyToServerConnection, HttpRequest>
+      CURRENT_HTTP_REQUEST =
+          AtomicReferenceFieldUpdater.newUpdater(
+              ProxyToServerConnection.class, HttpRequest.class, "currentHttpRequest");
+
+  /**
+   * The request the response being read answers, and its filters. Unlike {@link
+   * #currentHttpRequest} and {@link #currentFilters}, the next request can't replace them before
+   * the response completes (#858).
+   */
+  @Nullable private volatile HttpRequest answeredRequest;
+
+  private volatile HttpFilters answeredFilters;
+
+  /**
    * While we're doing a chunked transfer, this keeps track of the initial HttpResponse object for
    * our transfer (which is useful for its headers).
    */
@@ -315,6 +335,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.availableChainedProxies = availableChainedProxies;
     this.trafficHandler = globalTrafficShapingHandler;
     this.currentFilters = initialFilters;
+    this.answeredFilters = initialFilters;
 
     // Report connection status to HttpFilters
     currentFilters.proxyToServerConnectionQueued();
@@ -380,6 +401,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     this.availableChainedProxies = availableChainedProxies;
     this.trafficHandler = globalTrafficShapingHandler;
     this.currentFilters = initialFilters;
+    this.answeredFilters = initialFilters;
 
     // Report connection status to HttpFilters
     currentFilters.proxyToServerConnectionQueued();
@@ -536,8 +558,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         this.currentFilters = pendingRequest.getFilters();
       }
     }
+    answeredRequest = currentHttpRequest;
+    answeredFilters = currentFilters;
 
-    currentFilters.serverToProxyResponseReceiving();
+    answeredFilters.serverToProxyResponseReceiving();
 
     rememberCurrentResponse(httpResponse);
     respondWith(httpResponse);
@@ -545,7 +569,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     if (ProxyUtils.isChunked(httpResponse)) {
       return AWAITING_CHUNK;
     } else {
-      currentFilters.serverToProxyResponseReceived();
+      answeredFilters.serverToProxyResponseReceived();
       markResponseComplete();
 
       return AWAITING_INITIAL;
@@ -848,7 +872,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         currentFilters.proxyToServerConnectionFailed();
       }
     } else if (getCurrentState() == AWAITING_CHUNK && newState != AWAITING_CHUNK) {
-      currentFilters.serverToProxyResponseReceived();
+      answeredFilters.serverToProxyResponseReceived();
       markResponseComplete();
     }
 
@@ -1082,7 +1106,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
 
     targetClientConnection.respond(
-        this, currentFilters, currentHttpRequest, currentHttpResponse, httpObject);
+        this, answeredFilters, answeredRequest, currentHttpResponse, httpObject);
   }
 
   /**
@@ -1126,7 +1150,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         connectionPool.releaseConnection(this);
       }
     } else {
-      this.currentHttpRequest = null;
+      CURRENT_HTTP_REQUEST.compareAndSet(this, answeredRequest, null);
     }
   }
 
