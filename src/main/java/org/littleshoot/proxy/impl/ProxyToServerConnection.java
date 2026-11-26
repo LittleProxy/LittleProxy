@@ -95,6 +95,7 @@ import org.littleshoot.proxy.ChainedProxyType;
 import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpFiltersAdapter;
 import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.TransportProtocol;
 import org.littleshoot.proxy.UnknownTransportProtocolException;
@@ -251,12 +252,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
   /**
    * The request the response being read answers, and its filters. Unlike {@link
-   * #currentHttpRequest} and {@link #currentFilters}, the next request can't replace them before
-   * the response completes (#858).
+   * #currentHttpRequest} and {@link #currentFilters}, the next request can't replace them while the
+   * response is being read (#858). Cleared once the response completes, so that a connection does
+   * not keep its last request and filters reachable while it sits idle in the pool.
    */
   @Nullable private volatile HttpRequest answeredRequest;
 
   private volatile HttpFilters answeredFilters;
+
+  /**
+   * True while reading the chunks of a 1xx interim response, which doesn't answer the request: the
+   * final response follows it.
+   */
+  private boolean readingInterimResponse;
 
   /**
    * While we're doing a chunked transfer, this keeps track of the initial HttpResponse object for
@@ -417,6 +425,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         || is(ConnectionState.NEGOTIATING_CONNECT);
   }
 
+  /** The request whose response this connection reads next, or null if there is none. */
+  @Nullable HttpRequest currentHttpRequest() {
+    return currentHttpRequest;
+  }
+
   /**
    * Returns true if this connection is available to handle a new request. A connection is available
    * if it's connected and not currently processing another request.
@@ -547,11 +560,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       httpResponse = substituteResponse;
     }
 
+    // A 1xx interim response is followed by the final response to the same request, so it doesn't
+    // complete the request.
+    boolean interim = isInterimResponse(httpResponse);
+
     // For pooled connections, look up the pending request to get the correct client connection
     // This supports HTTP pipelining where multiple requests are sent and responses come back in
-    // order
+    // order. An interim response only peeks: the request stays queued for its final response, but
+    // the interim response must still go through that request's filters, not a later one's.
     if (connectionPool != null && channel != null) {
-      PendingRequest pendingRequest = connectionPool.removePendingRequest(channel);
+      PendingRequest pendingRequest =
+          interim
+              ? connectionPool.peekPendingRequest(channel)
+              : connectionPool.removePendingRequest(channel);
       if (pendingRequest != null) {
         this.currentClientConnectionForRequest = pendingRequest.getClientConnection();
         this.currentHttpRequest = pendingRequest.getRequest();
@@ -561,19 +582,33 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     answeredRequest = currentHttpRequest;
     answeredFilters = currentFilters;
 
-    answeredFilters.serverToProxyResponseReceiving();
+    if (!interim) {
+      answeredFilters.serverToProxyResponseReceiving();
+    }
 
     rememberCurrentResponse(httpResponse);
     respondWith(httpResponse);
 
     if (ProxyUtils.isChunked(httpResponse)) {
+      readingInterimResponse = interim;
       return AWAITING_CHUNK;
     } else {
-      answeredFilters.serverToProxyResponseReceived();
-      markResponseComplete();
+      if (!interim) {
+        answeredFilters.serverToProxyResponseReceived();
+        markResponseComplete();
+      }
 
       return AWAITING_INITIAL;
     }
+  }
+
+  /**
+   * A 1xx response other than {@code 101 Switching Protocols}, which is the final response to its
+   * request.
+   */
+  private static boolean isInterimResponse(HttpResponse response) {
+    int code = response.status().code();
+    return code >= 100 && code < 200 && code != HttpResponseStatus.SWITCHING_PROTOCOLS.code();
   }
 
   @Override
@@ -839,9 +874,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         if (clientConn != null) {
           connectionPool.registerPendingRequest(
               channel, clientConn, (HttpRequest) httpObject, currentFilters);
-          if (currentHttpRequest == null) {
-            currentHttpRequest = (HttpRequest) httpObject;
-          }
+          // Only when no response is in progress: markResponseComplete clears the field with a
+          // compare-and-set and then looks for this pending request again, so a request registered
+          // while the previous response completes is never lost (#858).
+          CURRENT_HTTP_REQUEST.compareAndSet(this, null, (HttpRequest) httpObject);
         }
       }
     }
@@ -872,8 +908,12 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         currentFilters.proxyToServerConnectionFailed();
       }
     } else if (getCurrentState() == AWAITING_CHUNK && newState != AWAITING_CHUNK) {
-      answeredFilters.serverToProxyResponseReceived();
-      markResponseComplete();
+      if (readingInterimResponse) {
+        readingInterimResponse = false;
+      } else {
+        answeredFilters.serverToProxyResponseReceived();
+        markResponseComplete();
+      }
     }
 
     super.become(newState);
@@ -1124,34 +1164,60 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   void releaseToPool() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
+    this.answeredRequest = null;
+    this.answeredFilters = HttpFiltersAdapter.NOOP_FILTER;
     if (connectionPool != null) {
       this.currentHttpRequest = null;
       connectionPool.releaseConnection(this);
     }
   }
 
-  private void markResponseComplete() {
+  void markResponseComplete() {
     this.currentClientConnectionForRequest = null;
     this.currentHttpResponse = null;
+    HttpRequest completed = answeredRequest;
+    answeredRequest = null;
+    answeredFilters = HttpFiltersAdapter.NOOP_FILTER;
     if (connectionPool != null) {
-      if (channel != null) {
-        PendingRequest nextPending = connectionPool.removePendingRequest(channel);
-        if (nextPending != null) {
-          this.currentClientConnectionForRequest = nextPending.getClientConnection();
-          this.currentHttpRequest = nextPending.getRequest();
-          this.currentFilters = nextPending.getFilters();
-          return;
-        }
+      // Only peek: readHTTPInitial takes the next pending request off the queue when its response
+      // arrives. Taking it here as well would pair each later response with the request after it.
+      if (switchToNextPendingRequest()) {
+        return;
       }
-      this.currentHttpRequest = null;
+      // The client can register its next request on its own event loop at any time. Clear the
+      // request only if it is still the one just answered, then look for a pending request again,
+      // so that one registered in between is neither left without a current request nor handed
+      // to the pool along with this connection (#858).
+      CURRENT_HTTP_REQUEST.compareAndSet(this, completed, null);
+      if (switchToNextPendingRequest()) {
+        return;
+      }
       // MITM pooled connections stay attached to the client session and are not released
       // to pool after individual HTTP responses. They are released when the client disconnects.
       if (!mitmPooled) {
         connectionPool.releaseConnection(this);
       }
     } else {
-      CURRENT_HTTP_REQUEST.compareAndSet(this, answeredRequest, null);
+      CURRENT_HTTP_REQUEST.compareAndSet(this, completed, null);
     }
+  }
+
+  /**
+   * Makes the oldest request still waiting for its response on this connection the current one, if
+   * there is one.
+   */
+  private boolean switchToNextPendingRequest() {
+    if (channel == null) {
+      return false;
+    }
+    PendingRequest nextPending = connectionPool.peekPendingRequest(channel);
+    if (nextPending == null) {
+      return false;
+    }
+    this.currentClientConnectionForRequest = nextPending.getClientConnection();
+    this.currentHttpRequest = nextPending.getRequest();
+    this.currentFilters = nextPending.getFilters();
+    return true;
   }
 
   /**

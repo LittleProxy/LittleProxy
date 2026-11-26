@@ -27,6 +27,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -38,6 +39,7 @@ import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
  * The next request must still get its full response, and each response must complete on the filters
  * of the request it answers.
  */
+@Tag("slow-test")
 @Timeout(20)
 final class KeepAliveNextRequestTest {
 

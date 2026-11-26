@@ -1,2 +1,3 @@
 org.littleshoot.proxy.impl.OptionsCapturingServerConnectionPool
 org.littleshoot.proxy.impl.FailingServerConnectionPool
+org.littleshoot.proxy.impl.SlowEmptyQueueServerConnectionPool
