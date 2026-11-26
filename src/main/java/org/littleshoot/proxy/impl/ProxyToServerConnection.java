@@ -261,6 +261,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   private volatile HttpFilters answeredFilters;
 
   /**
+   * Requests written to a non-pooled connection whose responses haven't started yet, oldest first,
+   * each with the filters that were current when it was written. A client can pipeline its next
+   * request before the previous response arrives, so neither {@link #currentHttpRequest} nor {@link
+   * #currentFilters} reliably names the request a response answers (#863). Pooled connections keep
+   * the same queue in the {@link ServerConnectionPool}.
+   *
+   * <p>Only requests that get an ordinary response are queued: the messages that set up the
+   * connection (such as the CONNECT to a chained proxy) are written with {@link #writeToChannel}
+   * and answered within the {@link ConnectionFlow}.
+   */
+  private final Queue<PendingRequest> unansweredRequests = new ConcurrentLinkedQueue<>();
+
+  /**
    * True while reading the chunks of a 1xx interim response, which doesn't answer the request: the
    * final response follows it.
    */
@@ -578,9 +591,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         this.currentHttpRequest = pendingRequest.getRequest();
         this.currentFilters = pendingRequest.getFilters();
       }
+      answeredRequest = currentHttpRequest;
+      answeredFilters = currentFilters;
+    } else {
+      // Not currentHttpRequest/currentFilters: a pipelined request may already have replaced them.
+      PendingRequest answered = interim ? unansweredRequests.peek() : unansweredRequests.poll();
+      if (answered != null) {
+        answeredRequest = answered.getRequest();
+        answeredFilters = answered.getFilters();
+      } else {
+        answeredRequest = currentHttpRequest;
+        answeredFilters = currentFilters;
+      }
     }
-    answeredRequest = currentHttpRequest;
-    answeredFilters = currentFilters;
 
     if (!interim) {
       answeredFilters.serverToProxyResponseReceiving();
@@ -641,14 +664,19 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
     @Override
     protected boolean isContentAlwaysEmpty(HttpMessage httpMessage) {
-      // The current HTTP Request can be null when this proxy is
+      // Runs while the response's headers are decoded, before readHTTPInitial takes its request
+      // off the queue, so the oldest unanswered request is the one this response answers.
+      PendingRequest oldestUnanswered = unansweredRequests.peek();
+      HttpRequest answering =
+          oldestUnanswered != null ? oldestUnanswered.getRequest() : currentHttpRequest;
+      // The request can be null when this proxy is
       // negotiating a CONNECT request with a chained proxy
       // while it is running as a MITM. Since the response to a
       // CONNECT request does not have any content, we return true.
-      if (currentHttpRequest == null) {
+      if (answering == null) {
         return true;
       } else {
-        return ProxyUtils.isHEAD(currentHttpRequest) || super.isContentAlwaysEmpty(httpMessage);
+        return ProxyUtils.isHEAD(answering) || super.isContentAlwaysEmpty(httpMessage);
       }
     }
   }
@@ -864,8 +892,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
     if (httpObject instanceof HttpRequest) {
       if (connectionPool == null) {
-        // Remember that we issued this HttpRequest for later
+        // Remember that we issued this HttpRequest for later. Queue it before writing it, so that
+        // it is queued before its response can arrive.
         currentHttpRequest = (HttpRequest) httpObject;
+        unansweredRequests.add(
+            new PendingRequest(getClientConnection(), (HttpRequest) httpObject, currentFilters));
       }
 
       // For pooled connections, register pending request to support HTTP pipelining
@@ -966,6 +997,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     boolean responseIncomplete = !wasConnecting && currentHttpRequest != null;
     boolean responseStarted = is(AWAITING_CHUNK);
     ClientToProxyConnection waitingClient = getClientConnection();
+    // None of the requests still waiting will be answered on this channel; a non-pooled connection
+    // can reconnect and must not pair the next channel's responses with them.
+    unansweredRequests.clear();
     super.disconnected();
     recordServerDisconnected();
     if (chainedProxy != null) {
