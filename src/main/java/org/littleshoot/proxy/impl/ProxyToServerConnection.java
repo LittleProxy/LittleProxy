@@ -1783,7 +1783,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               .addListener(
                   future -> {
                     if (future.isSuccess()) {
-                      getClientConnection().setMitming(true);
+                      getClientConnection().startMitming(serverHostAndPort);
                     }
                   });
         }

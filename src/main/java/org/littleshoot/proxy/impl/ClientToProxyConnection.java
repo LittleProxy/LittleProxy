@@ -155,8 +155,8 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
 
   @Nullable private volatile SSLSession clientSslSession;
 
-  /** Tracks whether this ClientToProxyConnection is current doing MITM. */
-  private volatile boolean mitming;
+  /** The host and port of the {@code CONNECT} being MITM'd, or null when not MITMing. */
+  private final AtomicReference<@Nullable String> mitmHostAndPort = new AtomicReference<>();
 
   private final AtomicBoolean authenticated = new AtomicBoolean();
 
@@ -1763,10 +1763,20 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
     return true;
   }
 
-  /** Identify the host and port for a request. */
+  /**
+   * Identify the host and port for a request.
+   *
+   * <p>A MITM'd request goes to the {@code CONNECT} target rather than to its {@code Host} header:
+   * clients omit the default port from the header, so it would not match the key of the server
+   * connection the {@code CONNECT} set up (#856).
+   */
   @NonNull
   @CheckReturnValue
-  private String identifyHostAndPort(@NonNull HttpRequest httpRequest) {
+  String identifyHostAndPort(@NonNull HttpRequest httpRequest) {
+    String connectHostAndPort = mitmHostAndPort.get();
+    if (connectHostAndPort != null) {
+      return connectHostAndPort;
+    }
     String hostAndPort = ProxyUtils.parseHostAndPort(httpRequest);
     if (StringUtils.isBlank(hostAndPort)) {
       List<String> hosts = httpRequest.headers().getAll(HttpHeaderNames.HOST);
@@ -1795,11 +1805,15 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
   }
 
   public boolean isMitming() {
-    return mitming;
+    return mitmHostAndPort.get() != null;
   }
 
-  protected void setMitming(boolean isMitming) {
-    mitming = isMitming;
+  /** A client connection MITMs a single {@code CONNECT} target, the first one set. */
+  void startMitming(String connectHostAndPort) {
+    if (!mitmHostAndPort.compareAndSet(null, connectHostAndPort)) {
+      LOG.debug(
+          "Already MITMing {}, ignoring CONNECT to {}", mitmHostAndPort.get(), connectHostAndPort);
+    }
   }
 
   /* *************************************************************************
