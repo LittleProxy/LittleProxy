@@ -234,6 +234,34 @@ class ClientToProxyConnectionTest {
     assertThat(engine.getNeedClientAuth()).isFalse();
   }
 
+  @Test
+  @DisplayName("a connection that isn't MITMing routes each request to its own host")
+  void routesRequestToItsOwnHostWhenNotMitming() {
+    ClientToProxyConnection connection = createConnection();
+
+    assertThat(connection.isMitming()).isFalse();
+    assertThat(connection.identifyHostAndPort(get("http://example.com:8080/")))
+        .isEqualTo("example.com:8080");
+  }
+
+  @Test
+  @DisplayName("a MITMing connection routes every request to the first CONNECT target")
+  void routesRequestsToFirstConnectTargetWhenMitming() {
+    ClientToProxyConnection connection = createConnection();
+
+    connection.startMitming("example.com:443");
+    connection.startMitming("other.example.com:443");
+
+    assertThat(connection.isMitming()).isTrue();
+    assertThat(connection.identifyHostAndPort(get("/"))).isEqualTo("example.com:443");
+    assertThat(connection.identifyHostAndPort(get("http://other.example.com:8080/")))
+        .isEqualTo("example.com:443");
+  }
+
+  private static HttpRequest get(String uri) {
+    return new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
+  }
+
   private static SSLEngine newServerEngine() throws Exception {
     return SSLContext.getDefault().createSSLEngine();
   }
