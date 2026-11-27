@@ -153,7 +153,12 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
       HttpRequest initialHttpRequest) {
     ChainedProxy chainedProxy = resolveChainedProxy(initialHttpRequest, clientConnection);
     String poolKey = computePoolKey(serverHostAndPort, chainedProxyAddress);
-    ProxyToServerConnection available = borrowAvailableConnection(poolKey);
+    // A request the client sent inside a MITM'd CONNECT may only go over a connection that talks
+    // TLS to the server as the MITM, and a plain request never over one (#866). A CONNECT sets
+    // its connection up itself.
+    @Nullable Boolean mitmEncryptionRequired =
+        ProxyUtils.isCONNECT(initialHttpRequest) ? null : clientConnection.isMitming();
+    ProxyToServerConnection available = borrowAvailableConnection(poolKey, mitmEncryptionRequired);
     if (available != null) {
       borrowCount.incrementAndGet();
       return available;
@@ -180,7 +185,8 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
     }
 
     synchronized (this) {
-      ProxyToServerConnection existingAvailable = borrowAvailableConnection(poolKey);
+      ProxyToServerConnection existingAvailable =
+          borrowAvailableConnection(poolKey, mitmEncryptionRequired);
       if (existingAvailable != null) {
         return existingAvailable;
       }
@@ -455,7 +461,8 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
   }
 
   @Nullable
-  private ProxyToServerConnection borrowAvailableConnection(String poolKey) {
+  private ProxyToServerConnection borrowAvailableConnection(
+      String poolKey, @Nullable Boolean mitmEncryptionRequired) {
     Queue<PooledConnection> queue = availableConnectionsByHostAndPort.get(poolKey);
     if (queue == null || queue.isEmpty()) {
       return null;
@@ -479,7 +486,9 @@ public class ConcurrentMapServerConnectionPool implements ServerConnectionPool {
         LOG.debug("Connection validation failed, removing connection to {}", poolKey);
         continue;
       }
-      if (pooled.connection.isAvailableForNewRequest()) {
+      if (pooled.connection.isAvailableForNewRequest()
+          && (mitmEncryptionRequired == null
+              || pooled.connection.isMitmEncrypted() == mitmEncryptionRequired)) {
         return pooled.connection;
       }
       queue.add(pooled);

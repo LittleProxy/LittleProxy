@@ -1,6 +1,7 @@
 package org.littleshoot.proxy.impl;
 
 import static java.util.Locale.ROOT;
+import static java.util.Objects.requireNonNull;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CHUNK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_CONNECT_OK;
 import static org.littleshoot.proxy.impl.ConnectionState.AWAITING_INITIAL;
@@ -307,6 +308,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
    * available for subsequent HTTP requests via pool.getOrCreateConnection().
    */
   private volatile boolean releaseToPoolOnConnectComplete;
+
+  /** See {@link #isMitmEncrypted()}. */
+  private volatile boolean mitmEncrypted;
 
   /** Create a new ProxyToServerConnection. */
   @Nullable
@@ -1289,9 +1293,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
   /**
    * This method initializes our {@link ConnectionFlow} based on however this connection has been
    * configured. If the {@link #disableSni} value is true, this method will not pass peer
-   * information to the MitmManager when handling CONNECTs.
+   * information to the MitmManager when handling CONNECTs. Package-private so tests can check the
+   * flow without connecting.
    */
-  private void initializeConnectionFlow() {
+  void initializeConnectionFlow() {
     boolean isReused = channel != null && channel.isActive();
 
     if (isReused) {
@@ -1300,6 +1305,8 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     } else {
       connectionFlow =
           new ConnectionFlow(getClientConnection(), this, connectLock).then(ConnectChannel);
+      // A retry (e.g. without SSL) decides again below.
+      mitmEncrypted = false;
     }
 
     boolean sendProxyProtocol = proxyServer.isSendProxyProtocol();
@@ -1376,27 +1383,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       }
 
       if (isMitmEnabled) {
-        // When MITM is enabled and when chained proxy is set up, remoteAddress
-        // will be the chained proxy's address. So we use serverHostAndPoint
-        // which is the end server's address.
-        HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
-
         // Check if we should skip SSL (e.g., after a retry for non-SSL server)
         if (!disableSslForNonTls && !isReused) {
-          // SNI may be disabled for this request due to a previous failed attempt to connect to the
-          // server
-          // with SNI enabled.
-          if (disableSni) {
-            connectionFlow.then(
-                serverConnection.EncryptChannel(proxyServer.getMitmManager().serverSslEngine()));
-          } else {
-            connectionFlow.then(
-                serverConnection.EncryptChannel(
-                    proxyServer
-                        .getMitmManager()
-                        .serverSslEngine(
-                            parsedHostAndPort.getHost(), parsedHostAndPort.getPort())));
-          }
+          connectionFlow.then(serverConnection.EncryptChannel(newMitmServerSslEngine()));
+          mitmEncrypted = true;
         }
 
         if (!disableSslForNonTls) {
@@ -1418,8 +1408,67 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
               .then(getClientConnection().StartTunneling);
         }
       }
+    } else if (isForMitmdRequest()) {
+      // A request the client sent inside its MITM'd CONNECT, on a new connection: with per-request
+      // MITM pooling, when no idle connection to the CONNECT target is in the pool (#866). It must
+      // reach the server over TLS, like the requests on the connection the CONNECT set up.
+      if (chainedHttp) {
+        // Reaching the server over TLS through an HTTP proxy takes a CONNECT, which only the
+        // CONNECT flow sends. Fail instead of sending the request in cleartext.
+        connectionFlow.then(FailMitmdRequestThroughChainedHttpProxy);
+      } else {
+        connectionFlow.then(serverConnection.EncryptChannel(newMitmServerSslEngine()));
+        mitmEncrypted = true;
+      }
     }
   }
+
+  /**
+   * Whether this connection carries requests that the client sent inside a MITM'd {@code CONNECT},
+   * rather than the {@code CONNECT} itself or plain HTTP requests.
+   */
+  private boolean isForMitmdRequest() {
+    HttpRequest request = initialRequest;
+    ClientToProxyConnection client = getClientConnection();
+    return request != null
+        && !ProxyUtils.isCONNECT(request)
+        && proxyServer.getMitmManager() != null
+        && client != null
+        && client.isMitming();
+  }
+
+  /**
+   * Whether this connection was set up to talk TLS to the server as the MITM, so it can carry
+   * requests the client sent inside a MITM'd {@code CONNECT}.
+   */
+  boolean isMitmEncrypted() {
+    return mitmEncrypted;
+  }
+
+  private SSLEngine newMitmServerSslEngine() {
+    MitmManager mitmManager = requireNonNull(proxyServer.getMitmManager());
+    // SNI may be disabled for this request due to a previous failed attempt to connect to the
+    // server with SNI enabled.
+    if (disableSni) {
+      return mitmManager.serverSslEngine();
+    }
+    // When chaining, remoteAddress is the chained proxy's address, so use serverHostAndPort, which
+    // is the end server's address.
+    HostAndPort parsedHostAndPort = HostAndPort.fromString(serverHostAndPort);
+    return mitmManager.serverSslEngine(parsedHostAndPort.getHost(), parsedHostAndPort.getPort());
+  }
+
+  private final ConnectionFlowStep<HttpResponse> FailMitmdRequestThroughChainedHttpProxy =
+      new ConnectionFlowStep<>(this, CONNECTING) {
+        @Override
+        protected Future<?> execute() {
+          return channel.newFailedFuture(
+              new IOException(
+                  "Cannot open a new connection for a MITM'd request through an HTTP chained proxy"
+                      + " without a CONNECT: "
+                      + serverHostAndPort));
+        }
+      };
 
   SSLEngine newChainedProxySslEngine() {
     if (remoteAddress != null) {
@@ -1915,6 +1964,11 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
     // Don't retry if we've already tried without SSL
     if (disableSslForNonTls) {
+      return false;
+    }
+
+    // A request the client sent inside a MITM'd CONNECT must never go to the server in cleartext.
+    if (isForMitmdRequest()) {
       return false;
     }
 

@@ -72,7 +72,16 @@ public class TestUtils {
    * @return Instance of Server
    */
   public static Server startWebServer(boolean enableHttps, String keyStorePath) {
-    final Server httpServer = createWebServer();
+    return startWebServer(enableHttps, keyStorePath, new ReadRequestBodyHandler(null));
+  }
+
+  /**
+   * Same as {@link #startWebServer(boolean, String)}, but requests are handled by the given
+   * handler.
+   */
+  public static Server startWebServer(boolean enableHttps, String keyStorePath, Handler handler) {
+    final Server httpServer = new Server(0);
+    httpServer.setHandler(handler);
 
     if (enableHttps) {
       // Add SSL connector
@@ -107,12 +116,6 @@ public class TestUtils {
 
     HttpConnectionFactory httpConnectionFactory = new HttpConnectionFactory(httpConfiguration);
     return new ServerConnector(httpServer, sslContextFactory, httpConnectionFactory);
-  }
-
-  private static Server createWebServer() {
-    final Server httpServer = new Server(0);
-    httpServer.setHandler(new ReadRequestBodyHandler(null));
-    return httpServer;
   }
 
   /**
