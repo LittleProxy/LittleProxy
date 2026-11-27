@@ -1,10 +1,16 @@
 # Release Notes
 
-- 2.11.0 (TBD, https://github.com/LittleProxy/LittleProxy/milestone/55?closed=1)
-  - #827 don't block the Netty event loop while an upstream connection is being established; buffer writes until the connection is ready
+- 2.11.0 (28.11.2026, https://github.com/LittleProxy/LittleProxy/milestone/55?closed=1)
+  - #827 don't block the Netty event loop while an upstream connection is being established; buffer writes until the connection is ready (#832)
   - #854 respond 502 (or close the client connection, if the response was already under way) when the upstream server closes the connection before the response is complete, instead of leaving the client waiting forever (#855)
-  - Bump Selenium from 4.53.0 to 4.54.0 (#851)
-  - TBD
+  - #856 fix MITM requests being sent upstream over plain HTTP to port 80 instead of the CONNECT target's TLS connection (regression in 2.10.0) (#865)
+  - #866 fix per-request MITM pool creating new upstream connections without TLS (#867)
+  - keep a MITM client connected when a new upstream connection is closed while connecting, so the connection flow can fall back to the next chained proxy or answer 502 (#867)
+  - #858 fix keep-alive requests losing their body or getting a 502 when sent right after the previous response (regression in 2.10.0) (#861)
+  - #859 fix race on pooled connections where the next response could be decoded without its request; fix 3+ pipelined requests on a pooled connection being answered to the wrong client/filters (#862)
+  - fix 1xx interim responses (e.g. `100 Continue`, `103 Early Hints`) being treated as the final response, which lost the final response's body (#862)
+  - #863 fix pipelined requests on non-pooled connections: responses are now decoded and filtered with their own request and filters (e.g. `GET` followed by `HEAD` no longer results in a 502) (#864)
+  - fix read throttling (`withThrottling`) being silently bypassed by backpressure resuming reads (#852) (#853)
 
 - 2.10.0 (23.11.2026, https://github.com/LittleProxy/LittleProxy/milestone/54?closed=1)
   - #83 add optional shared server connection pool, pluggable via Java ServiceLoader (disabled by default; see `docs/pooling-features.md`) (#724) (#799) (#802) (#807) (#826) by Charles Lescot
