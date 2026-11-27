@@ -4,6 +4,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -14,6 +16,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -22,6 +25,7 @@ import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -45,32 +49,27 @@ final class MitmPerRequestPoolNewConnectionTest {
       new HttpHost("127.0.0.1", TestUtils.findLocalHttpsPort(webServer), "https");
 
   private final Queue<Integer> serverConnectionPorts = new ConcurrentLinkedQueue<>();
+  private final AtomicInteger clientConnections = new AtomicInteger();
 
-  private final HttpProxyServer proxyServer =
-      DefaultHttpProxyServer.bootstrap()
-          .withPort(0)
-          .withManInTheMiddle(new TestMitmManager())
-          .withSharedServerConnectionPool(true)
-          .withPoolSharedMitmConnections(true)
-          .withPoolPerRequestInMitm(true)
-          .plusActivityTracker(
-              new ActivityTrackerAdapter() {
-                @Override
-                public void serverConnected(
-                    FullFlowContext flowContext, InetSocketAddress serverAddress) {
-                  serverConnectionPorts.add(serverAddress.getPort());
-                }
-              })
-          .start();
+  /** The method of each request the chained proxy, if any, received. */
+  private final Queue<HttpMethod> requestsReceivedByChainedProxy = new ConcurrentLinkedQueue<>();
 
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+  @Nullable private HttpProxyServer chainedProxyServer;
+  @Nullable private HttpProxyServer proxyServer;
 
   @AfterEach
   void tearDown() throws Exception {
     releaseSlowRequest.countDown();
     executor.shutdownNow();
     try {
-      proxyServer.abort();
+      if (proxyServer != null) {
+        proxyServer.abort();
+      }
+      if (chainedProxyServer != null) {
+        chainedProxyServer.abort();
+      }
     } finally {
       webServer.stop();
     }
@@ -78,8 +77,69 @@ final class MitmPerRequestPoolNewConnectionTest {
 
   @Test
   void createsNewPooledConnectionOverTlsWhenNoneIsIdle() throws Exception {
-    try (CloseableHttpClient clientA = newClient();
-        CloseableHttpClient clientB = newClient()) {
+    HttpProxyServer proxy = startProxy(null);
+
+    assertThat(requestFromClientWithNothingIdleInPool(proxy))
+        .as("the new upstream connection must speak TLS to the CONNECT target")
+        .isEqualTo("Received 0 bytes\n");
+
+    assertThat(serverConnectionPorts)
+        .as("the second request from client B must have needed a new server connection")
+        .containsExactly(httpsTarget.getPort(), httpsTarget.getPort());
+  }
+
+  /**
+   * Through an HTTP chained proxy, the new connection can't reach the server over TLS without a
+   * {@code CONNECT}, so it fails, and the request falls back to a direct TLS connection without the
+   * client being disconnected.
+   */
+  @Test
+  void fallsBackToDirectTlsConnectionWhenHttpChainedProxyCannotCarryMitmdRequest()
+      throws Exception {
+    HttpProxyServer chainedProxy =
+        DefaultHttpProxyServer.bootstrap()
+            .withPort(0)
+            .plusActivityTracker(
+                new ActivityTrackerAdapter() {
+                  @Override
+                  public void requestReceivedFromClient(
+                      FlowContext flowContext, HttpRequest request) {
+                    requestsReceivedByChainedProxy.add(request.method());
+                  }
+                })
+            .start();
+    chainedProxyServer = chainedProxy;
+    HttpProxyServer proxy =
+        startProxy(
+            (httpRequest, chainedProxies, clientDetails) -> {
+              chainedProxies.add(
+                  new ChainedProxyAdapter() {
+                    @Override
+                    public InetSocketAddress getChainedProxyAddress() {
+                      return chainedProxy.getListenAddress();
+                    }
+                  });
+              chainedProxies.add(ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION);
+            });
+
+    assertThat(requestFromClientWithNothingIdleInPool(proxy))
+        .as("the request must fall back to a direct TLS connection to the CONNECT target")
+        .isEqualTo("Received 0 bytes\n");
+
+    assertThat(requestsReceivedByChainedProxy)
+        .as("the chained proxy must only ever see the CONNECTs, never a MITM'd request")
+        .containsOnly(HttpMethod.CONNECT);
+  }
+
+  /**
+   * Client B makes a request; then client A holds the only pooled connection to the target with a
+   * slow request while client B makes another one, which finds nothing idle in the pool.
+   *
+   * @return the body of client B's second response
+   */
+  private String requestFromClientWithNothingIdleInPool(HttpProxyServer proxy) throws Exception {
+    try (CloseableHttpClient clientA = newClient(proxy);
+        CloseableHttpClient clientB = newClient(proxy)) {
       // Client B MITMs the target; its connection goes back to the pool after each request.
       assertThat(get(clientB, "/fast")).isEqualTo("Received 0 bytes\n");
 
@@ -89,22 +149,48 @@ final class MitmPerRequestPoolNewConnectionTest {
       assertThat(slowRequestReceived.await(10, SECONDS)).isTrue();
 
       // Client B's next request on its MITM'd connection finds nothing idle in the pool.
-      assertThat(get(clientB, "/fast"))
-          .as("the new upstream connection must speak TLS to the CONNECT target")
-          .isEqualTo("Received 0 bytes\n");
+      String body = get(clientB, "/fast");
 
       releaseSlowRequest.countDown();
       assertThat(slow.get(10, SECONDS)).isEqualTo("Received 0 bytes\n");
+      assertThat(clientConnections.get())
+          .as("neither client may be disconnected (and silently reconnect) along the way")
+          .isEqualTo(2);
+      return body;
     }
-
-    assertThat(serverConnectionPorts)
-        .as("the second request from client B must have needed a new server connection")
-        .containsExactly(httpsTarget.getPort(), httpsTarget.getPort());
   }
 
-  private CloseableHttpClient newClient() {
-    return TestUtils.buildHttpClient(
-        true, true, proxyServer.getListenAddress().getPort(), null, null);
+  private HttpProxyServer startProxy(@Nullable ChainedProxyManager chainedProxyManager) {
+    HttpProxyServerBootstrap bootstrap =
+        DefaultHttpProxyServer.bootstrap()
+            .withPort(0)
+            .withManInTheMiddle(new TestMitmManager())
+            .withSharedServerConnectionPool(true)
+            .withPoolSharedMitmConnections(true)
+            .withPoolPerRequestInMitm(true)
+            .plusActivityTracker(
+                new ActivityTrackerAdapter() {
+                  @Override
+                  public void clientConnected(FlowContext flowContext) {
+                    clientConnections.incrementAndGet();
+                  }
+
+                  @Override
+                  public void serverConnected(
+                      FullFlowContext flowContext, InetSocketAddress serverAddress) {
+                    serverConnectionPorts.add(serverAddress.getPort());
+                  }
+                });
+    if (chainedProxyManager != null) {
+      bootstrap.withChainProxyManager(chainedProxyManager);
+    }
+    HttpProxyServer proxy = bootstrap.start();
+    proxyServer = proxy;
+    return proxy;
+  }
+
+  private static CloseableHttpClient newClient(HttpProxyServer proxy) {
+    return TestUtils.buildHttpClient(true, true, proxy.getListenAddress().getPort(), null, null);
   }
 
   private String get(CloseableHttpClient client, String path) throws IOException {
