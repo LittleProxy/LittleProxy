@@ -1041,8 +1041,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
       // Before serverDisconnected(): for MITM it closes the client, and the 502 must go out first.
       waitingClient.serverClosedBeforeResponseCompleted(this, responseStarted);
     }
+    // While connecting, the connection flow reports the failure to the client below (retry, or
+    // 502),
+    // and serverConnectionSucceeded() never ran, so there is no connected server to count down.
+    // Notifying here would disconnect a client that is already MITMing before the flow can do
+    // either (#866).
     ClientToProxyConnection clientConn = getClientConnection();
-    if (clientConn != null) {
+    if (clientConn != null && !wasConnecting) {
       clientConn.serverDisconnected(this);
     }
     if (wasConnecting) {

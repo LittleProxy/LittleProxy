@@ -60,6 +60,7 @@ import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
 import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.TransportProtocol;
+import org.mockito.ArgumentCaptor;
 
 final class ProxyToServerConnectionTest {
 
@@ -304,6 +305,38 @@ final class ProxyToServerConnectionTest {
 
     verify(throwingTracker).serverDisconnected(fullFlowContext, hostAddress);
     verify(clientConnection).clearFlowContextForServerConnection(connection);
+  }
+
+  @Test
+  @DisplayName(
+      "an upstream close while connecting leaves the client to the connection flow, so a MITMing"
+          + " client survives the retry or gets its 502")
+  void disconnectedWhileConnectingDoesNotNotifyClient() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.CONNECTING);
+    ConnectionFlow flow = mock();
+    connection.setConnectionFlow(flow);
+    when(clientConnection.isMitming()).thenReturn(true);
+
+    connection.disconnected();
+
+    verify(clientConnection, never()).serverDisconnected(connection);
+    ArgumentCaptor<Throwable> cause = ArgumentCaptor.forClass(Throwable.class);
+    verify(flow).fail(cause.capture());
+    assertThat(cause.getValue())
+        .isInstanceOf(IOException.class)
+        .hasMessage("Upstream connection closed before it was established");
+  }
+
+  @Test
+  @DisplayName("an upstream close after connecting notifies the client")
+  void disconnectedAfterConnectingNotifiesClient() throws Exception {
+    ProxyToServerConnection connection = createConnection();
+    connection.become(ConnectionState.AWAITING_INITIAL);
+
+    connection.disconnected();
+
+    verify(clientConnection).serverDisconnected(connection);
   }
 
   @Test
