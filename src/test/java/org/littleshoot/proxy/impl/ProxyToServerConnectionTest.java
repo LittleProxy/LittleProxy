@@ -43,6 +43,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLProtocolException;
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -57,6 +58,7 @@ import org.littleshoot.proxy.FlowContext;
 import org.littleshoot.proxy.FullFlowContext;
 import org.littleshoot.proxy.HostResolver;
 import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.MitmManager;
 import org.littleshoot.proxy.TransportProtocol;
 
 final class ProxyToServerConnectionTest {
@@ -730,5 +732,91 @@ final class ProxyToServerConnectionTest {
       SSLHandshakeException cause = new SSLHandshakeException("certificate expired");
       assertThat(connection.shouldRetryWithoutSsl(cause)).isFalse();
     }
+
+    @Test
+    @DisplayName(
+        "should return false for a connection carrying requests sent inside a MITM'd CONNECT")
+    void returnsFalse_forMitmdRequest() throws Exception {
+      ProxyToServerConnection connection = createConnectionForMitmdRequest();
+
+      assertThat(connection.shouldRetryWithoutSsl(new SSLException("end of file"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("should still return true for the CONNECT of a MITMing client")
+    void returnsTrue_forConnectOfMitmingClient() throws Exception {
+      ProxyToServerConnection connection = createConnectionForMitmdRequest();
+      connection.setInitialRequest(
+          new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.CONNECT, "localhost:8080"));
+
+      assertThat(connection.shouldRetryWithoutSsl(new SSLException("end of file"))).isTrue();
+    }
+  }
+
+  @Nested
+  @DisplayName("a new connection for a request sent inside a MITM'd CONNECT (#866)")
+  class MitmdRequestConnectionFlow {
+    @Test
+    @DisplayName("talks TLS to the server as the MITM")
+    void encryptsToServer() throws Exception {
+      ProxyToServerConnection connection = createConnectionForMitmdRequest();
+
+      connection.initializeConnectionFlow();
+
+      assertThat(connection.isMitmEncrypted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("does not talk TLS to the server when the client isn't MITMing")
+    void doesNotEncryptPlainRequest() throws Exception {
+      ProxyToServerConnection connection = createConnectionForMitmdRequest();
+      when(clientConnection.isMitming()).thenReturn(false);
+
+      connection.initializeConnectionFlow();
+
+      assertThat(connection.isMitmEncrypted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("is not set up to send the request in cleartext through an HTTP chained proxy")
+    void doesNotEncryptThroughHttpChainedProxy() throws Exception {
+      ChainedProxyManager manager = mock();
+      when(proxyServer.getChainProxyManager()).thenReturn(manager);
+      ChainedProxy chainedProxy = mock();
+      when(chainedProxy.getTransportProtocol()).thenReturn(TransportProtocol.TCP);
+      when(chainedProxy.getChainedProxyType()).thenReturn(ChainedProxyType.HTTP);
+      when(chainedProxy.getChainedProxyAddress()).thenReturn(proxyAddress);
+      ProxyToServerConnection connection = createConnectionForMitmdRequest(chainedProxy);
+
+      connection.initializeConnectionFlow();
+
+      assertThat(connection.isMitmEncrypted()).isFalse();
+    }
+  }
+
+  private ProxyToServerConnection createConnectionForMitmdRequest() throws Exception {
+    return createConnectionForMitmdRequest(null);
+  }
+
+  private ProxyToServerConnection createConnectionForMitmdRequest(
+      @Nullable ChainedProxy chainedProxy) throws Exception {
+    MitmManager mitmManager = mock();
+    when(mitmManager.serverSslEngine("localhost", 8080)).thenReturn(mock(SSLEngine.class));
+    when(proxyServer.getMitmManager()).thenReturn(mitmManager);
+    when(proxyServer.getActivityTrackers()).thenReturn(List.of());
+    when(clientConnection.isMitming()).thenReturn(true);
+    ProxyToServerConnection connection =
+        requireNonNull(
+            ProxyToServerConnection.createForPool(
+                proxyServer,
+                mock(ServerConnectionPool.class),
+                clientConnection,
+                "localhost:8080",
+                chainedProxy,
+                filters,
+                new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+                trafficHandler));
+    connection.setInitialRequest(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
+    return connection;
   }
 }

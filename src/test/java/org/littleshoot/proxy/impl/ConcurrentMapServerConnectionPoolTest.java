@@ -21,6 +21,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -343,6 +344,64 @@ class ConcurrentMapServerConnectionPoolTest {
         pool.getOrCreateConnection("example.com:80", null, mockClientConnection, filters, request);
 
     assertThat(result).isSameAs(conn);
+  }
+
+  @Test
+  @DisplayName("a MITM'd request borrows a connection that talks TLS to the server as the MITM")
+  void mitmdRequestBorrowsMitmEncryptedConnection() throws Exception {
+    ProxyToServerConnection mitmConn = createMockConnection(true, true);
+    when(mitmConn.isMitmEncrypted()).thenReturn(true);
+    registerInPool(mitmConn, "example.com:443:direct");
+    pool.releaseConnection(mitmConn);
+    when(mockClientConnection.isMitming()).thenReturn(true);
+
+    assertThat(borrow("example.com:443", HttpMethod.GET, "/")).isSameAs(mitmConn);
+  }
+
+  @Test
+  @DisplayName("a MITM'd request never borrows a plain connection, even to the same host and port")
+  void mitmdRequestDoesNotBorrowPlainConnection() throws Exception {
+    ProxyToServerConnection plainConn = createMockConnection(true, true);
+    registerInPool(plainConn, "example.com:443:direct");
+    pool.releaseConnection(plainConn);
+    when(mockClientConnection.isMitming()).thenReturn(true);
+
+    ProxyToServerConnection result = borrow("example.com:443", HttpMethod.GET, "/");
+
+    assertThat(result).isNotNull().isNotSameAs(plainConn);
+    Queue<?> queue =
+        ((java.util.Map<String, Queue<?>>) getField(pool, "availableConnectionsByHostAndPort"))
+            .get("example.com:443:direct");
+    assertThat(queue).as("the plain connection stays available").hasSize(1);
+  }
+
+  @Test
+  @DisplayName("a plain request never borrows a connection set up for MITM'd requests")
+  void plainRequestDoesNotBorrowMitmEncryptedConnection() throws Exception {
+    ProxyToServerConnection mitmConn = createMockConnection(true, true);
+    when(mitmConn.isMitmEncrypted()).thenReturn(true);
+    registerInPool(mitmConn, "example.com:443:direct");
+    pool.releaseConnection(mitmConn);
+
+    ProxyToServerConnection result =
+        borrow("example.com:443", HttpMethod.GET, "http://example.com:443/");
+
+    assertThat(result).isNotNull().isNotSameAs(mitmConn);
+  }
+
+  private @Nullable ProxyToServerConnection borrow(
+      String serverHostAndPort, HttpMethod method, String uri) {
+    HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, method, uri);
+    HttpFilters filters =
+        new HttpFiltersAdapter(request) {
+          @Override
+          public InetSocketAddress proxyToServerResolutionStarted(
+              String resolvingServerHostAndPort) {
+            return null;
+          }
+        };
+    return pool.getOrCreateConnection(
+        serverHostAndPort, null, mockClientConnection, filters, request);
   }
 
   @Test
