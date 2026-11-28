@@ -1,5 +1,8 @@
 # Release Notes
 
+- 2.12.0 (TBD, https://github.com/LittleProxy/LittleProxy/milestone/56?closed=1)
+  - TBD
+
 - 2.11.0 (28.11.2026, https://github.com/LittleProxy/LittleProxy/milestone/55?closed=1)
   - #827 don't block the Netty event loop while an upstream connection is being established; buffer writes until the connection is ready (#832)
   - #854 respond 502 (or close the client connection, if the response was already under way) when the upstream server closes the connection before the response is complete, instead of leaving the client waiting forever (#855)
